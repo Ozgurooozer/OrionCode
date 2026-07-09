@@ -44,8 +44,13 @@ GELISTIRME-PLANI.md'deki 6 v4 maddesi + 3 bakım işi bitirildi:
 ### 6. Vault graf görünümü — `vault.rebuildGraph()`
 - `C:\vault\graph.html`: oturum–etiket kuvvet grafiği (tek dosya, bağımlılıksız canvas), index.html'den bağlantılı, `/vault graf`.
 
+### 7. Diff motoru — `core/diff.js` (pi tarzı kodlama ergonomisi)
+- Satır tabanlı LCS diff (sıfır bağımlılık); ortak baş/son kırpma ile 5000 satırlık dosyada <500ms.
+- `write_file`/`edit_file` artık **terminale renkli unified diff** basar ve **modele \`\`\`diff bloğu** döndürür (+eklenen −silinen istatistiğiyle) — model ne değiştirdiğini görür.
+- `/diff <dosya>` → son checkpoint'e karşı fark (+ geri alma ipucu); `/diff <a> <b>` → iki dosya; `/diff` → son değişen dosya.
+
 ### Bakım
-- **Test altyapısı:** `tests/` — 34 test (`npm test`, node:test): budget, router, tools, checkpoint, diagnostics, openai-compat, plugins, vault. `ORION_HOME` env ile tüm config yolları izole edilebilir.
+- **Test altyapısı:** `tests/` — 41 test (`npm test`, node:test): budget, router, tools, checkpoint, diagnostics, diff, openai-compat, plugins, vault. `ORION_HOME` env ile tüm config yolları izole edilebilir.
 - **Git repo:** `git init` + `.gitignore` (credentials.json commit edilemez — `git check-ignore` doğrulandı).
 - **Temizlik:** `orion-cli.js` (v1) ve `core/llm.js` (ölü kod) → `attic/`.
 

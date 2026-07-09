@@ -75,4 +75,23 @@ function restore(id) {
   }
 }
 
-module.exports = { snapshot, list, restore, DIR };
+// Bir dosyanın en son snapshot kaydı (yoksa null)
+function lastFor(filePath) {
+  const abs = path.resolve(filePath);
+  const index = _readIndex();
+  for (let i = index.length - 1; i >= 0; i--) {
+    if (index[i].file === abs) return index[i];
+  }
+  return null;
+}
+
+// Snapshot içeriğini oku — dosya yeni oluşturulmuşsa "" döner
+function readSnapshot(id) {
+  const entry = _readIndex().find(e => e.id === id);
+  if (!entry) return null;
+  if (!entry.existed) return "";
+  try { return fs.readFileSync(path.join(DIR, `${entry.id}.bak`), "utf8"); }
+  catch { return null; }
+}
+
+module.exports = { snapshot, list, restore, lastFor, readSnapshot, DIR };

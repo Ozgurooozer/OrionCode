@@ -195,6 +195,21 @@ const print = {
     const s = String(text).slice(0, 120).replace(/\n/g, " ");
     process.stderr.write(`  ${C.muted("↳ " + s)}\n`);
   },
+
+  // Renkli unified diff — dosya değişikliklerinde gösterilir (pi tarzı)
+  diff: (diffStr, { maxLines = 40 } = {}) => {
+    if (!diffStr) return;
+    const lines = diffStr.split("\n");
+    const shown = lines.slice(0, maxLines);
+    for (const l of shown) {
+      if (l.startsWith("+"))       process.stderr.write(`  ${T.ok}${l}${RESET}\n`);
+      else if (l.startsWith("-"))  process.stderr.write(`  ${T.err}${l}${RESET}\n`);
+      else if (l.startsWith("@@")) process.stderr.write(`  ${T.accent}${l}${RESET}\n`);
+      else                         process.stderr.write(`  ${T.muted}${l}${RESET}\n`);
+    }
+    if (lines.length > maxLines)
+      process.stderr.write(`  ${C.muted(`… +${lines.length - maxLines} satır daha`)}\n`);
+  },
   error:  text => console.error(`${T.err}✗${RESET} ${text}`),
   warn:   text => console.error(`${T.warn}!${RESET} ${text}`),
   info:   text => console.log(C.muted(text)),

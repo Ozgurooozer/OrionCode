@@ -4,6 +4,19 @@ const path = require("path");
 const { execSync } = require("child_process");
 const checkpoint  = require("../core/checkpoint.js");
 const diagnostics = require("../core/diagnostics.js");
+const diff        = require("../core/diff.js");
+const { print }   = require("../tui/index.js");
+
+// Değişikliği terminale renkli bas + modele kısa diff döndür (pi tarzı)
+function _diffReport(oldContent, newContent) {
+  const d = diff.diffText(oldContent, newContent);
+  if (!d) return { note: " (değişiklik yok)", body: "" };
+  print.diff(d);
+  const s = diff.diffStat(oldContent, newContent);
+  const lines = d.split("\n");
+  const short = lines.slice(0, 30).join("\n") + (lines.length > 30 ? `\n… +${lines.length - 30} satır` : "");
+  return { note: ` (+${s.added} −${s.removed})`, body: `\n\`\`\`diff\n${short}\n\`\`\`` };
+}
 
 // Yazım sonrası teşhis — hata varsa araç sonucuna eklenir (model aynı turda düzeltir)
 function _diagSuffix(abs) {
@@ -98,11 +111,18 @@ function execute(name, input) {
 
     case "write_file": {
       const abs = path.resolve(input.path);
+      const existed = fs.existsSync(abs) && fs.statSync(abs).isFile();
+      const old = existed ? fs.readFileSync(abs, "utf8") : null;
       const cp = checkpoint.snapshot(abs, "write_file");
       fs.mkdirSync(path.dirname(abs), { recursive: true });
       fs.writeFileSync(abs, input.content, "utf8");
       const cpNote = cp ? ` [checkpoint ${cp}]` : "";
-      return `Yazıldı: ${input.path} (${input.content.length} karakter)${cpNote}${_diagSuffix(abs)}`;
+      if (old === null) {
+        const n = input.content.split("\n").length;
+        return `Yazıldı: ${input.path} (yeni dosya, ${n} satır)${cpNote}${_diagSuffix(abs)}`;
+      }
+      const r = _diffReport(old, input.content);
+      return `Yazıldı: ${input.path}${r.note}${cpNote}${_diagSuffix(abs)}${r.body}`;
     }
 
     case "edit_file": {
@@ -113,9 +133,11 @@ function execute(name, input) {
       if (count === 0) return `HATA: old_str bulunamadı dosyada.`;
       if (count > 1)   return `HATA: old_str ${count} kez geçiyor — benzersiz değil.`;
       const cp = checkpoint.snapshot(abs, "edit_file");
-      fs.writeFileSync(abs, content.replace(input.old_str, input.new_str), "utf8");
+      const updated = content.replace(input.old_str, input.new_str);
+      fs.writeFileSync(abs, updated, "utf8");
       const cpNote = cp ? ` [checkpoint ${cp}]` : "";
-      return `Düzenlendi: ${input.path}${cpNote}${_diagSuffix(abs)}`;
+      const r = _diffReport(content, updated);
+      return `Düzenlendi: ${input.path}${r.note}${cpNote}${_diagSuffix(abs)}${r.body}`;
     }
 
     case "list_files": {

@@ -15,7 +15,7 @@ function register(cmds) {
 [
   "./temel", "./model", "./mod", "./oturum", "./tree",
   "./hafiza", "./vault", "./router", "./budget", "./checkpoint",
-  "./arac", "./ayar", "./mcp", "./saglayici", "./plugin",
+  "./arac", "./ayar", "./mcp", "./saglayici", "./plugin", "./diff",
   "./language", "./yardim",
 ].forEach(m => register(require(m)));
 
