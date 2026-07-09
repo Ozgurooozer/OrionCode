@@ -1,0 +1,94 @@
+// core/router.js — Tier routing: yerel (Ollama) vs cloud (Anthropic/OpenRouter)
+"use strict";
+
+const fs   = require("fs");
+const path = require("path");
+const os   = require("os");
+
+const HOME        = process.env.ORION_HOME || os.homedir(); // test için geçersiz kılınabilir
+const CONFIG_FILE = path.join(HOME, ".orion", "config.json");
+
+const DEFAULTS = {
+  budgetMode:               "balanced",
+  sessionBudgetUSD:         1.0,
+  tier1Model:               "qwen2.5-coder:7b",
+  tier2Backend:             "anthropic",
+  tier2Model:               "claude-sonnet-4-6",
+  complexityTokenThreshold: 800,
+  vaultDir:                 "C:\\vault",
+  language:                 "en",
+};
+
+// 5sn config cache
+let _cfgCache = { data: null, ts: 0 };
+
+function loadConfig() {
+  if (_cfgCache.data && Date.now() - _cfgCache.ts < 5_000) return _cfgCache.data;
+  let disk = {};
+  try { disk = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")); } catch {}
+  const cfg = { ...DEFAULTS, ...disk };
+  _cfgCache = { data: cfg, ts: Date.now() };
+  return cfg;
+}
+
+function saveConfig(partial) {
+  const dir = path.dirname(CONFIG_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  let existing = {};
+  try { existing = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")); } catch {}
+  const merged = { ...existing, ...partial };
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2));
+  _cfgCache = { data: null, ts: 0 }; // invalidate
+}
+
+// Karmaşıklık puanı: pozitif = cloud gerekir, negatif = yerel yeterli
+const COMPLEX_WORDS = /\b(debug|architect|refactor|implement|fix|bug|test|security|optimize|analyze|design|review|performance|migrate|integrate)\b/gi;
+const SIMPLE_WORDS  = /\b(summarize|extract|list|format|classify|translate|convert|rename|count)\b/gi;
+
+function complexityScore(text) {
+  const complex = (text.match(COMPLEX_WORDS) || []).length;
+  const simple  = (text.match(SIMPLE_WORDS)  || []).length;
+  return complex - simple;
+}
+
+function decide(text, { tokenCount = 0, mode = "agent", budgetTracker = null } = {}) {
+  const cfg = loadConfig();
+
+  const tier1 = { backend: "ollama",        model: cfg.tier1Model,   tier: 1 };
+  const tier2 = { backend: cfg.tier2Backend, model: cfg.tier2Model,  tier: 2 };
+
+  // Quality: budget dolmadıysa tier2, dolduysa tier1
+  if (cfg.budgetMode === "quality") {
+    if (budgetTracker?.isExceeded?.()) {
+      return { ...tier1, reason: "quality mode — budget exceeded" };
+    }
+    return { ...tier2, reason: "quality mode" };
+  }
+
+  // Aggressive: büyük context haricinde tier1
+  if (cfg.budgetMode === "aggressive") {
+    if (tokenCount > 4000) return { ...tier2, reason: "large context" };
+    return { ...tier1, reason: "aggressive mode" };
+  }
+
+  // Balanced (default)
+  if (mode === "chat") {
+    return { ...tier1, reason: "chat mode" };
+  }
+
+  if (budgetTracker?.isExceeded?.()) {
+    return { ...tier1, reason: "budget exceeded" };
+  }
+
+  if (tokenCount > cfg.complexityTokenThreshold) {
+    return { ...tier2, reason: `token count ${tokenCount} > ${cfg.complexityTokenThreshold}` };
+  }
+
+  if (complexityScore(text) >= 2) {
+    return { ...tier2, reason: "complex task keywords" };
+  }
+
+  return { ...tier1, reason: "balanced default" };
+}
+
+module.exports = { loadConfig, saveConfig, decide, DEFAULTS };

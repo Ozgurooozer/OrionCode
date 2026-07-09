@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "orion": {
+      "command": "node",
+      "args": [
+        "orion-mcp.js"
+      ]
+    }
+  }
+}

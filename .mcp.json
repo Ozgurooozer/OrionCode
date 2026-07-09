@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "orion": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "C:\\Users\\ozigo\\Documents\\molp\\orion-mcp.js"
+      ],
+      "env": {}
+    }
+  }
+}

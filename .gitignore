@@ -1,0 +1,12 @@
+# Kimlik bilgileri — ASLA commit edilmez
+credentials.json
+
+# Bağımlılıklar
+node_modules/
+
+# Çalışma zamanı çıktıları
+logs/
+*.log
+
+# Claude Code yerel config
+.claude/
