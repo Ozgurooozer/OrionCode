@@ -18,8 +18,8 @@ if (isMainThread) {
 
   function startDaemon(opts = {}) {
     if (_worker) return emitter;
-    const sessionsDir = opts.sessionsDir ?? path.join(os.homedir(), ".orion", "sessions");
-    const vaultDir    = opts.vaultDir    ?? "C:\\vault";
+    const sessionsDir = opts.sessionsDir ?? require("./persist.js").SESSIONS_DIR;
+    const vaultDir    = opts.vaultDir    ?? require("./vault.js").getVaultDir();
 
     try {
       _worker = new Worker(__filename, {

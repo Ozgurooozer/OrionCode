@@ -7,7 +7,7 @@ const os   = require("os");
 const { createProvider } = require("./openai-compat.js");
 const i18n = require("../core/i18n.js");
 
-const FILE = path.join(os.homedir(), ".orion", "providers.json");
+const FILE = path.join(process.env.ORION_HOME || os.homedir(), ".orion", "providers.json");
 
 // Bilinen servisler — sadece anahtar ekleyerek bağlan
 const PRESETS = {

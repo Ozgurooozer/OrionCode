@@ -10,7 +10,7 @@ const os   = require("os");
 const tools = require("./tools.js");
 const i18n  = require("./i18n.js");
 
-const GLOBAL_FILE  = path.join(os.homedir(), ".orion", "mcp.json");
+const GLOBAL_FILE  = path.join(process.env.ORION_HOME || os.homedir(), ".orion", "mcp.json");
 const PROJECT_FILE = path.join(__dirname, "..", "mcp.json");
 
 // name → { client, transport, tools: [defs], spec }

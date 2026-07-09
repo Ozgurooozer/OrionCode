@@ -1,7 +1,7 @@
 # Orion Aethelred — Proje Durum Raporu
 
-**Tarih:** 2026-07-08  
-**Sürüm:** v3 (5-faz tamamlandı, üretim öncesi)  
+**Tarih:** 2026-07-09  
+**Sürüm:** v4 (yol haritası tamamlandı + tam kod incelemesi)  
 **Platform:** Moltbook — `orion_aethelred`  
 **Sahip:** Ozyn
 
@@ -12,6 +12,52 @@
 Orion, bir CLI kodlama ajanı. Ön yüzü `orion.js`, arka yüzü birden fazla AI sağlayıcısına bağlanabilen katmanlı bir çekirdek. Aynı dizinde çalışan bir MCP sunucusu (`orion-mcp.js`) sayesinde Claude Code oturumlarıyla da entegre oluyor.
 
 Temel fikir: **API modeli konuşur, yerel 7B model arka planda not alır.** Konuşmalar otomatik olarak `C:\vault`'a HTML olarak kaydediliyor, anlamsal aramayla geri çağrılıyor.
+
+---
+
+## v4 — Yol Haritası Tamamlandı (2026-07-09, bu oturum)
+
+GELISTIRME-PLANI.md'deki 6 v4 maddesi + 3 bakım işi bitirildi:
+
+### 1. Git checkpoint — `core/checkpoint.js`
+- `write_file`/`edit_file` dosyaya dokunmadan önce otomatik snapshot (`~/.orion/checkpoints`, en fazla 200, 2MB üstü atlanır).
+- `/checkpoint` → liste; `/checkpoint geri <id>` → dosyayı geri al (yeni oluşturulmuşsa siler).
+- Snapshot hatası yazımı asla engellemez.
+
+### 2. Oturum ağacı — `/dal` + `/tree`
+- `session.fork(etiket)`: geçmiş kopyalanır, parent işaretçisi kaydedilir, iki dal bağımsız ilerler.
+- `/tree`: pi tarzı dallanma görünümü, aktif dal `← buradasın` ile işaretli.
+- `/yukle <id>` artık oturum kimliğini de devralır (kopya oturum sorunu düzeltildi).
+
+### 3. Plugin manifest — `core/plugins.js`
+- `~/.orion/plugins/<ad>/orion-plugin.json` → üç yüzey: araçlar (`DEFS`+`execute`), komutlar, provider'lar (openai-compat spec).
+- Bozuk plugin diğerlerini düşürmez. `/plugin`, `/plugin yenile`.
+
+### 4. Client/server ayrımı — `orion-server.js`
+- `node orion-server.js [--port]`: `GET /health`, `GET /status`, `GET /sessions`, `POST /chat`.
+- Sadece 127.0.0.1; Bearer token (`~/.orion/server-token`, timing-safe karşılaştırma); `run_command` sunucuda kapalı.
+- Uçtan uca doğrulandı: yerel model HTTP üzerinden cevap verdi.
+
+### 5. Teşhis katmanı — `core/diagnostics.js` (LSP-hafif)
+- Yazım/düzenleme sonrası `.js` → `node --check`, `.json` → parse; hata araç sonucuna `⚠ Teşhis:` olarak eklenir → model aynı turda düzeltir.
+
+### 6. Vault graf görünümü — `vault.rebuildGraph()`
+- `C:\vault\graph.html`: oturum–etiket kuvvet grafiği (tek dosya, bağımlılıksız canvas), index.html'den bağlantılı, `/vault graf`.
+
+### Bakım
+- **Test altyapısı:** `tests/` — 34 test (`npm test`, node:test): budget, router, tools, checkpoint, diagnostics, openai-compat, plugins, vault. `ORION_HOME` env ile tüm config yolları izole edilebilir.
+- **Git repo:** `git init` + `.gitignore` (credentials.json commit edilemez — `git check-ignore` doğrulandı).
+- **Temizlik:** `orion-cli.js` (v1) ve `core/llm.js` (ölü kod) → `attic/`.
+
+### Kod incelemesinde bulunan ve düzeltilen hatalar
+1. `budget.estimateCost("")` boş model adını en pahalı modele eşliyordu (`k.includes("")` her zaman true).
+2. `coordinator._callModel` BYOK/openai backend'lerde yanlışlıkla Anthropic'e düşüyordu — artık generic `backends.get().chat`.
+3. `daemon.startDaemon` vault dizinini config yerine sabit `C:\vault`'tan alıyordu.
+4. `openai.js` `OPENAI_BASE_URL` zaten `/v1` ile bitiyorsa `/v1/v1` üretiyordu.
+5. `huggingface.js` emekli `api-inference` ucundaydı → `router.huggingface.co/v1`.
+6. `fs.js list_files` glob→regex dönüşümü bozuktu (ilk `*`, kaçışsız nokta) → düzgün glob.
+7. **Güvenlik:** `moltbook_feed` çıktısı artık `[DIŞ VERİ]` etiketli; `moltbook_post` kod düzeyinde interaktif EVET onayı istiyor (yalnızca açıklamada yazıyordu).
+8. `vault.getVaultDir`/`extract.js` config okuması `router.loadConfig()`'te tekilleşti (cache + ORION_HOME desteği).
 
 ---
 

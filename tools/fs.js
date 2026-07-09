@@ -11,6 +11,12 @@ function _diagSuffix(abs) {
   return diag ? `\n⚠ Teşhis: ${diag}` : "";
 }
 
+// Glob → regex: tüm * joker olur, diğer özel karakterler kaçışlanır
+function _globToRe(glob) {
+  const esc = glob.replace(/[.+^${}()|[\]\\?]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${esc}$`, "i");
+}
+
 const DEFS = [
   {
     name: "read_file",
@@ -121,7 +127,7 @@ function execute(name, input) {
           const rel = path.relative(process.cwd(), path.join(d, e.name));
           if (e.isDirectory() && !e.name.startsWith(".") && e.name !== "node_modules")
             return [rel + "/", ...walk(path.join(d, e.name), depth + 1)];
-          if (!input.pattern || new RegExp(input.pattern.replace("*",".*")).test(e.name))
+          if (!input.pattern || _globToRe(input.pattern).test(e.name))
             return [rel];
           return [];
         });

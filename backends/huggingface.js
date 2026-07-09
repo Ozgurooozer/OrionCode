@@ -5,7 +5,7 @@ const { createProvider } = require("./openai-compat.js");
 
 const provider = createProvider({
   name:         "huggingface",
-  host:         "api-inference.huggingface.co",
+  host:         "router.huggingface.co", // OpenAI-uyumlu uç (api-inference emekli)
   basePath:     "/v1",
   keyEnvs:      ["HF_TOKEN", "HUGGINGFACE_API_KEY"],
   defaultModel: "meta-llama/Meta-Llama-3-8B-Instruct",

@@ -35,18 +35,16 @@ Synthesize the results into a short, clear summary.`;
 // Backend-agnostik tek tur çağrı (araç yok, sadece metin)
 async function _callModel(session, userContent) {
   const msgs = [{ role: "user", content: userContent }];
-  if (session.backend === "openrouter") {
-    const or = require("../backends/openrouter.js");
-    return await or.chat(session.model, msgs, { system: null });
+  if (session.backend === "anthropic") {
+    const anthropic = require("../backends/anthropic.js");
+    const resp = await anthropic.chat(session.model, msgs, "", [], {});
+    return resp.content.filter(b => b.type === "text").map(b => b.text).join("");
   }
-  if (session.backend === "ollama") {
-    const ollama = require("../backends/ollama.js");
-    return await ollama.chat(session.model, msgs, { stream: false });
-  }
-  // anthropic + diğerleri
-  const anthropic = require("../backends/anthropic.js");
-  const resp = await anthropic.chat(session.model, msgs, "", [], {});
-  return resp.content.filter(b => b.type === "text").map(b => b.text).join("");
+  // ollama + openrouter + openai + BYOK: hepsi chat(model, msgs, opts) imzası
+  const backends = require("../backends/index.js");
+  const p = backends.get(session.backend);
+  if (!p?.chat) throw new Error(`Backend chat desteklemiyor: ${session.backend}`);
+  return await p.chat(session.model, msgs, { stream: false });
 }
 
 async function plan(task, session) {

@@ -5,7 +5,7 @@ const fs   = require("fs");
 const path = require("path");
 const os   = require("os");
 
-const LOGS_DIR = path.join(os.homedir(), ".orion", "logs");
+const LOGS_DIR = path.join(process.env.ORION_HOME || os.homedir(), ".orion", "logs");
 
 function ensureDir() {
   if (!fs.existsSync(LOGS_DIR)) fs.mkdirSync(LOGS_DIR, { recursive: true });

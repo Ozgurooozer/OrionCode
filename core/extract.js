@@ -1,12 +1,8 @@
 // core/extract.js — Konuşmadan bilgi çıkarım: daemon.js ve orion-mcp.js tarafından paylaşılır
 "use strict";
 
-const fs   = require("fs");
-const path = require("path");
-const os   = require("os");
-
 function _loadConfig() {
-  try { return JSON.parse(fs.readFileSync(path.join(os.homedir(), ".orion", "config.json"), "utf8")); }
+  try { return require("./router.js").loadConfig(); }
   catch { return {}; }
 }
 

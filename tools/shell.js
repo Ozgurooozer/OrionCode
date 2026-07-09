@@ -71,4 +71,4 @@ async function execute(name, input) {
   }
 }
 
-module.exports = { DEFS, execute };
+module.exports = { DEFS, execute, readLine };

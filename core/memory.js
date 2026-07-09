@@ -9,8 +9,9 @@ const crypto = require("crypto");
 // Mutex: eşzamanlı add() çağrılarında TOCTOU yarışını önler
 let _addLock = Promise.resolve();
 
-const MEMORY_FILE  = path.join(os.homedir(), ".orion", "memory.json");
-const VECTORS_FILE = path.join(os.homedir(), ".orion", "memory-vectors.json");
+const HOME         = process.env.ORION_HOME || os.homedir();
+const MEMORY_FILE  = path.join(HOME, ".orion", "memory.json");
+const VECTORS_FILE = path.join(HOME, ".orion", "memory-vectors.json");
 const EXTRACT_EVERY = 5;
 const DEDUP_THRESHOLD = 0.92; // cosine sim eşiği
 
