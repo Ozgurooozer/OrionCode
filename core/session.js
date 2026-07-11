@@ -41,9 +41,7 @@ function _toolCallError(out) {
 }
 
 function _cleanResponse(text) {
-  text = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
-  text = text.replace(/<think>[\s\S]*/gi, "");
-  text = text.replace(/^\s*<\/think>\s*/i, "");
+  text = require("./extract.js").stripThinking(text);
   text = text.replace(/<<<TOOL>>>[\s\S]*?<<<END>>>/g, "");
   text = text.replace(/<<<TOOL>>>[\s\S]*/g, "");
   text = text.replace(/<<<RESULT>>>[\s\S]*?<<<END>>>/g, "");

@@ -74,7 +74,10 @@ class SpeculativeCache {
 
 // Ollama prediction → araç çağrıları JSON listesi beklentisi.
 // Dönen format: [{ name: "tool_name", input: {...} }, ...]
-async function _predictToolCalls(userMessage, ollamaHost, model) {
+// ollamaRequest (extract.js) kullanılır: model yerelde kurulu değilse otomatik
+// kurulu modele düşer, Ollama hatası sessizce yutulmaz — İş A'da bulunan aynı
+// sessiz-başarısızlık deseni burada da vardı (kendi ham fetch'i vardı).
+async function _predictToolCalls(userMessage, model) {
   try {
     const prompt = `Bir AI asistanı kullanıcının şu mesajı için muhtemelen hangi SALT-OKUNUR araçları çağırır?
 Yalnızca şunlardan seç: read_file, list_files, search, vault_search, memory_read
@@ -86,20 +89,14 @@ SADECE JSON dizisi döndür, başka hiçbir şey yok. Örnek:
 
 Araç gerekmiyorsa boş dizi: []`;
 
-    const res = await fetch(`${ollamaHost}/api/chat`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        model,
-        messages: [{ role: "user", content: prompt }],
-        stream:   false,
-        options:  { temperature: 0.0, num_predict: 200 },
-      }),
-      signal: AbortSignal.timeout(8_000),
-    });
-    const data = await res.json();
-    const raw = (data.message?.content ?? "").trim();
-    const clean = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    const { ollamaRequest, stripThinking } = require("./extract.js");
+    // 25sn: tier2 bulut yanıtını beklerken çalışır, yerel "thinking" modelleri
+    // (vibethinker vb.) JSON'dan önce uzun <think> bloğu üretiyor — bu donanımda
+    // ölçülen gerçek süre 14-20sn arası yüksek varyansla değişiyor, pay bırakıldı.
+    // Not: tier2 (bulut) genelde bundan hızlı cevap verebilir — bu durumda prefetch
+    // boşa gitmiş olur ama zararsızdır (fire-and-forget, tool_call yine normal çalışır).
+    const raw = await ollamaRequest(model, prompt, { timeout: 25_000 });
+    const clean = stripThinking(raw).replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
     const parsed = JSON.parse(clean);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(c => c && typeof c.name === "string" && SAFE_TOOLS.has(c.name));
@@ -129,7 +126,7 @@ async function startPrefetch(cache, userMessage, cfg, sessionId, telemetry) {
     if (!ping.ok) return;
   } catch { return; }
 
-  const predictions = await _predictToolCalls(userMessage, ollamaHost, model);
+  const predictions = await _predictToolCalls(userMessage, model);
   if (!predictions.length) return;
 
   // Yalnızca güvenli araçları önceden çalıştır

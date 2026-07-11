@@ -6,6 +6,17 @@ function _loadConfig() {
   catch { return {}; }
 }
 
+// "Thinking" modelleri (vibethinker, deepseek-r1 vb.) yanıttan önce <think>...</think>
+// akıl yürütme bloğu üretir — JSON/format bekleyen çağırıcılar bunu temizlemeli.
+// session.js'in _cleanResponse'u ile aynı desen — tek yerden paylaşılır.
+function stripThinking(text) {
+  text = String(text ?? "");
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  text = text.replace(/<think>[\s\S]*/gi, "");
+  text = text.replace(/^\s*<\/think>\s*/i, "");
+  return text.trim();
+}
+
 // session.messages → düz metin: string içerik + content array'ler (thinking + tool_use dahil)
 // includeTool=true → episodic köprü: araç çağrıları ve sonuçları extraction'a girer
 // includeThinking=true → thinking blokları da dahil edilir (high memoryEffort için)
@@ -128,4 +139,4 @@ async function extractWithOllama(conversationText) {
   };
 }
 
-module.exports = { extractWithOllama, buildExtractionPrompt, ollamaRequest, flattenMessages };
+module.exports = { extractWithOllama, buildExtractionPrompt, ollamaRequest, flattenMessages, stripThinking };

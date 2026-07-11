@@ -185,6 +185,28 @@ BYOK key kaydetme akışı: `maskedInput` → `process.env[keyEnv]` (bu oturum) 
 
 Doğrulama: sahte `≥2` tekrar eden hata kaydı + gerçek yerel Ollama ile uçtan uca test edildi. Düzeltme öncesi model bulunamama hatası 49ms'de sessizce boş dönüyordu; düzeltme sonrası gerçek kurulu modele düşüp gerçek yanıt üretiyor.
 
+### İş B (Spekülatif Yürütme) — session entegrasyonu zaten vardı, aynı kök nedenden ölüydü (bu oturum)
+
+PLAN.md "session.js'e entegre değil" diyordu — bu artık doğru değil: `session.js:246`
+tier2 rotasında `speculex.startPrefetch()`'i zaten çağırıyordu ve `_callToolCached`
+zaten `specCache`'e bakıyordu. Gerçek sorun İş A'yla **aynı kök nedendi**:
+`speculex.js`'in kendi ham `fetch`'i `qwen2.5-coder:7b` kullanıyordu (yerelde yok),
+JSON.parse boş yanıtta patlayıp sessizce yutuluyordu — canlı testte doğrulandı
+(cache hep boş, hiç telemetry olayı yok).
+
+| # | Dosya | Sorun | Düzeltme |
+|---|---|---|---|
+| 15 | `core/speculex.js` | `_predictToolCalls` kendi ham `fetch`'ini kullanıyordu — İş A'nın model/hata düzeltmesinden faydalanmıyordu | `extract.js`'in `ollamaRequest`'ine yönlendirildi |
+| 16 | `core/speculex.js` | Yerel "thinking" modelleri (`vibethinker` vb.) JSON'dan önce `<think>` bloğu üretiyor, hiç temizlenmiyordu → `JSON.parse` hep patlıyordu | `stripThinking()` `extract.js`'e çıkarılıp (session.js'in `_cleanResponse`'u ile paylaşılıyor) `_predictToolCalls`'a uygulandı |
+| 17 | `core/speculex.js` | Timeout 8sn — yerel thinking modeli bu donanımda 14-20sn arası değişken sürüyor, her zaman timeout'a giriyordu | 25sn'ye çıkarıldı |
+
+Doğrulama: `ollamaRequest` doğrudan çağrılıp gerçek JSON tahmini üretildiği
+gözlemlendi (`list_files`+`read_file`, doğru path'lerle, ~20sn'de). **Açık mimari
+not:** tier2 (bulut) genelde bu süreden hızlı cevap verebilir — bu durumda
+spekülasyon zamanında bitmeyip boşa gider (zararsız, fire-and-forget). Bu bir
+kod bug'ı değil, kurulu yerel modelin hız karakteristiği — daha hızlı/thinking
+yapmayan bir tier1 modeli kurulursa iyileşir.
+
 ### Provider Düzeltmesi (önceki oturum)
 - **Clack kaldırıldı**: `selectInput` (arrow-key, raw mode) + `maskedInput` (custom) clack bağımlılığını tamamen devre dışı bıraktı — çift render sorunu giderildi
 - **Key env senkron**: built-in provider'lar için key hem `process.env[keyEnv]`'e hem `credentials.json`'a yazılıyor
@@ -198,8 +220,8 @@ Doğrulama: sahte `≥2` tekrar eden hata kaydı + gerçek yerel Ollama ile uçt
 | # | İş | Açıklama | Engel |
 |---|---|---|---|
 | A | Weakness Mining | `daemon.js`'e idle-zaman log analizi, `/weakness` komutu, onay kapılı tool güncelleme | Kod yazıldı, birim testleri geçiyor, ama üretimde hiç tetiklenmedi (bu makinede `~/.orion/reports/` hiç oluşmamış — tetikleme eşiği olan "7 günde ≥2 aynı hata" gerçek veride henüz hiç oluşmadı). Bu oturumda ayrıca gerçek bir çalıştırma denemesinde `tier1Model` varsayılanının (`qwen2.5-coder:7b`) yerelde kurulu olmadığı ve `ollamaRequest`'in bu hatayı sessizce yuttuğu bulundu — düzeltildi (bkz. aşağı). Onay kapılı tool güncelleme (apply) kısmı hâlâ yazılmadı. |
-| B | Spekülatif yürütme | Tier2 beklerken tier1 read-only tool tahmin + önbellek | Speculex altyapısı hazır, session entegrasyonu eksik |
-| C | FEP Faz 0 | `freeenergy.js` gölge modun gerçek telemetry karşılaştırmasına bağlanması | lambda=0, infrastructure hazır |
+| B | Spekülatif yürütme | Tier2 beklerken tier1 read-only tool tahmin + önbellek | **Düzeltildi ve doğrulandı.** `session.js:246` entegrasyonu zaten vardı (plan bunu bilmiyordu) — İş A'yla aynı kök nedenden (model çözümleme + `<think>` temizliği eksikti) sessizce hiç çalışmıyordu. Şimdi canlı testte doğru JSON tahmini üretiyor. Açık nokta: yerel model yavaş (14-20sn), tier2'den yavaş kalabilir — kod değil, model seçimi meselesi. |
+| C | FEP Faz 0 | `freeenergy.js` gölge modun gerçek telemetry karşılaştırmasına bağlanması | `shadowLog()` zaten `session.js:251`'de çağrılıyor ve gerçek `fep_shadow` telemetry olayı üretiyor görünüyor — ama bu iş bu oturumda B gibi canlı doğrulanmadı, sadece kod okundu. `isEnabled()` `cfg.freeEnergyMode` varsayılan kapalı olduğundan gölge mod hiç tetiklenmemiş olabilir — İş A/B'deki "yazıldı ama hiç ateşlenmedi" deseni burada da tekrarlıyor olabilir, doğrulanmadı. |
 | D | Kimlik adayı | İş A/B/C bitmeden başlanmaz | Ertelendi |
 
 ### Bilinen Sınırlamalar
