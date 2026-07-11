@@ -15,7 +15,7 @@ const DEFAULTS = {
   tier2Backend:             "anthropic",
   tier2Model:               "claude-sonnet-4-6",
   complexityTokenThreshold: 800,
-  vaultDir:                 "C:\\vault",
+  vaultDir:                 path.join(HOME, ".orion", "vault"),
   language:                 "en",
   memoryEffort:             "low",  // low | balanced | high
 };

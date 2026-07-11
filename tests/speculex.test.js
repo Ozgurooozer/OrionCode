@@ -133,23 +133,24 @@ test("SpeculativeCache: hasUnsafe() MCP 'server:tool' formatında doğru çalı�
   assert.strictEqual(key.split("\0")[0], "read_file", "\\0 split tool adını doğru verir");
 });
 
-// ── Test 10: Hata string'leri önbelleğe alınmaz (cache poisoning koruması) ─────
+// ── Test 10: Hata string'leri set() içinde filtrelenir (savunma derinliği) ──────
 test("SpeculativeCache: hata string'i set() ile kaydedilmez", () => {
   const { SpeculativeCache } = require("../core/speculex.js");
   const cache = new SpeculativeCache();
 
-  // Simüle et: callTool'un döndürdüğü hata mesajları önbelleğe alınmamalı
-  // (Bu güvenlik doğrulaması — startPrefetch'in filter'ına karşılık)
+  // set() artık hata string'lerini doğrudan reddeder (startPrefetch'e bağlı değil)
   cache.set("read_file", { path: "/yok" }, "Araç hatası (read_file): ENOENT: dosya yok");
-  // set() kendisi bunu filtrelemez; filtreleme startPrefetch içinde yapılır.
-  // Ancak bu test, cache'e konan hatayı get() ile alabileceğimizi doğrular —
-  // startPrefetch'in bunu set() öncesinde filtrelemesi gerektiğini hatırlatır.
-  const got = cache.get("read_file", { path: "/yok" });
-  // Eğer set() koymuşsa get() döner — bu varlığın startPrefetch katmanında filtrelenmesi şart
-  assert.strictEqual(typeof got, "string", "set/get döngüsü çalışır");
-  // Gerçek koruma: startPrefetch error-string check ile filtreliyor (isErr guard)
-  const isErr = got.startsWith("Araç hatası (") || got.startsWith("Araç bulunamadı:");
-  assert.ok(isErr, "simüle edilen set içeriği gerçekten bir hata string'idir");
+  assert.strictEqual(cache.get("read_file", { path: "/yok" }), null, "hata string'i önbelleğe alınmamalı");
+
+  cache.set("read_file", { path: "/yok2" }, "Araç bulunamadı: read_file");
+  assert.strictEqual(cache.get("read_file", { path: "/yok2" }), null, "bulunamadı string'i önbelleğe alınmamalı");
+
+  cache.set("read_file", { path: "/yok3" }, "HATA: dosya bozuk");
+  assert.strictEqual(cache.get("read_file", { path: "/yok3" }), null, "HATA: önekli string önbelleğe alınmamalı");
+
+  // Normal sonuçlar hâlâ önbelleğe alınır
+  cache.set("read_file", { path: "/var.js" }, "const x = 1;");
+  assert.strictEqual(typeof cache.get("read_file", { path: "/var.js" }), "string", "normal sonuç kaydedilmeli");
 });
 
 // ── Test 11: 50KB üzeri sonuç önbelleğe alınmaz (boyut koruması) ─────────────

@@ -23,17 +23,20 @@ const ROOT        = path.join(__dirname, "..");
 const MAX_HISTORY = 40;
 const MAX_ITERS   = 12;
 
-// Ctrl+C ile üretimi kes — orion.js tarafından set edilir
-let _interrupted = false;
-function interrupt() { _interrupted = true; }
-function clearInterrupt() { _interrupted = false; }
-function isInterrupted() { return _interrupted; }
+// Ctrl+C ile üretimi kes — aktif session instance üzerinde çalışır
+// CLI (orion.js) tek seferde tek session çalıştırır — Ctrl+C o session'ı hedefler.
+// Sunucu (orion-server.js) çoklu eşzamanlı session tutar; onlar kendi
+// this._interrupted alanlarını kullanır, bu modül-seviyesi işaretçiye dokunmaz.
+let _activeSession = null;
+function interrupt() { if (_activeSession) _activeSession._interrupted = true; }
+function clearInterrupt() { if (_activeSession) _activeSession._interrupted = false; }
 
 // Tool çıktısındaki hata öneklerini tanı — telemetry ok/error alanı için
 function _toolCallError(out) {
   if (typeof out !== "string") return null;
   if (out.startsWith("Araç hatası (")) return out.replace(/^Araç hatası \([^)]+\):\s*/, "").slice(0, 100);
   if (out.startsWith("Araç bulunamadı:")) return "not found";
+  if (out.startsWith("HATA:")) return out.slice(5).trim().slice(0, 100);
   return null;
 }
 
@@ -86,13 +89,30 @@ ${read("merak.md")}
 // Araç sonucunda diff varsa diff olayı yayınla (write_file / edit_file çıktısı)
 const _DIFF_RE = /```diff\n([\s\S]*?)```/;
 const _DIFF_STAT_RE = /\(([+-]\d+[^)]*)\)/;
+// specCache + callTool + telemetry — üç loop'ta ortak, buradan çağrılır
+async function _callToolCached(specCache, name, input, sessionId, telemetry) {
+  const cached = specCache.get(name, input ?? {});
+  const tStart = Date.now();
+  const out = cached !== null ? cached : await tools.callTool(name, input, sessionId);
+  const err = _toolCallError(out);
+  telemetry.record({
+    event:     "tool_call",
+    tool:      name,
+    latencyMs: cached !== null ? 0 : Date.now() - tStart,
+    ok:        !err,
+    ...(err            ? { error:   err  } : {}),
+    ...(cached !== null ? { specHit: true } : {}),
+  });
+  return out;
+}
+
 function _emitDiff(toolName, result, sessionId) {
   if (typeof result !== "string") return;
   const m = _DIFF_RE.exec(result);
   if (!m) return;
   const diff = m[1];
   const statMatch = _DIFF_STAT_RE.exec(result);
-  const pathMatch  = result.match(/(?:✎|wrote?|edit)[^\n]*?[:：]\s*([^\s(]+)/i);
+  const pathMatch  = result.match(/(?:✎|wrote?|edit|yaz[iı]ld[iı]|düzenlendi)[^\n]*?[:：]\s*([^\s([]+)/i);
   events.emit("diff", sessionId, {
     tool:    toolName,
     path:    pathMatch?.[1] ?? null,
@@ -134,14 +154,17 @@ class Session {
     this.created     = Date.now();
     this._turnCount  = 0;
     this._extracting = false;
+    this._interrupted   = false;
     this._manualBackend = false;
     this._manualModel   = false;
     this._lastRoute     = null; // Thompson sampling için
+    this._usedFallback  = false; // fallback devreye girdiyse başarıyı primary route'a yazma
     this._lastApiUsage  = null; // Anthropic cache usage (cacheReadTokens, cacheWriteTokens)
     this.budget      = new BudgetTracker(1.0);
     this.telemetry   = new SessionLogger(this.id);
     this._lastInputTokens = 0;
     this._specCache  = new (require("./speculex.js").SpeculativeCache)();
+    _activeSession   = this; // bu session interrupt hedefi olarak kaydet
   }
 
   get mode() { return this.modes.get(); }
@@ -255,9 +278,10 @@ class Session {
       ...(apiUsage.cacheReadTokens  ? { cacheReadTokens:  apiUsage.cacheReadTokens  } : {}),
       ...(apiUsage.cacheWriteTokens ? { cacheWriteTokens: apiUsage.cacheWriteTokens } : {}),
     });
-    if (this._lastRoute) {
+    if (this._lastRoute && !this._usedFallback) {
       try { require("./thompson.js").update(this._lastRoute.tier, this._lastRoute.reason, true); } catch {}
     }
+    this._usedFallback = false;
 
     this._save();
     events.emit("session_saved", this.id, { sessionId: this.id });
@@ -312,6 +336,7 @@ class Session {
           }
           throw err;
         }
+        this._usedFallback = true; // fallback devreye girdi — primary route'a başarı yazılmaz
       }
     }
   }
@@ -383,10 +408,7 @@ class Session {
           continue;
         }
         print.tool(block.name, block.input);
-        const tStart = Date.now();
-        const _sCached = this._specCache.get(block.name, block.input ?? {});
-        const out = _sCached !== null ? _sCached : await tools.callTool(block.name, block.input, this.id);
-        { const _e = _toolCallError(out); this.telemetry.record({ event: "tool_call", tool: block.name, latencyMs: _sCached !== null ? 0 : Date.now() - tStart, ok: !_e, ...(_e ? { error: _e } : {}), ...(_sCached !== null ? { specHit: true } : {}) }); }
+        const out = await _callToolCached(this._specCache, block.name, block.input, this.id, this.telemetry);
         _emitDiff(block.name, out, this.id);
         print.result(out);
         results.push({ type: "tool_result", tool_use_id: block.id, content: String(out) });
@@ -428,11 +450,11 @@ class Session {
 
     let finalText = "";
     let lastCallSig = "";
-    clearInterrupt();
+    this._interrupted = false;
     aiTurnStart(this.mode?.name, this.backend);
 
     for (let iter = 0; iter < MAX_ITERS; iter++) {
-      if (isInterrupted()) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
+      if (this._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
 
       const r = await provider.chatRich(this.model, history, {
         system:  this.system,
@@ -473,10 +495,7 @@ class Session {
           );
         } else {
           print.tool(call.name, call.input);
-          const tStart = Date.now();
-          const _sCached2 = this._specCache.get(call.name, call.input ?? {});
-          out = _sCached2 !== null ? _sCached2 : await tools.callTool(call.name, call.input ?? {}, this.id);
-          { const _e = _toolCallError(out); this.telemetry.record({ event: "tool_call", tool: call.name, latencyMs: _sCached2 !== null ? 0 : Date.now() - tStart, ok: !_e, ...(_e ? { error: _e } : {}), ...(_sCached2 !== null ? { specHit: true } : {}) }); }
+          out = await _callToolCached(this._specCache, call.name, call.input, this.id, this.telemetry);
           _emitDiff(call.name, out, this.id);
           print.result(out);
         }
@@ -501,11 +520,11 @@ class Session {
 
     let finalText = "";
     let lastCallSig = "";
-    clearInterrupt();
+    this._interrupted = false;
     aiTurnStart(this.mode?.name, this.backend);
 
     for (let iter = 0; iter < MAX_ITERS; iter++) {
-      if (isInterrupted()) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
+      if (this._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
 
       let r;
       try {
@@ -551,10 +570,7 @@ class Session {
           );
         } else {
           print.tool(call.name, call.input);
-          const tStart = Date.now();
-          const _sCached3 = this._specCache.get(call.name, call.input ?? {});
-          out = _sCached3 !== null ? _sCached3 : await tools.callTool(call.name, call.input ?? {}, this.id);
-          { const _e = _toolCallError(out); this.telemetry.record({ event: "tool_call", tool: call.name, latencyMs: _sCached3 !== null ? 0 : Date.now() - tStart, ok: !_e, ...(_e ? { error: _e } : {}), ...(_sCached3 !== null ? { specHit: true } : {}) }); }
+          out = await _callToolCached(this._specCache, call.name, call.input, this.id, this.telemetry);
           _emitDiff(call.name, out, this.id);
           print.result(out);
         }
@@ -580,9 +596,9 @@ class Session {
     let iters = 0, finalText = "", lastRaw = "", lastCallSig = "";
 
     aiTurnStart(this.mode?.name, this.backend);
-    clearInterrupt();
+    this._interrupted = false;
     while (iters < 8) {
-      if (isInterrupted()) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
+      if (this._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
       iters++;
 
       let rawResp = "";
@@ -676,10 +692,10 @@ class Session {
   undo() {
     if (this.msgs.length < 1) return null;
     const last = this.msgs[this.msgs.length - 1];
-    if (last.role === "assistant") {
-      this.msgs.splice(-2);
+    if (last.role === "assistant" && this.msgs.length >= 2) {
+      this.msgs.splice(-2); // kullanıcı + asistan turunu birlikte geri al
     } else {
-      this.msgs.splice(-1);
+      this.msgs.splice(-1); // yalnız kullanıcı mesajı veya tek elemanlı dizi
     }
     this._save();
     return true;
@@ -721,8 +737,8 @@ class Session {
     const keep  = Math.floor(MAX_HISTORY / 2);
     const old   = this.msgs.slice(0, this.msgs.length - keep);
     const recent = this.msgs.slice(this.msgs.length - keep);
-    const summary = old
-      .filter(m => typeof m.content === "string")
+    // _flattenMsgs: Anthropic blok dizileri dahil tüm mesaj türlerini düz metne indirir
+    const summary = _flattenMsgs(old)
       .map(m => `[${m.role}]: ${m.content.slice(0, 200)}`)
       .join("\n");
     const compacted = {

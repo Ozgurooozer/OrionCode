@@ -10,6 +10,14 @@ const SAFE_TOOLS = new Set(["read_file", "list_files", "search", "vault_search",
 
 const TTL_MS = 30_000; // 30 saniye
 
+// Tool sonucu hata string'i mi — cache.set() ve prefetch aynı tanımı kullanır
+function _isErrorResult(result) {
+  return typeof result === "string" &&
+    (result.startsWith("Araç hatası (") ||
+     result.startsWith("Araç bulunamadı:") ||
+     result.startsWith("HATA:"));
+}
+
 class SpeculativeCache {
   constructor() {
     this._cache = new Map(); // cacheKey → { result, ts }
@@ -24,8 +32,9 @@ class SpeculativeCache {
 
   set(tool, input, result) {
     if (!SAFE_TOOLS.has(tool)) return;
-    // 50KB üzeri sonuçları önbelleğe alma — bellek koruması
     if (typeof result === "string" && result.length > 50_000) return;
+    // Hata string'lerini önbelleğe alma — herhangi bir çağırıcı yolu için savunma
+    if (_isErrorResult(result)) return;
     this._cache.set(this._key(tool, input), { result, ts: Date.now() });
   }
 
@@ -130,9 +139,7 @@ async function startPrefetch(cache, userMessage, cfg, sessionId, telemetry) {
     try {
       const result = await tools.callTool(call.name, call.input ?? {}, sessionId);
       // Hata string'leri önbelleğe alınmaz — zehirleme koruması
-      const isErr = typeof result === "string" &&
-        (result.startsWith("Araç hatası (") || result.startsWith("Araç bulunamadı:"));
-      if (!isErr) {
+      if (!_isErrorResult(result)) {
         cache.set(call.name, call.input ?? {}, result);
         prefetched.push(call.name);
       }

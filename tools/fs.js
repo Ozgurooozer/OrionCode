@@ -1,7 +1,7 @@
 // tools/fs.js — Dosya sistemi araçları
 const fs   = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
+const { execSync, spawnSync } = require("child_process");
 const checkpoint  = require("../core/checkpoint.js");
 const diagnostics = require("../core/diagnostics.js");
 const diff        = require("../core/diff.js");
@@ -167,19 +167,26 @@ function execute(name, input) {
       const pat  = input.pattern;
       const glob = input.glob ?? null;
 
-      // ripgrep (rg) dene — cross-platform, hızlı
+      // ripgrep (rg) dene — spawnSync: shell yorumlaması yok, injection güvenli
       const tryRg = () => {
-        const args = ["rg", "-n", "--no-heading", "-m", "30",
-          glob ? `--glob=${glob}` : "",
-          `${pat}`, dir].filter(Boolean);
-        return execSync(args.join(" "), { cwd: process.cwd(), encoding: "utf8", maxBuffer: 1024*1024, timeout: 10_000 });
+        const args = ["-n", "--no-heading", "-m", "30"];
+        if (glob) args.push(`--glob=${glob}`);
+        args.push(pat, dir);
+        const r = spawnSync("rg", args, { cwd: process.cwd(), encoding: "utf8", maxBuffer: 1024*1024, timeout: 10_000 });
+        if (r.error) throw r.error;
+        if (r.status !== 0 && r.status !== 1) throw new Error(r.stderr || "rg failed");
+        return r.stdout;
       };
 
-      // grep dene (POSIX)
+      // grep dene — spawnSync: shell yorumlaması yok
       const tryGrep = () => {
-        const gFlag = glob ? `--include="${glob}"` : "";
-        return execSync(`grep -rn ${gFlag} "${pat.replace(/"/g,'\\"')}" "${dir}"`,
-          { cwd: process.cwd(), encoding: "utf8", maxBuffer: 1024*1024, timeout: 10_000 });
+        const args = ["-rn"];
+        if (glob) args.push(`--include=${glob}`);
+        args.push(pat, dir);
+        const r = spawnSync("grep", args, { cwd: process.cwd(), encoding: "utf8", maxBuffer: 1024*1024, timeout: 10_000 });
+        if (r.error) throw r.error;
+        if (r.status !== 0 && r.status !== 1) throw new Error(r.stderr || "grep failed");
+        return r.stdout;
       };
 
       // Node.js fallback — sadece metin dosyaları, depth≤5
@@ -189,7 +196,7 @@ function execute(name, input) {
         catch { return `HATA: Geçersiz regex: ${pat}`; }
         const absDir = path.resolve(dir);
         const results = [];
-        const SKIP = new Set(["node_modules", ".git", "dist", "build"]);
+        const SKIP = new Set(["node_modules", ".git", "dist", "build", "$Recycle.Bin", "System Volume Information"]);
         const walkDir = (d, dep) => {
           if (dep > 5 || results.length > 200) return;
           let es;

@@ -66,17 +66,44 @@ function gradient(text) {
   }).join("") + RESET;
 }
 
-// ── Emblem: Orion takımyıldızı ───────────────────────────────────────────────
-// Betelgeuse ve Bellatrix omuzlar, Alnitak-Alnilam-Mintaka kuşak, Rigel ve Saiph ayaklar
+// ── Emblem: ORION wordmark + takımyıldız ─────────────────────────────────────
+// ANSI-shadow blok harfler, cyan→menekşe gradyan; sağda Orion takımyıldızı
+// (omuzlar, ✶ ✶ ✶ kuşak, ayaklar). Dar terminalde kompakt satıra düşer.
 function emblem(model, backend) {
+  const cols = process.stdout.columns ?? 80;
   const S = T.star, N = T.nebula, B = T.belt, M = T.muted, R = RESET;
-  const lines = [
-    `   ${S}✦${R}${M}·${R}          ${M}·${R}${S}✦${R}     ${gradient(i18n.t("O  R  I  O  N", "O  R  İ  O  N"))}`,
-    `     ${M}·${R}   ${N}✧${R}    ${M}·${R}        ${T.muted}aethelred${R} ${M}—${R} ${T.muted}${i18n.t("coding agent", "kodlama ajanı")}${R}`,
-    `      ${B}✶ ✶ ✶${R}           ${T.accent}${model ?? ""}${R} ${M}${backend ? `(${backend})` : ""}${R}`,
-    `    ${M}·${R}  ${N}✧${R}   ${M}·${R}`,
-    `   ${S}✦${R}          ${M}·${R}${S}✦${R}`,
+  const info1 = `${M}aethelred — ${i18n.t("coding agent", "kodlama ajanı")}${R}`;
+  const info2 = `${T.accent}${model ?? ""}${R}${M}${backend ? ` (${backend})` : ""}${R}`;
+
+  if (cols < 54) {
+    // Dar terminal — kompakt başlık
+    return [
+      ` ${S}✦${R} ${gradient("O  R  I  O  N")} ${N}✧${R}`,
+      `   ${info1}`,
+      `   ${info2}`,
+    ].join("\n");
+  }
+
+  const art = [
+    " ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗",
+    "██╔═══██╗██╔══██╗██║██╔═══██╗████╗  ██║",
+    "██║   ██║██████╔╝██║██║   ██║██╔██╗ ██║",
+    "██║   ██║██╔══██╗██║██║   ██║██║╚██╗██║",
+    "╚██████╔╝██║  ██║██║╚██████╔╝██║ ╚████║",
+    " ╚═════╝ ╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝",
   ];
+  const stars = [
+    `    ${S}✦${R}     ${M}·${R}`,   // Betelgeuse
+    `  ${M}·${R}    ${N}✧${R}`,
+    `    ${B}✶ ✶ ✶${R}`,             // kuşak: Alnitak · Alnilam · Mintaka
+    `  ${N}✧${R}    ${M}·${R}`,
+    `    ${M}·${R}   ${S}✦${R}`,     // Rigel
+    "",
+  ];
+  const lines = art.map((l, i) => ` ${gradient(l)}${stars[i]}`);
+  lines.push("");
+  lines.push(`   ${info1}`);
+  lines.push(`   ${info2}`);
   return lines.join("\n");
 }
 
@@ -272,8 +299,8 @@ const print = {
   header: (name, model, backend) => {
     console.log("\n" + emblem(model, backend) + "\n");
     console.log(C.muted(i18n.t(
-      "  /help  /model  /mode  /mcp  /provider  /vault  /settings   Ctrl+C×2 exit",
-      "  /yardim  /model  /mod  /mcp  /saglayici  /vault  /ayar   Ctrl+C×2 çıkış"
+      "   type / to browse commands · Tab completes · Ctrl+C×2 exit",
+      "   / yaz, komut listesi açılır · Tab tamamlar · Ctrl+C×2 çıkış"
     )));
     console.log(C.muted("  " + "─".repeat(60)));
   },
@@ -333,13 +360,14 @@ const spinner = {
 };
 
 // ── Sticky input (scroll region tabanlı sabit altta kalma) ───────────────────
-const STICKY_H = 3; // üst kenarlık + input satırı + durum/boşluk
+const STICKY_H = 3;      // üst kenarlık + input satırı + alt kenarlık
+let _panelH    = STICKY_H; // aktif panel yüksekliği (öneri menüsü açıkken büyür)
 
 // Scroll region'ı kur — content üstte, input kutusu altta sabit kalır
 function stickySetup() {
   if (!process.stdout.isTTY) return;
   const rows = process.stdout.rows ?? 24;
-  const scrollBottom = Math.max(5, rows - STICKY_H);
+  const scrollBottom = Math.max(5, rows - _panelH);
   process.stdout.write(`\x1b[1;${scrollBottom}r`);        // scroll region
   process.stdout.write(`\x1b[${scrollBottom + 1};1H\x1b[J`); // input alanını temizle
 }
@@ -350,30 +378,74 @@ function stickyTeardown() {
   process.stdout.write(`\x1b[?25h`); // cursor'u göster
 }
 
-// Input kutusunu scroll region dışında çiz (her prompt öncesinde çağrılır)
-function stickyRefreshInput() {
+// ── Sticky panel: öneri menüsü + tam giriş kutusu ────────────────────────────
+// Düzen (alttan üste): alt kenarlık(ipuçlu) / giriş satırı / üst kenarlık / öneriler
+// Öneriler açıkken scroll region küçülür, kapanınca geri büyür.
+function stickyPanel({ suggestions = [], selected = 0, menuOpen = false } = {}) {
   if (!process.stdout.isTTY) { userTurnHeader(); return; }
   const rows = process.stdout.rows ?? 24;
   const W    = _boxW();
   const ts   = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const topRow = Math.max(5, rows - STICKY_H) + 1;
 
-  // Input alanını temizle ve üst kenarlığı çiz
-  process.stdout.write(`\x1b[${topRow};1H\x1b[J`);
+  // Panel küçülürken eski öneri satırları artık bırakmasın — geniş aralığı temizle
+  const prevBottom = Math.max(5, rows - _panelH);
+  _panelH = STICKY_H + suggestions.length;
+  const scrollBottom = Math.max(5, rows - _panelH);
+  process.stdout.write(`\x1b[1;${scrollBottom}r`);
+
+  const clearFrom = Math.min(prevBottom, scrollBottom) + 1;
+  process.stdout.write(`\x1b[${clearFrom};1H\x1b[J`);
+  let row = scrollBottom + 1;
+
+  // Öneri listesi — kutunun üstünde açılır menü
+  for (let i = 0; i < suggestions.length; i++) {
+    const s    = suggestions[i];
+    const name = `/${s.name}`.padEnd(16);
+    const desc = String(s.desc ?? "").slice(0, Math.max(10, W - 22));
+    if (i === selected) {
+      process.stdout.write(`\x1b[${row};1H  ${T.accent}▸ ${BOLD}${name}${RESET}${T.accent}${desc}${RESET}`);
+    } else {
+      process.stdout.write(`\x1b[${row};1H    ${T.muted}${name}${desc}${RESET}`);
+    }
+    row++;
+  }
+
+  // Üst kenarlık: ╭─ ozyn ────── HH:MM ─╮
   const prefix = "╭─ ";
   const label  = "ozyn";
   const suffix = ` ${ts} ─╮`;
   const dashes = "─".repeat(Math.max(2, W - prefix.length - label.length - 1 - suffix.length));
-  process.stdout.write(`${T.muted}${prefix}${T.belt}${label}${RESET}${T.muted} ${dashes}${suffix}${RESET}\n`);
-  // Cursor şimdi topRow+1 (input satırı) — readline burada render eder
+  process.stdout.write(`\x1b[${row};1H${T.muted}${prefix}${T.belt}${label}${RESET}${T.muted} ${dashes}${suffix}${RESET}`);
+  row++;
+  const inputRow = row;
+
+  // Alt kenarlık: ╰─ ipucu ──────╯  (bağlama göre ipucu değişir)
+  const hint = menuOpen
+    ? i18n.t(" ↑↓ navigate · Tab/Enter select · Esc close ", " ↑↓ gezin · Tab/Enter seç · Esc kapat ")
+    : i18n.t(" / commands · Ctrl+C×2 exit ", " / komutlar · Ctrl+C×2 çıkış ");
+  const hDashes = "─".repeat(Math.max(2, W - hint.length - 4));
+  process.stdout.write(`\x1b[${row + 1};1H${T.muted}╰─${DIM}${hint}${RESET}${T.muted}${hDashes}─╯${RESET}`);
+
+  // Cursor'u giriş satırına bırak — readline burada render eder
+  process.stdout.write(`\x1b[${inputRow};1H\x1b[2K`);
+}
+
+// Geriye dönük uyumlu sarmalayıcı — önerisiz panel çizer
+function stickyRefreshInput() {
+  stickyPanel({});
 }
 
 // Cursor'u içerik alanının sonuna taşı (AI yanıtı buraya akacak)
 function stickyMoveToContent() {
   if (!process.stdout.isTTY) return;
   const rows = process.stdout.rows ?? 24;
-  const scrollBottom = Math.max(5, rows - STICKY_H);
+  const scrollBottom = Math.max(5, rows - _panelH);
   process.stdout.write(`\x1b[${scrollBottom};1H`);
 }
 
-module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow, userTurnHeader, makeInputPrompt, inputBoxBottom, aiTurnStart, aiTurnContinue, stickySetup, stickyTeardown, stickyRefreshInput, stickyMoveToContent };
+// Gönderilen mesajın içerik alanına echo'su — kutu stilinde orta satır
+function userEchoLine(text) {
+  process.stdout.write(`${T.muted}│${RESET} ${T.accent}►${RESET} ${text}\n`);
+}
+
+module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow, userTurnHeader, makeInputPrompt, inputBoxBottom, aiTurnStart, aiTurnContinue, stickySetup, stickyTeardown, stickyRefreshInput, stickyMoveToContent, stickyPanel, userEchoLine };

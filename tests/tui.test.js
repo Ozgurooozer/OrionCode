@@ -173,6 +173,26 @@ test("userTurnHeader: stdout'a ╭ + ╮ üst kenarlık yazar", () => {
   assert.ok(out.includes("ozyn"), "ozyn etiketi bulunmalı");
 });
 
+// ── Test 10b: stickySetup / stickyRefreshInput / stickyMoveToContent export ──
+test("sticky fonksiyonları export edilmiş", () => {
+  const mod = require("../tui/index.js");
+  assert.strictEqual(typeof mod.stickySetup, "function");
+  assert.strictEqual(typeof mod.stickyTeardown, "function");
+  assert.strictEqual(typeof mod.stickyRefreshInput, "function");
+  assert.strictEqual(typeof mod.stickyMoveToContent, "function");
+});
+
+// non-TTY'de stickySetup stdout'a hiçbir şey yazmaz (isTTY=false)
+test("stickySetup: non-TTY ortamında stdout'a yazmaz", () => {
+  const { stickySetup } = require("../tui/index.js");
+  const chunks = [];
+  const orig = process.stdout.write.bind(process.stdout);
+  process.stdout.write = (s) => { chunks.push(s); return true; };
+  try { stickySetup(); } finally { process.stdout.write = orig; }
+  // non-TTY (test ortamı) → hiçbir şey yazılmamalı
+  assert.strictEqual(chunks.length, 0, "non-TTY'de stdout'a yazılmamalı");
+});
+
 // ── Test 10: print.tool * formatında yazar ───────────────────────────────────
 test("print.tool: * ToolName format kullanır", () => {
   const { print } = require("../tui/index.js");

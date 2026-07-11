@@ -276,8 +276,7 @@ if (isMainThread) {
 
       const { ollamaRequest } = require("./extract.js");
       const { loadConfig } = require("./router.js");
-      const cfg   = loadConfig();
-      const model = cfg.tier1Model ?? "qwen2.5-coder:7b";
+      const model = loadConfig().tier1Model;
 
       const sessionLines = entries.map(e =>
         `[${e.date}] ${e.summary ?? ""}` +
@@ -349,6 +348,8 @@ ${sessionLines}`;
       if (!idle) return;
 
       const { ollamaRequest } = require("./extract.js");
+      const { loadConfig } = require("./router.js");
+      const _mineModel = loadConfig().tier1Model;
 
       const toolSection = candidates.map(g =>
         `### ${g.tool}\n- Hata: "${g.error}"\n- Oluşma: ${g.count}x (${g.sessions.size} oturumda)`
@@ -370,7 +371,7 @@ FORMAT: Her araç için:
 **Sorun:** [1 cümle]
 **Öneri:** [somut düzeltme]`;
 
-      const response = await ollamaRequest(prompt);
+      const response = await ollamaRequest(_mineModel, prompt, { timeout: 60000 });
       if (!response || response.length < 30) return;
 
       const date = new Date().toISOString().slice(0, 10);
@@ -402,12 +403,11 @@ FORMAT: Her araç için:
     }
   }
 
-  // Her 30 dakikada bir: idle mi? digest + weakness mining gerekiyor mu?
+  // Her 30 dakikada bir: idle mi? digest tamamlandıktan SONRA mining — aynı anda Ollama'yı doldurmasın
   setInterval(() => {
     const idleMs = Date.now() - Math.max(lastWatchEvent, lastSessionProcessed);
     if (idleMs > 60 * 60 * 1000) {
-      generateDigest();
-      mineWeaknesses();
+      generateDigest().finally(() => mineWeaknesses());
     }
   }, 30 * 60 * 1000);
 }

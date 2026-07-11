@@ -9,7 +9,9 @@ const readline = require("readline");
 const backends = require("./backends/index.js");
 const { Session, interrupt, clearInterrupt } = require("./core/session.js");
 const { C, print, renderMarkdown, userTurnHeader, makeInputPrompt, inputBoxBottom,
-        stickySetup, stickyTeardown, stickyRefreshInput, stickyMoveToContent } = require("./tui/index.js");
+        stickySetup, stickyTeardown, stickyRefreshInput, stickyMoveToContent,
+        stickyPanel, userEchoLine } = require("./tui/index.js");
+const { attachSlashMenu } = require("./tui/slashmenu.js");
 const vaultCore = require("./core/vault.js");
 const commands  = require("./core/commands/index.js");
 const i18n      = require("./core/i18n.js");
@@ -209,7 +211,43 @@ async function main() {
     completer: cmdCompleter,
   });
 
-  userTurnHeader();
+  // Sticky input: TTY'de scroll region ile input kutusu altta sabit kalır
+  const isSticky = !!(process.stdout.isTTY && !isHeadless);
+
+  // "/" komut menüsü — yazınca canlı liste açılır (↑↓ Tab/Enter Esc)
+  const slashMenu = attachSlashMenu(rl, () => commands.all(), {
+    isBusy: () => qRunning,
+    render: (state) => {
+      stickyPanel({ suggestions: state.items, selected: state.selected, menuOpen: state.open });
+      rl.prompt(true); // buffer + cursor korunarak giriş satırını yeniden çiz
+    },
+  });
+
+  // Panel çizimi — menü durumunu da yansıtır
+  function drawPanel() {
+    if (slashMenu) {
+      stickyPanel({ suggestions: slashMenu.state.items, selected: slashMenu.state.selected, menuOpen: slashMenu.state.open });
+    } else {
+      stickyRefreshInput();
+    }
+  }
+
+  if (isSticky) {
+    stickySetup();
+    process.on("exit", () => stickyTeardown());
+    // Terminal boyutu değişince scroll region'ı ve input'u yenile
+    process.on("SIGWINCH", () => {
+      stickySetup();
+      if (!qRunning) {
+        drawPanel();
+        rl.setPrompt(makePrompt(session));
+        rl.prompt(true);
+      }
+    });
+  }
+
+  // İlk prompt — sticky modda tam panel, değilse userTurnHeader
+  if (isSticky) { drawPanel(); } else { userTurnHeader(); }
   rl.prompt();
 
   // Sıralı kuyruk — readline pipe'ta birden fazla line hemen gelir,
@@ -249,7 +287,8 @@ async function main() {
       console.log(C.gray("\nbye."));
       process.exit(0);
     }
-    userTurnHeader();
+    // Prompt'u yeniden çiz — sticky modda input kutusu altta sabit
+    if (isSticky) { drawPanel(); } else { userTurnHeader(); }
     rl.prompt();
   }
 
@@ -258,8 +297,17 @@ async function main() {
     if (rl.history.length >= 2 && rl.history[0] === rl.history[1]) {
       rl.history.splice(0, 1);
     }
-    // Input kutusunun alt kenarlığını çiz — kullanıcı girişi kutuda göründü
-    if (line.trim()) inputBoxBottom();
+    if (isSticky) {
+      // Cursor'u content alanına taşı, mesajı transcript'e kutu stiliyle echo'la
+      stickyMoveToContent();
+      if (line.trim()) {
+        userTurnHeader();
+        userEchoLine(line.trim());
+        inputBoxBottom();
+      }
+    } else if (line.trim()) {
+      inputBoxBottom();
+    }
     lineQueue.push(line.trim());
     drainQueue();
   });
@@ -282,9 +330,10 @@ async function main() {
     if (ctrlCCount === 1) {
       process.stdout.write(`\n${C.gray(i18n.t("Ctrl+C again to exit", "Çıkmak için tekrar Ctrl+C"))}\n`);
       setTimeout(() => { ctrlCCount = 0; }, 2000);
-      userTurnHeader();
+      if (isSticky) { drawPanel(); } else { userTurnHeader(); }
       rl.prompt();
     } else {
+      if (isSticky) stickyTeardown();
       console.log(C.gray("\nbye."));
       process.exit(0);
     }

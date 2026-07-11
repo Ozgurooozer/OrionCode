@@ -5,7 +5,15 @@ const fs   = require("fs");
 const path = require("path");
 const os   = require("os");
 
-const DEFAULT_VAULT = "C:\\vault";
+const DEFAULT_VAULT = path.join(os.homedir(), ".orion", "vault");
+
+// index.json için promise-chain mutex — read-modify-write yarış koşulunu önler
+let _indexLock = Promise.resolve();
+function _withIndexLock(fn) {
+  const next = _indexLock.then(() => fn());
+  _indexLock = next.catch(() => {}); // hata zinciri zehirlemesin
+  return next;
+}
 
 function getVaultDir() {
   try {
@@ -111,27 +119,29 @@ async function writeSession(sessionId, data, knowledge) {
   // HTML yaz
   fs.writeFileSync(htmlPath, sessionToHTML(sessionId, data, knowledge));
 
-  // index.json — atomic write
+  // index.json — atomic write (mutex ile yarış koşulu önlenir)
   const indexPath = path.join(vaultDir, "index.json");
-  const tmpPath   = indexPath + ".tmp";
-  let index = [];
-  try { index = JSON.parse(fs.readFileSync(indexPath, "utf8")); } catch {}
-  index = index.filter(e => e.id !== sessionId); // duplicate önle
-  index.push({
-    id:         sessionId,
-    date,
-    file:       fname,
-    summary:    knowledge.summary ?? "",
-    tags:       knowledge.tags ?? [],
-    turns:      data.messages?.length ?? 0,
-    model:      data.model ?? "",
-    backend:    data.backend ?? "",
-    createdAt:  Date.now(),
-    activation: 1.0,   // Hebbian: 1.0 başlangıç, erişimde artar, zamanla azalır
-    accessedAt: null,
+  await _withIndexLock(() => {
+    const tmpPath = indexPath + ".tmp";
+    let index = [];
+    try { index = JSON.parse(fs.readFileSync(indexPath, "utf8")); } catch {}
+    index = index.filter(e => e.id !== sessionId); // duplicate önle
+    index.push({
+      id:         sessionId,
+      date,
+      file:       fname,
+      summary:    knowledge.summary ?? "",
+      tags:       knowledge.tags ?? [],
+      turns:      data.messages?.length ?? 0,
+      model:      data.model ?? "",
+      backend:    data.backend ?? "",
+      createdAt:  Date.now(),
+      activation: 1.0,   // Hebbian: 1.0 başlangıç, erişimde artar, zamanla azalır
+      accessedAt: null,
+    });
+    fs.writeFileSync(tmpPath, JSON.stringify(index, null, 2));
+    fs.renameSync(tmpPath, indexPath);
   });
-  fs.writeFileSync(tmpPath, JSON.stringify(index, null, 2));
-  fs.renameSync(tmpPath, indexPath);
 
   // vectors.json — summary embedding ekle
   try {
@@ -197,24 +207,26 @@ async function searchVault(queryText, limit = 5) {
   } catch { return recentEntries(limit); }
 }
 
-// Aktivasyon artır: +0.3, max 5.0
+// Aktivasyon artır: +0.3, max 5.0 (mutex ile index.json yarışı önlenir)
 function _bumpActivations(ids, vaultDir, iPath) {
-  try {
-    const tmpPath = iPath + ".tmp";
-    let index = JSON.parse(fs.readFileSync(iPath, "utf8"));
-    let changed = false;
-    for (const entry of index) {
-      if (ids.includes(entry.id)) {
-        entry.activation = Math.min(5.0, (entry.activation ?? 1.0) + 0.3);
-        entry.accessedAt = Date.now();
-        changed = true;
+  _withIndexLock(() => {
+    try {
+      const tmpPath = iPath + ".tmp";
+      let index = JSON.parse(fs.readFileSync(iPath, "utf8"));
+      let changed = false;
+      for (const entry of index) {
+        if (ids.includes(entry.id)) {
+          entry.activation = Math.min(5.0, (entry.activation ?? 1.0) + 0.3);
+          entry.accessedAt = Date.now();
+          changed = true;
+        }
       }
-    }
-    if (changed) {
-      fs.writeFileSync(tmpPath, JSON.stringify(index, null, 2));
-      fs.renameSync(tmpPath, iPath);
-    }
-  } catch {}
+      if (changed) {
+        fs.writeFileSync(tmpPath, JSON.stringify(index, null, 2));
+        fs.renameSync(tmpPath, iPath);
+      }
+    } catch {}
+  }).catch(() => {});
 }
 
 // Hebbian decay: boşta çalışırken aktivasyonları hafifçe düşür (daemon çağırır)
@@ -222,17 +234,19 @@ function _bumpActivations(ids, vaultDir, iPath) {
 function decayActivations(weeklyDecay = 0.92) {
   const vaultDir = getVaultDir();
   const iPath    = path.join(vaultDir, "index.json");
-  try {
-    const tmpPath = iPath + ".tmp";
-    let index = JSON.parse(fs.readFileSync(iPath, "utf8"));
-    for (const entry of index) {
-      if ((entry.activation ?? 1.0) > 0.5) {
-        entry.activation = +(((entry.activation ?? 1.0) * weeklyDecay).toFixed(4));
+  return _withIndexLock(() => {
+    try {
+      const tmpPath = iPath + ".tmp";
+      let index = JSON.parse(fs.readFileSync(iPath, "utf8"));
+      for (const entry of index) {
+        if ((entry.activation ?? 1.0) > 0.5) {
+          entry.activation = +(((entry.activation ?? 1.0) * weeklyDecay).toFixed(4));
+        }
       }
-    }
-    fs.writeFileSync(tmpPath, JSON.stringify(index, null, 2));
-    fs.renameSync(tmpPath, iPath);
-  } catch {}
+      fs.writeFileSync(tmpPath, JSON.stringify(index, null, 2));
+      fs.renameSync(tmpPath, iPath);
+    } catch {}
+  });
 }
 
 function recentEntries(limit = 10) {

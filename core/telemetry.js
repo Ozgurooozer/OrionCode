@@ -11,19 +11,54 @@ function ensureDir() {
   if (!fs.existsSync(LOGS_DIR)) fs.mkdirSync(LOGS_DIR, { recursive: true });
 }
 
+// process.exit() setImmediate'i beklemez — çıkışta bekleyen tüm logger'ları
+// senkron flush eden tek bir "exit" dinleyicisi (logger başına değil, tek sefer)
+const _liveLoggers = new Set();
+let _exitHookInstalled = false;
+function _installExitHook() {
+  if (_exitHookInstalled) return;
+  _exitHookInstalled = true;
+  process.on("exit", () => { for (const l of _liveLoggers) l._flushSync(); });
+}
+
 class SessionLogger {
   constructor(sessionId) {
     this.sessionId = sessionId;
     this.file      = path.join(LOGS_DIR, `${sessionId}.ndjson`);
     this._ready    = false;
+    this._buf      = [];      // bekleyen satırlar
+    this._flushing = false;   // setImmediate drain aktif mi
+    _liveLoggers.add(this);
+    _installExitHook();
   }
 
   record(data) {
     try {
       if (!this._ready) { ensureDir(); this._ready = true; }
-      const line = JSON.stringify({ ts: Date.now(), session: this.sessionId, ...data }) + "\n";
-      fs.appendFileSync(this.file, line);
+      this._buf.push(JSON.stringify({ ts: Date.now(), session: this.sessionId, ...data }) + "\n");
+      if (!this._flushing) {
+        this._flushing = true;
+        setImmediate(() => this._flush());
+      }
     } catch {}
+  }
+
+  _flush() {
+    if (!this._buf.length) { this._flushing = false; return; }
+    const lines = this._buf.splice(0);
+    try { fs.appendFileSync(this.file, lines.join("")); } catch {}
+    if (this._buf.length) {
+      setImmediate(() => this._flush());
+    } else {
+      this._flushing = false;
+    }
+  }
+
+  // process "exit" handler'ından çağrılır — sadece senkron iş yapılabilir
+  _flushSync() {
+    if (!this._buf.length) return;
+    const lines = this._buf.splice(0);
+    try { if (!this._ready) { ensureDir(); this._ready = true; } fs.appendFileSync(this.file, lines.join("")); } catch {}
   }
 }
 

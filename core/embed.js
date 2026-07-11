@@ -19,7 +19,14 @@ function _cacheKey(text) {
   return require("crypto").createHash("sha1").update(text).digest("hex");
 }
 
-function _cacheGet(key) { return _cache.get(key) ?? null; }
+function _cacheGet(key) {
+  const val = _cache.get(key);
+  if (val === undefined) return null;
+  // Map ekleme sırası = kullanım sırası: sil + tekrar ekle → en sona taşı (LRU)
+  _cache.delete(key);
+  _cache.set(key, val);
+  return val;
+}
 
 function _cacheSet(key, vec) {
   if (_cache.size >= CACHE_MAX) {

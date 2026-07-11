@@ -45,13 +45,16 @@ function diffLines(oldText, newText) {
   const midB = b.slice(pre, b.length - suf);
 
   if (midA.length > MAX_LINES || midB.length > MAX_LINES) {
-    // Çok büyük — hizalamadan kaba fark
-    return [
+    // Çok büyük — LCS atlandı, kaba del-all / add-all gösterilir
+    const ops = [
       ...a.slice(0, pre).map(l => ({ type: "same", line: l })),
+      { type: "note", line: `[! büyük dosya: ${midA.length} satır değişti — satır bazlı diff atlandı]` },
       ...midA.map(l => ({ type: "del", line: l })),
       ...midB.map(l => ({ type: "add", line: l })),
       ...a.slice(a.length - suf).map(l => ({ type: "same", line: l })),
     ];
+    ops.truncated = true;
+    return ops;
   }
 
   return [
@@ -71,6 +74,7 @@ function formatDiff(ops, { context = 3 } = {}) {
     if (o.type === "same") return;
     for (let k = Math.max(0, i - context); k <= Math.min(ops.length - 1, i + context); k++)
       visible[k] = true;
+    if (o.type === "note") visible[i] = true; // uyarı satırı her zaman görünür
   });
 
   const out = [];
@@ -91,11 +95,12 @@ function formatDiff(ops, { context = 3 } = {}) {
       if (o.type === "same") { hunk.lines.push(` ${o.line}`); hunk.oldCount++; hunk.newCount++; }
       if (o.type === "del")  { hunk.lines.push(`-${o.line}`); hunk.oldCount++; }
       if (o.type === "add")  { hunk.lines.push(`+${o.line}`); hunk.newCount++; }
+      if (o.type === "note") { hunk.lines.push(`# ${o.line}`); }
     } else {
       flush();
     }
-    if (o.type !== "add") oldLn++;
-    if (o.type !== "del") newLn++;
+    if (o.type !== "add" && o.type !== "note") oldLn++;
+    if (o.type !== "del" && o.type !== "note") newLn++;
   }
   flush();
   return out.join("\n");

@@ -121,7 +121,9 @@ function parseToolCall(text) {
 }
 
 module.exports = {
-  ALL_DEFS: STATIC_DEFS, // geriye dönük uyumluluk
+  // MCP dahil tüm araçlar için getDefs() kullan — ALL_DEFS statik araçları döner
+  get ALL_DEFS() { return getDefs(); },
+  STATIC_DEFS,
   getDefs,
   registerDynamic,
   unregisterDynamic,
