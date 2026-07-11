@@ -3,7 +3,7 @@
 "use strict";
 
 const readline = require("readline");
-const { T, C } = require("../../tui/index.js");
+const { T, C, setInputLock, stickySetup, stickyTeardown, stickyRefreshInput } = require("../../tui/index.js");
 const RESET = "\x1b[0m";
 
 /**
@@ -32,6 +32,15 @@ function selectInput(message, options) {
       }
       process.stdout.write(`  ${T.muted}↑↓ seç · Enter onayla · ESC iptal${RESET}   \n`);
     }
+
+    // Readline'ı kilitle: tuşlar yalnızca bu istem tarafından işlenir
+    setInputLock(true);
+    const wasRaw = process.stdin.isRaw ?? false;
+
+    // Sticky input aktifse scroll region \x1b[s/\x1b[u ile çakışır — kaydedilen
+    // cursor konumu scroll region içinde geçersiz kalır, her render aşağı taşar.
+    // Bu prompt boyunca sticky'yi geçici kapat, bitince geri kur.
+    stickyTeardown();
 
     // Cursor'u kaydet → ilk render → keypress bekle
     process.stdout.write("\n\x1b[s");
@@ -76,8 +85,13 @@ function selectInput(message, options) {
 
     function cleanup() {
       process.stdin.removeListener("keypress", onKey);
-      if (process.stdin.isTTY) process.stdin.setRawMode(false);
+      // Raw mode'u önceki durumuna döndür — readline raw kullanıyorsa bozma
+      if (process.stdin.isTTY) process.stdin.setRawMode(wasRaw);
       process.stdin.pause();
+      setInputLock(false);
+      // Sticky input'u geri kur — giriş kutusu tekrar altta sabitlensin
+      stickySetup();
+      stickyRefreshInput();
     }
 
     process.stdin.on("keypress", onKey);

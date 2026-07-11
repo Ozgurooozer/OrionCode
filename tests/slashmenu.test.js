@@ -120,6 +120,35 @@ test("tui: emblem ORION blok harflerini ve model bilgisini içerir", () => {
   assert.ok(plain.includes("aethelred"), "aethelred etiketi görünmeli");
 });
 
+test("slashmenu: filtre değişince seçim sıfırlanır", () => {
+  const m = createSlashMenu(() => CMDS);
+  m.update("/m");           // model, mod, mcp...
+  m.move(1); m.move(1);     // selected = 2
+  assert.strictEqual(m.state.selected, 2);
+  m.update("/mo");          // filtre değişti → seçim başa dönmeli
+  assert.strictEqual(m.state.selected, 0, "filtre değişince selected=0 olmalı");
+});
+
+test("tui: setInputLock/isInputLocked — kilit durumu yönetilir", () => {
+  const { setInputLock, isInputLocked } = require("../tui/index.js");
+  assert.strictEqual(isInputLocked(), false, "başlangıçta kilitsiz");
+  setInputLock(true);
+  assert.strictEqual(isInputLocked(), true, "kilitlenebilmeli");
+  setInputLock(false);
+  assert.strictEqual(isInputLocked(), false, "açılabilmeli");
+});
+
+test("tui: repaintPanelBottom ve placeholder fonksiyonları export edilmiş", () => {
+  const tui = require("../tui/index.js");
+  assert.strictEqual(typeof tui.repaintPanelBottom, "function");
+  assert.strictEqual(typeof tui.showInputPlaceholder, "function");
+  assert.strictEqual(typeof tui.clearInputPlaceholder, "function");
+  // non-TTY'de hiçbiri çökmez
+  assert.doesNotThrow(() => tui.repaintPanelBottom());
+  assert.doesNotThrow(() => tui.showInputPlaceholder());
+  assert.doesNotThrow(() => tui.clearInputPlaceholder());
+});
+
 test("tui: userEchoLine kutu orta satırı yazar (│ + ►)", () => {
   const { userEchoLine } = require("../tui/index.js");
   const chunks = [];

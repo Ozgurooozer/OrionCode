@@ -5,7 +5,7 @@
 "use strict";
 
 const readline = require("readline");
-const { T, C } = require("../../tui/index.js");
+const { T, C, setInputLock } = require("../../tui/index.js");
 const RESET = "\x1b[0m";
 
 /**
@@ -21,6 +21,11 @@ function maskedInput(prompt) {
       resolve("");
       return;
     }
+
+    // Readline'ı kilitle: API anahtarı tuşları readline'a sızmasın
+    // (aksi halde ekrana açık yazılır ve Enter'da chat mesajı olarak gönderilir)
+    setInputLock(true);
+    const wasRaw = process.stdin.isRaw ?? false;
 
     readline.emitKeypressEvents(process.stdin);
     process.stdin.setRawMode(true);
@@ -66,7 +71,9 @@ function maskedInput(prompt) {
 
     function cleanup() {
       process.stdin.removeListener("keypress", onKey);
-      if (process.stdin.isTTY) process.stdin.setRawMode(false);
+      // Raw mode'u önceki durumuna döndür — readline raw kullanıyorsa bozma
+      if (process.stdin.isTTY) process.stdin.setRawMode(wasRaw);
+      setInputLock(false);
     }
 
     process.stdin.on("keypress", onKey);

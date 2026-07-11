@@ -359,9 +359,17 @@ const spinner = {
   },
 };
 
+// ── Giriş kilidi ─────────────────────────────────────────────────────────────
+// select-input / masked-input gibi raw-mode alt istemler aktifken readline'ın
+// tuşları işlemesini engeller (çift işleme: key echo + rl.line kirlenmesi).
+let _inputLock = false;
+function setInputLock(v) { _inputLock = !!v; }
+function isInputLocked() { return _inputLock; }
+
 // ── Sticky input (scroll region tabanlı sabit altta kalma) ───────────────────
 const STICKY_H = 3;      // üst kenarlık + input satırı + alt kenarlık
 let _panelH    = STICKY_H; // aktif panel yüksekliği (öneri menüsü açıkken büyür)
+let _panelPos  = { inputRow: 0, bottomRow: 0, menuOpen: false }; // son render konumu
 
 // Scroll region'ı kur — content üstte, input kutusu altta sabit kalır
 function stickySetup() {
@@ -378,14 +386,36 @@ function stickyTeardown() {
   process.stdout.write(`\x1b[?25h`); // cursor'u göster
 }
 
+// ── Panel kenarlık kurucuları ────────────────────────────────────────────────
+
+// ╭─ ozyn ─────────────── model · mod · HH:MM ─╮
+function _topBorder(W, info) {
+  const ts     = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const prefix = "╭─ ";
+  const label  = "ozyn";
+  const right  = info ? ` ${info} · ${ts} ─╮` : ` ${ts} ─╮`;
+  let dashes = W - prefix.length - label.length - 1 - right.length;
+  if (dashes < 2 && info) return _topBorder(W, null); // dar terminal — info'yu at
+  dashes = Math.max(2, dashes);
+  return `${T.muted}${prefix}${T.belt}${label}${RESET}${T.muted} ${"─".repeat(dashes)}${DIM}${right.slice(0, right.length - 2)}${RESET}${T.muted}─╮${RESET}`;
+}
+
+// ╰─ ipucu ─────────────╯  (bağlama göre ipucu değişir)
+function _bottomBorder(W, menuOpen) {
+  const hint = menuOpen
+    ? i18n.t(" ↑↓ navigate · Tab/Enter select · Esc close ", " ↑↓ gezin · Tab/Enter seç · Esc kapat ")
+    : i18n.t(" / commands · Ctrl+C×2 exit ", " / komutlar · Ctrl+C×2 çıkış ");
+  const hDashes = "─".repeat(Math.max(2, W - hint.length - 4));
+  return `${T.muted}╰─${RESET}${DIM}${hint}${RESET}${T.muted}${hDashes}─╯${RESET}`;
+}
+
 // ── Sticky panel: öneri menüsü + tam giriş kutusu ────────────────────────────
 // Düzen (alttan üste): alt kenarlık(ipuçlu) / giriş satırı / üst kenarlık / öneriler
 // Öneriler açıkken scroll region küçülür, kapanınca geri büyür.
-function stickyPanel({ suggestions = [], selected = 0, menuOpen = false } = {}) {
+function stickyPanel({ suggestions = [], selected = 0, menuOpen = false, info = "" } = {}) {
   if (!process.stdout.isTTY) { userTurnHeader(); return; }
   const rows = process.stdout.rows ?? 24;
   const W    = _boxW();
-  const ts   = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   // Panel küçülürken eski öneri satırları artık bırakmasın — geniş aralığı temizle
   const prevBottom = Math.max(5, rows - _panelH);
@@ -410,24 +440,38 @@ function stickyPanel({ suggestions = [], selected = 0, menuOpen = false } = {}) 
     row++;
   }
 
-  // Üst kenarlık: ╭─ ozyn ────── HH:MM ─╮
-  const prefix = "╭─ ";
-  const label  = "ozyn";
-  const suffix = ` ${ts} ─╮`;
-  const dashes = "─".repeat(Math.max(2, W - prefix.length - label.length - 1 - suffix.length));
-  process.stdout.write(`\x1b[${row};1H${T.muted}${prefix}${T.belt}${label}${RESET}${T.muted} ${dashes}${suffix}${RESET}`);
+  process.stdout.write(`\x1b[${row};1H${_topBorder(W, info)}`);
   row++;
   const inputRow = row;
 
-  // Alt kenarlık: ╰─ ipucu ──────╯  (bağlama göre ipucu değişir)
-  const hint = menuOpen
-    ? i18n.t(" ↑↓ navigate · Tab/Enter select · Esc close ", " ↑↓ gezin · Tab/Enter seç · Esc kapat ")
-    : i18n.t(" / commands · Ctrl+C×2 exit ", " / komutlar · Ctrl+C×2 çıkış ");
-  const hDashes = "─".repeat(Math.max(2, W - hint.length - 4));
-  process.stdout.write(`\x1b[${row + 1};1H${T.muted}╰─${DIM}${hint}${RESET}${T.muted}${hDashes}─╯${RESET}`);
+  process.stdout.write(`\x1b[${row + 1};1H${_bottomBorder(W, menuOpen)}`);
+
+  // Konumu kaydet — repaintPanelBottom readline refresh'lerinden sonra kullanır
+  _panelPos = { inputRow, bottomRow: row + 1, menuOpen };
 
   // Cursor'u giriş satırına bırak — readline burada render eder
   process.stdout.write(`\x1b[${inputRow};1H\x1b[2K`);
+}
+
+// readline _refreshLine her yenilemede clearScreenDown yapar — alt kenarlığı siler.
+// Bu fonksiyon her refresh'ten sonra alt kenarlığı geri çizer (cursor korunur).
+function repaintPanelBottom() {
+  if (!process.stdout.isTTY || !_panelPos.bottomRow) return;
+  const W = _boxW();
+  process.stdout.write(`\x1b[s\x1b[${_panelPos.bottomRow};1H\x1b[2K${_bottomBorder(W, _panelPos.menuOpen)}\x1b[u`);
+}
+
+// Placeholder: boş inputta soluk yönlendirme metni (cursor başa döner)
+function showInputPlaceholder() {
+  if (!process.stdout.isTTY) return;
+  const text = i18n.t("type a message · / for commands", "mesaj yaz · komutlar için /");
+  process.stdout.write(`${DIM}${T.muted}${text}${RESET}\x1b[${text.length}D`);
+}
+
+// Placeholder'ı sil — cursor placeholder'ın başında bekliyor
+function clearInputPlaceholder() {
+  if (!process.stdout.isTTY) return;
+  process.stdout.write(`\x1b[0K`);
 }
 
 // Geriye dönük uyumlu sarmalayıcı — önerisiz panel çizer
@@ -448,4 +492,4 @@ function userEchoLine(text) {
   process.stdout.write(`${T.muted}│${RESET} ${T.accent}►${RESET} ${text}\n`);
 }
 
-module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow, userTurnHeader, makeInputPrompt, inputBoxBottom, aiTurnStart, aiTurnContinue, stickySetup, stickyTeardown, stickyRefreshInput, stickyMoveToContent, stickyPanel, userEchoLine };
+module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow, userTurnHeader, makeInputPrompt, inputBoxBottom, aiTurnStart, aiTurnContinue, stickySetup, stickyTeardown, stickyRefreshInput, stickyMoveToContent, stickyPanel, userEchoLine, repaintPanelBottom, showInputPlaceholder, clearInputPlaceholder, setInputLock, isInputLocked };

@@ -12,6 +12,7 @@ const MAX_ITEMS = 6;
 function createSlashMenu(getCommands) {
   const state = { open: false, items: [], selected: 0 };
   let suppressedFor = null; // Esc ile kapatıldığında hangi satır için bastırıldı
+  let lastPartial   = null; // filtre değişince seçim sıfırlanır
 
   // rl.line'a göre menüyü güncelle — durum değiştiyse true döner
   function update(line) {
@@ -20,12 +21,16 @@ function createSlashMenu(getCommands) {
     // "/" ile başlamıyor ya da argüman fazı (boşluk var) → kapat
     if (!line.startsWith("/") || line.includes(" ") || line === suppressedFor) {
       state.open = false; state.items = []; state.selected = 0;
+      lastPartial = null;
       if (line !== suppressedFor) suppressedFor = null;
       return wasOpen;
     }
     suppressedFor = null;
 
     const partial = line.slice(1).toLowerCase();
+    // Filtre değişti → seçim başa döner (eski index yeni listede yanlış öğeyi gösterir)
+    if (partial !== lastPartial) state.selected = 0;
+    lastPartial = partial;
     const seen  = new Set();
     const items = [];
     for (const c of getCommands()) {
@@ -77,14 +82,18 @@ function createSlashMenu(getCommands) {
  * @param {() => Array} getCommands
  * @param {{ render: (state) => void, isBusy: () => boolean }} hooks
  */
-function attachSlashMenu(rl, getCommands, { render, isBusy }) {
+function attachSlashMenu(rl, getCommands, { render, isBusy, beforeKey }) {
   if (!process.stdin.isTTY || !process.stdout.isTTY) return null;
+  const { isInputLocked } = require("./index.js");
   const menu = createSlashMenu(getCommands);
 
   const doRender = () => { if (!isBusy()) render(menu.state); };
 
   const orig = rl._ttyWrite.bind(rl);
   rl._ttyWrite = (s, key = {}) => {
+    // Alt istem (select/masked input) aktif — readline tuşları işlemesin
+    if (isInputLocked()) return;
+    beforeKey?.(key);
     if (menu.state.open) {
       if (key.name === "up")     { menu.move(-1); doRender(); return; }
       if (key.name === "down")   { menu.move(1);  doRender(); return; }
