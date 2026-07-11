@@ -8,7 +8,8 @@ require("./core/credentials.js").load();
 const readline = require("readline");
 const backends = require("./backends/index.js");
 const { Session, interrupt, clearInterrupt } = require("./core/session.js");
-const { C, print, renderMarkdown } = require("./tui/index.js");
+const { C, print, renderMarkdown, userTurnHeader, makeInputPrompt, inputBoxBottom,
+        stickySetup, stickyTeardown, stickyRefreshInput, stickyMoveToContent } = require("./tui/index.js");
 const vaultCore = require("./core/vault.js");
 const commands  = require("./core/commands/index.js");
 const i18n      = require("./core/i18n.js");
@@ -105,9 +106,22 @@ async function runHeadless(session) {
   await session.send(input.trim());
 }
 // ── Prompt oluştur ───────────────────────────────────────────────────────────
-function makePrompt(session) {
-  const prefix = session.modes.promptPrefix();
-  return `${prefix}${C.cyan("ozyn>")} `;
+function makePrompt(_session) {
+  return makeInputPrompt();
+}
+
+// ── Tab tamamlama: /komut isimlerini tamamla ─────────────────────────────────
+function cmdCompleter(line) {
+  if (!line.startsWith("/")) return [[], line];
+  const partial = line.slice(1).toLowerCase();
+  const names = new Set();
+  for (const cmd of commands.all()) {
+    names.add(cmd.name);
+    for (const a of cmd.aliases ?? []) names.add(a);
+  }
+  const sorted = [...names].sort();
+  const hits = sorted.filter(n => n.startsWith(partial));
+  return [hits.map(n => `/${n}`), line];
 }
 
 // ── Ana REPL ─────────────────────────────────────────────────────────────────
@@ -166,8 +180,18 @@ async function main() {
       const daemon = require("./core/daemon.js");
       vaultCore.ensureVault();
       const d = daemon.startDaemon();
-      d.on("vault_updated", ({ sessionId }) => {
-        print.system(i18n.t(`vault: saved [${sessionId}]`, `vault: kaydedildi [${sessionId}]`));
+      d.on("vault_updated", ({ sessionId, novelty }) => {
+        const nov = novelty != null ? ` (novelty: ${(novelty * 100).toFixed(0)}%)` : "";
+        print.system(i18n.t(`vault: saved [${sessionId}]${nov}`, `vault: kaydedildi [${sessionId}]${nov}`));
+      });
+      d.on("vault_skipped", ({ sessionId, maxSim, closestId }) => {
+        print.info(i18n.t(
+          `vault: skipped [${sessionId}] — too similar to ${closestId} (${(maxSim * 100).toFixed(0)}%)`,
+          `vault: atlandı [${sessionId}] — ${closestId} ile çok benzer (%${(maxSim * 100).toFixed(0)})`
+        ));
+      });
+      d.on("digest_ready", ({ file }) => {
+        print.system(i18n.t(`lovelace: digest ready — /vault digest to read`, `lovelace: özet hazır — /vault digest ile oku`));
       });
       d.on("daemon_error", ({ error }) => {
         print.warn(`vault daemon: ${error}`);
@@ -178,12 +202,14 @@ async function main() {
   }
 
   const rl = readline.createInterface({
-    input:  process.stdin,
-    output: process.stdout,
-    prompt: makePrompt(session),
+    input:     process.stdin,
+    output:    process.stdout,
+    prompt:    makePrompt(session),
     historySize: 100,
+    completer: cmdCompleter,
   });
 
+  userTurnHeader();
   rl.prompt();
 
   // Sıralı kuyruk — readline pipe'ta birden fazla line hemen gelir,
@@ -198,11 +224,16 @@ async function main() {
       const parts = text.slice(1).split(/\s+/);
       await commands.dispatch(parts[0].toLowerCase(), parts.slice(1), { session, rl });
     } else {
+      // Readline'ı duraklat: akış sırasında prompt yeniden render olmasın
+      rl.pause();
       try {
         await session.send(text);
         print.statusline(session.statusInfo());
+      } catch (err) {
+        print.error(err.message);
+      } finally {
+        rl.resume();
       }
-      catch (err) { print.error(err.message); }
     }
     rl.setPrompt(makePrompt(session));
   }
@@ -218,10 +249,17 @@ async function main() {
       console.log(C.gray("\nbye."));
       process.exit(0);
     }
+    userTurnHeader();
     rl.prompt();
   }
 
   rl.on("line", line => {
+    // Ardışık tekrar girişleri history'den çıkar
+    if (rl.history.length >= 2 && rl.history[0] === rl.history[1]) {
+      rl.history.splice(0, 1);
+    }
+    // Input kutusunun alt kenarlığını çiz — kullanıcı girişi kutuda göründü
+    if (line.trim()) inputBoxBottom();
     lineQueue.push(line.trim());
     drainQueue();
   });
@@ -244,6 +282,7 @@ async function main() {
     if (ctrlCCount === 1) {
       process.stdout.write(`\n${C.gray(i18n.t("Ctrl+C again to exit", "Çıkmak için tekrar Ctrl+C"))}\n`);
       setTimeout(() => { ctrlCCount = 0; }, 2000);
+      userTurnHeader();
       rl.prompt();
     } else {
       console.log(C.gray("\nbye."));

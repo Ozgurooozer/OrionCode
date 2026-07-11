@@ -22,6 +22,13 @@ module.exports = [
       console.log(`  ${i18n.t("Turns   ", "Tur     ")} ${b.turns}`);
       console.log(`  ${i18n.t("Spent   ", "Harcanan")} ${C.yellow("$" + b.totalCostUSD.toFixed(5))}`);
       console.log(`  ${i18n.t("Left    ", "Kalan   ")} ${C.green("$" + b.remaining.toFixed(4))}`);
+      if (b.cacheReadTokens > 0 || b.cacheWriteTokens > 0) {
+        console.log(`  ${i18n.t("Cache↑  ", "Cache↑  ")} ${C.cyan(b.cacheWriteTokens.toLocaleString(tag))} ${i18n.t("tok written", "tok yazıldı")}`);
+        console.log(`  ${i18n.t("Cache↓  ", "Cache↓  ")} ${C.green(b.cacheReadTokens.toLocaleString(tag))} ${i18n.t("tok read (−90%)", "tok okundu (−%90)")}`);
+        if (b.cacheSavedUSD > 0) {
+          console.log(`  ${i18n.t("Saved   ", "Tasarruf")} ${C.green("$" + b.cacheSavedUSD.toFixed(5))}`);
+        }
+      }
       console.log("");
     },
   },

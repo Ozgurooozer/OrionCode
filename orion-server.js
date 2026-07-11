@@ -27,6 +27,7 @@ const crypto = require("crypto");
 const backends = require("./backends/index.js");
 const persist  = require("./core/persist.js");
 const { Session } = require("./core/session.js");
+const { emitter: orionEvents, toNDJSON } = require("./core/events.js");
 
 const PORT = (() => {
   const i = process.argv.indexOf("--port");
@@ -122,6 +123,40 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/sessions") {
       return json(res, 200, persist.list());
+    }
+
+    // ── GET /events — SSE canlı olay akışı ─────────────────────────────────
+    // Kullanım: GET /events?sessionId=<id>   (sessionId opsiyonel: yoksa tüm olaylar gelir)
+    // SSE format: "data: <JSON>\n\n" — her olay bir NDJSON satırı
+    if (req.method === "GET" && url.pathname === "/events") {
+      const filterSid = url.searchParams.get("sessionId") || null;
+
+      res.writeHead(200, {
+        "Content-Type":  "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache",
+        "Connection":    "keep-alive",
+        "X-Accel-Buffering": "no",
+      });
+      // İlk heartbeat — bağlantı kuruldu
+      res.write(": connected\n\n");
+
+      function onEvent(event) {
+        if (filterSid && event.sessionId !== filterSid) return;
+        try { res.write(`data: ${JSON.stringify(event)}\n\n`); } catch {}
+      }
+
+      // 30 saniyede bir keep-alive comment (proxy timeout koruması)
+      const keepAlive = setInterval(() => {
+        try { res.write(": keep-alive\n\n"); } catch { clearInterval(keepAlive); }
+      }, 30_000);
+
+      orionEvents.on("event", onEvent);
+      req.on("close", () => {
+        orionEvents.off("event", onEvent);
+        clearInterval(keepAlive);
+      });
+
+      return; // yanıt açık kalır — res.end() çağrılmaz
     }
 
     if (req.method === "POST" && url.pathname === "/chat") {

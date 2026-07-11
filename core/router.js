@@ -17,6 +17,7 @@ const DEFAULTS = {
   complexityTokenThreshold: 800,
   vaultDir:                 "C:\\vault",
   language:                 "en",
+  memoryEffort:             "low",  // low | balanced | high
 };
 
 // 5sn config cache
@@ -81,14 +82,30 @@ function decide(text, { tokenCount = 0, mode = "agent", budgetTracker = null } =
   }
 
   if (tokenCount > cfg.complexityTokenThreshold) {
-    return { ...tier2, reason: `token count ${tokenCount} > ${cfg.complexityTokenThreshold}` };
+    return _applyThompson({ ...tier2, reason: `token count ${tokenCount} > ${cfg.complexityTokenThreshold}` });
   }
 
   if (complexityScore(text) >= 2) {
-    return { ...tier2, reason: "complex task keywords" };
+    return _applyThompson({ ...tier2, reason: "complex task keywords" });
   }
 
-  return { ...tier1, reason: "balanced default" };
+  return _applyThompson({ ...tier1, reason: "balanced default" });
 }
 
-module.exports = { loadConfig, saveConfig, decide, DEFAULTS };
+function _applyThompson(decision) {
+  try {
+    const thompson = require("./thompson.js");
+    return thompson.recommend(decision);
+  } catch { return decision; }
+}
+
+// Efektif memoryEffort: budgetMode=quality → en az "balanced" (high kalıcı, hiç otomatik düşmez)
+function getEffectiveMemoryEffort(cfg) {
+  const c      = cfg ?? loadConfig();
+  const stored = c.memoryEffort ?? "low";
+  if (stored === "high") return "high";
+  if (c.budgetMode === "quality" && stored === "low") return "balanced";
+  return stored;
+}
+
+module.exports = { loadConfig, saveConfig, decide, getEffectiveMemoryEffort, DEFAULTS };

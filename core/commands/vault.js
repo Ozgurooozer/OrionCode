@@ -89,6 +89,42 @@ module.exports = [{
       return;
     }
 
+    // /vault map — kavram haritası
+    if (sub === "map" || sub === "harita") {
+      const { buildMap } = require("../vaultmap.js");
+      print.info(i18n.t("Building concept map...", "Kavram haritası oluşturuluyor..."));
+      const dir = vault.getVaultDir();
+      const result = await buildMap(dir);
+      if (!result) {
+        print.warn(i18n.t(
+          "Not enough vault data yet (need 3+ sessions with embeddings).",
+          "Henüz yeterli vault verisi yok (embedding'li 3+ oturum gerekli)."
+        ));
+        return;
+      }
+      print.system(i18n.t(
+        `map ready: ${result.sessions} sessions, ${result.clusters} clusters`,
+        `harita hazır: ${result.sessions} oturum, ${result.clusters} küme`
+      ));
+      print.info(C.dim("file://" + result.path.replace(/\\/g, "/")));
+      return;
+    }
+
+    // /vault digest — Lovelace haftalık özet
+    if (sub === "digest" || sub === "ozet") {
+      const d = vault.readLatestDigest();
+      if (!d) {
+        print.info(i18n.t(
+          "No digest yet. The daemon generates one after 7+ days of vault content during idle time.",
+          "Henüz özet yok. Daemon, vault yeterince dolunca boşta çalışırken üretir."
+        ));
+        return;
+      }
+      console.log(`\n${C.cyan(d.date)}\n`);
+      console.log(d.content);
+      return;
+    }
+
     // /vault — last 10 sessions
     const entries = vault.recentEntries(10);
     if (!entries.length) {

@@ -62,8 +62,27 @@ module.exports = [{
       return;
     }
 
+    if (sub === "memoryeffort" || sub === "hafizayon") {
+      const val = args[1]?.toLowerCase();
+      if (!["low", "balanced", "high"].includes(val)) {
+        print.error(i18n.t(
+          "Usage: /settings memoryEffort <low|balanced|high>  — high enables extended thinking",
+          "Kullanım: /ayar hafizayon <low|balanced|high>  — high extended thinking açar"
+        ));
+        return;
+      }
+      router.saveConfig({ memoryEffort: val });
+      const note = val === "high"
+        ? i18n.t(" (extended thinking ON — API cost increases)", " (extended thinking AÇIK — API maliyeti artar)")
+        : "";
+      print.system(`memoryEffort → ${val}${note}`);
+      return;
+    }
+
     // /settings — show full config
+    const { getEffectiveMemoryEffort } = router;
     const cfg = router.loadConfig();
+    const effective = typeof getEffectiveMemoryEffort === "function" ? getEffectiveMemoryEffort(cfg) : cfg.memoryEffort;
     const row = (label, val) =>
       `  ${C.bold(label.padEnd(26))} ${C.cyan(String(val))}`;
     console.log([
@@ -74,6 +93,7 @@ module.exports = [{
       row("budgetMode",               cfg.budgetMode),
       row("sessionBudgetUSD",         "$" + cfg.sessionBudgetUSD),
       row("complexityTokenThreshold", cfg.complexityTokenThreshold + " token"),
+      row("memoryEffort",             `${cfg.memoryEffort} (effective: ${effective})`),
       row("vaultDir",                 cfg.vaultDir),
       row("ollamaHost",               cfg.ollamaHost ?? "http://localhost:11434"),
       row("language",                 cfg.language ?? "en"),
@@ -82,6 +102,7 @@ module.exports = [{
       `  ${C.dim("/settings tier2 <backend> <model>")}`,
       `  ${C.dim("/settings budget <usd>     /settings threshold <token>")}`,
       `  ${C.dim("/settings vault <dir>      /settings ollama <host>")}`,
+      `  ${C.dim("/settings memoryEffort <low|balanced|high>")}`,
       "",
     ].join("\n"));
   },

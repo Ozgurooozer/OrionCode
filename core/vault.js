@@ -118,15 +118,17 @@ async function writeSession(sessionId, data, knowledge) {
   try { index = JSON.parse(fs.readFileSync(indexPath, "utf8")); } catch {}
   index = index.filter(e => e.id !== sessionId); // duplicate önle
   index.push({
-    id:        sessionId,
+    id:         sessionId,
     date,
-    file:      fname,
-    summary:   knowledge.summary ?? "",
-    tags:      knowledge.tags ?? [],
-    turns:     data.messages?.length ?? 0,
-    model:     data.model ?? "",
-    backend:   data.backend ?? "",
-    createdAt: Date.now(),
+    file:       fname,
+    summary:    knowledge.summary ?? "",
+    tags:       knowledge.tags ?? [],
+    turns:      data.messages?.length ?? 0,
+    model:      data.model ?? "",
+    backend:    data.backend ?? "",
+    createdAt:  Date.now(),
+    activation: 1.0,   // Hebbian: 1.0 başlangıç, erişimde artar, zamanla azalır
+    accessedAt: null,
   });
   fs.writeFileSync(tmpPath, JSON.stringify(index, null, 2));
   fs.renameSync(tmpPath, indexPath);
@@ -156,7 +158,7 @@ async function writeSession(sessionId, data, knowledge) {
   return { file: fname, id: sessionId };
 }
 
-// Semantik vault araması
+// Semantik vault araması + Hebbian aktivasyon: erişilen kayıtları güçlendir
 async function searchVault(queryText, limit = 5) {
   const vaultDir = getVaultDir();
   const vPath = path.join(vaultDir, "vectors.json");
@@ -170,13 +172,67 @@ async function searchVault(queryText, limit = 5) {
     const embed = require("./embed.js");
     const qVec = await embed.embedText(queryText);
     if (!qVec) return recentEntries(limit);
-    const ranked = embed.topK(qVec, vecs, limit);
-    const idSet = new Set(ranked.map(r => r.id));
-    return index
+
+    // Aktivasyon ağırlıklı skor: cosine * sqrt(activation)
+    const rawRanked = embed.topK(qVec, vecs, limit * 3);
+    const hebbianRanked = rawRanked
+      .map(r => {
+        const entry = index.find(e => e.id === r.id);
+        const act   = entry?.activation ?? 1.0;
+        return { ...r, score: r.score * Math.sqrt(Math.max(0.1, act)) };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+
+    const idSet  = new Set(hebbianRanked.map(r => r.id));
+    const result = index
       .filter(e => idSet.has(e.id))
-      .map(e => ({ ...e, score: ranked.find(r => r.id === e.id)?.score ?? 0 }))
+      .map(e => ({ ...e, score: hebbianRanked.find(r => r.id === e.id)?.score ?? 0 }))
       .sort((a, b) => b.score - a.score);
+
+    // Erişilen kayıtların aktivasyonunu artır (Hebbian: kullanılan bağlantı güçlenir)
+    _bumpActivations(result.map(e => e.id), vaultDir, iPath);
+
+    return result;
   } catch { return recentEntries(limit); }
+}
+
+// Aktivasyon artır: +0.3, max 5.0
+function _bumpActivations(ids, vaultDir, iPath) {
+  try {
+    const tmpPath = iPath + ".tmp";
+    let index = JSON.parse(fs.readFileSync(iPath, "utf8"));
+    let changed = false;
+    for (const entry of index) {
+      if (ids.includes(entry.id)) {
+        entry.activation = Math.min(5.0, (entry.activation ?? 1.0) + 0.3);
+        entry.accessedAt = Date.now();
+        changed = true;
+      }
+    }
+    if (changed) {
+      fs.writeFileSync(tmpPath, JSON.stringify(index, null, 2));
+      fs.renameSync(tmpPath, iPath);
+    }
+  } catch {}
+}
+
+// Hebbian decay: boşta çalışırken aktivasyonları hafifçe düşür (daemon çağırır)
+// weeklyDecay = 0.92 → ~8 haftada yarıya iner (0.92^8 ≈ 0.51)
+function decayActivations(weeklyDecay = 0.92) {
+  const vaultDir = getVaultDir();
+  const iPath    = path.join(vaultDir, "index.json");
+  try {
+    const tmpPath = iPath + ".tmp";
+    let index = JSON.parse(fs.readFileSync(iPath, "utf8"));
+    for (const entry of index) {
+      if ((entry.activation ?? 1.0) > 0.5) {
+        entry.activation = +(((entry.activation ?? 1.0) * weeklyDecay).toFixed(4));
+      }
+    }
+    fs.writeFileSync(tmpPath, JSON.stringify(index, null, 2));
+    fs.renameSync(tmpPath, iPath);
+  } catch {}
 }
 
 function recentEntries(limit = 10) {
@@ -368,8 +424,39 @@ function rebuildGraph(vaultDir) {
   return path.join(dir, "graph.html");
 }
 
+// ─── Lovelace digest ───────────────────────────────────────────────────────────
+
+function getDigestDir() { return path.join(getVaultDir(), "digests"); }
+
+function writeDigest(content) {
+  const dir = getDigestDir();
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const date = new Date().toISOString().slice(0, 10);
+  const file = path.join(dir, `${date}.md`);
+  fs.writeFileSync(file, content, "utf8");
+  return file;
+}
+
+function readLatestDigest() {
+  const dir = getDigestDir();
+  if (!fs.existsSync(dir)) return null;
+  const files = fs.readdirSync(dir).filter(f => f.endsWith(".md")).sort().reverse();
+  if (!files.length) return null;
+  const file = path.join(dir, files[0]);
+  return { date: files[0].replace(".md", ""), content: fs.readFileSync(file, "utf8"), file };
+}
+
+function shouldRunDigest() {
+  const dir = getDigestDir();
+  if (!fs.existsSync(dir)) return true;
+  const files = fs.readdirSync(dir).filter(f => f.endsWith(".md")).sort().reverse();
+  if (!files.length) return true;
+  const daysSince = (Date.now() - new Date(files[0].replace(".md", "")).getTime()) / 86_400_000;
+  return daysSince >= 7;
+}
+
 module.exports = {
   ensureVault, sessionToHTML, writeSession,
   searchVault, recentEntries, readEntry, rebuildIndex, rebuildGraph,
-  getVaultDir,
+  getVaultDir, writeDigest, readLatestDigest, shouldRunDigest, decayActivations,
 };

@@ -8,6 +8,7 @@ const fs     = require("fs");
 const path   = require("path");
 const crypto = require("crypto");
 const tools  = require("./tools.js");
+const events = require("./events.js");
 const { ModeManager } = require("./modes.js");
 const persist = require("./persist.js");
 const memory = require("./memory.js");
@@ -15,7 +16,7 @@ const { BudgetTracker, countMessages, estimateCost } = require("./budget.js");
 const { SessionLogger } = require("./telemetry.js");
 const router = require("./router.js");
 const backends = require("../backends/index.js");
-const { C, print, spinner } = require("../tui/index.js");
+const { C, print, spinner, aiTurnStart, aiTurnContinue } = require("../tui/index.js");
 const i18n = require("./i18n.js");
 
 const ROOT        = path.join(__dirname, "..");
@@ -27,6 +28,14 @@ let _interrupted = false;
 function interrupt() { _interrupted = true; }
 function clearInterrupt() { _interrupted = false; }
 function isInterrupted() { return _interrupted; }
+
+// Tool çıktısındaki hata öneklerini tanı — telemetry ok/error alanı için
+function _toolCallError(out) {
+  if (typeof out !== "string") return null;
+  if (out.startsWith("Araç hatası (")) return out.replace(/^Araç hatası \([^)]+\):\s*/, "").slice(0, 100);
+  if (out.startsWith("Araç bulunamadı:")) return "not found";
+  return null;
+}
 
 function _cleanResponse(text) {
   text = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
@@ -74,6 +83,24 @@ ${read("merak.md")}
 `;
 }
 
+// Araç sonucunda diff varsa diff olayı yayınla (write_file / edit_file çıktısı)
+const _DIFF_RE = /```diff\n([\s\S]*?)```/;
+const _DIFF_STAT_RE = /\(([+-]\d+[^)]*)\)/;
+function _emitDiff(toolName, result, sessionId) {
+  if (typeof result !== "string") return;
+  const m = _DIFF_RE.exec(result);
+  if (!m) return;
+  const diff = m[1];
+  const statMatch = _DIFF_STAT_RE.exec(result);
+  const pathMatch  = result.match(/(?:✎|wrote?|edit)[^\n]*?[:：]\s*([^\s(]+)/i);
+  events.emit("diff", sessionId, {
+    tool:    toolName,
+    path:    pathMatch?.[1] ?? null,
+    diff,
+    stat:    statMatch?.[1] ?? null,
+  });
+}
+
 // Anthropic blok içerikli mesajları düz metne indir (backend geçişleri için)
 function _flattenMsgs(msgs) {
   const out = [];
@@ -109,9 +136,12 @@ class Session {
     this._extracting = false;
     this._manualBackend = false;
     this._manualModel   = false;
+    this._lastRoute     = null; // Thompson sampling için
+    this._lastApiUsage  = null; // Anthropic cache usage (cacheReadTokens, cacheWriteTokens)
     this.budget      = new BudgetTracker(1.0);
     this.telemetry   = new SessionLogger(this.id);
     this._lastInputTokens = 0;
+    this._specCache  = new (require("./speculex.js").SpeculativeCache)();
   }
 
   get mode() { return this.modes.get(); }
@@ -169,6 +199,7 @@ class Session {
     // Router: manual override yoksa tier kararı
     if (!this._manualBackend) {
       const route = router.decide(text, { tokenCount: inputTokens, mode: this.mode.name, budgetTracker: this.budget });
+      this._lastRoute = route;
       if (route.tier === 1 && this.backend !== "ollama") {
         const embed = require("./embed.js");
         const ollamaOk = await embed.isAvailable().catch(() => false);
@@ -186,6 +217,17 @@ class Session {
 
     this.telemetry.record({ event: "turn_start", backend: this._routedBackend ?? this.backend, model: this._routedModel ?? this.model, estimatedInputTokens: inputTokens });
 
+    // Tier2 seçildiyse: Ollama ile spekülatif salt-okunur önbellek (background, hata sessiz)
+    if (this._lastRoute?.tier === 2) {
+      this._specCache.clear();
+      require("./speculex.js").startPrefetch(this._specCache, text, router.loadConfig(), this.id, this.telemetry).catch(() => {});
+    }
+
+    // FEP gölge mod: gerçek kararın yanına gölge FEP kararını logla (fire-and-forget)
+    if (this._lastRoute) {
+      require("./freeenergy.js").shadowLog(this._lastRoute, text, this.id, this.telemetry).catch(() => {});
+    }
+
     const t0 = Date.now();
     let result;
     try {
@@ -197,12 +239,28 @@ class Session {
     }
 
     const wallMs = Date.now() - t0;
-    const outputTokens = Math.ceil((result || "").length / 4);
-    const costUSD = estimateCost(inputTokens, outputTokens, this.model);
-    this.budget.add(inputTokens, outputTokens, costUSD);
-    this.telemetry.record({ event: "turn_complete", outputTokens, costUSD, wallMs });
+
+    // Anthropic: gerçek token sayısını ve cache kullanımını API yanıtından al
+    const apiUsage = this._lastApiUsage ?? {};
+    this._lastApiUsage = null;
+    const actualInput  = apiUsage.inputTokens  ?? inputTokens;
+    const actualOutput = apiUsage.outputTokens ?? Math.ceil((result || "").length / 4);
+    const costUSD = estimateCost(actualInput, actualOutput, this.model, apiUsage);
+    this.budget.add(actualInput, actualOutput, costUSD, { ...apiUsage, _model: this.model });
+    this.telemetry.record({
+      event:            "turn_complete",
+      outputTokens:     actualOutput,
+      costUSD,
+      wallMs,
+      ...(apiUsage.cacheReadTokens  ? { cacheReadTokens:  apiUsage.cacheReadTokens  } : {}),
+      ...(apiUsage.cacheWriteTokens ? { cacheWriteTokens: apiUsage.cacheWriteTokens } : {}),
+    });
+    if (this._lastRoute) {
+      try { require("./thompson.js").update(this._lastRoute.tier, this._lastRoute.reason, true); } catch {}
+    }
 
     this._save();
+    events.emit("session_saved", this.id, { sessionId: this.id });
     this._turnCount++;
 
     if (this._turnCount % memory.EXTRACT_EVERY === 0 && !this._extracting) {
@@ -248,7 +306,12 @@ class Session {
           `${backend} error — ${next ? `falling back to ${next.backend}` : "no backend left"}: ${err.message}`,
           `${backend} hatası — ${next ? `${next.backend}'a geçiliyor` : "backend kalmadı"}: ${err.message}`
         ));
-        if (!next) throw err;
+        if (!next) {
+          if (this._lastRoute) {
+            try { require("./thompson.js").update(this._lastRoute.tier, this._lastRoute.reason, false); } catch {}
+          }
+          throw err;
+        }
       }
     }
   }
@@ -287,45 +350,72 @@ class Session {
   // ── Anthropic: native blok akışı ──────────────────────────────────────────
   async _anthropicLoop() {
     const anthropic = require("../backends/anthropic.js");
+    const { getEffectiveMemoryEffort } = require("./router.js");
     const allowedDefs = this.modes.filterDefs(tools.getDefs());
-    process.stdout.write(`\n${C.yellow("orion>")} `);
+    const useThinking = getEffectiveMemoryEffort() === "high";
+    const chatOpts    = {
+      onToken: tok => { process.stdout.write(tok); events.emit("text_delta", this.id, { delta: tok }); },
+      thinking: useThinking,
+    };
+    aiTurnStart(this.mode?.name, this.backend);
 
-    let resp = await anthropic.chat(
-      this.model, this.msgs, this.system, allowedDefs,
-      { onToken: tok => process.stdout.write(tok) }
-    );
+    // Cache usage — tüm tur döngüsü boyunca biriktirilir
+    let totalCacheRead = 0, totalCacheWrite = 0;
+
+    let resp = await anthropic.chat(this.model, this.msgs, this.system, allowedDefs, chatOpts);
+    totalCacheRead  += resp.usage?.cache_read_input_tokens    ?? 0;
+    totalCacheWrite += resp.usage?.cache_creation_input_tokens ?? 0;
 
     while (resp.stop_reason === "tool_use") {
       process.stdout.write("\n");
+      // resp.content thinking+tool_use bloklarını signature dahil tutar — bir sonraki isteğe geçer
       this.msgs.push({ role: "assistant", content: resp.content });
       const results = [];
 
       for (const block of resp.content) {
         if (block.type !== "tool_use") continue;
         const perm = this.modes.canUse(block.name);
+        events.emit("approval_resolved", this.id, { tool: block.name, ok: perm.ok, reason: perm.reason ?? null });
         if (!perm.ok) {
+          events.emit("approval_request", this.id, { tool: block.name, input: block.input, reason: perm.reason });
           print.warn(perm.reason);
           results.push({ type: "tool_result", tool_use_id: block.id, content: perm.reason });
           continue;
         }
         print.tool(block.name, block.input);
         const tStart = Date.now();
-        const out = await tools.callTool(block.name, block.input);
-        this.telemetry.record({ event: "tool_call", tool: block.name, latencyMs: Date.now() - tStart });
+        const _sCached = this._specCache.get(block.name, block.input ?? {});
+        const out = _sCached !== null ? _sCached : await tools.callTool(block.name, block.input, this.id);
+        { const _e = _toolCallError(out); this.telemetry.record({ event: "tool_call", tool: block.name, latencyMs: _sCached !== null ? 0 : Date.now() - tStart, ok: !_e, ...(_e ? { error: _e } : {}), ...(_sCached !== null ? { specHit: true } : {}) }); }
+        _emitDiff(block.name, out, this.id);
         print.result(out);
         results.push({ type: "tool_result", tool_use_id: block.id, content: String(out) });
       }
 
       this.msgs.push({ role: "user", content: results });
-      process.stdout.write(`\n${C.yellow("orion>")} `);
-      resp = await anthropic.chat(
-        this.model, this.msgs, this.system, allowedDefs,
-        { onToken: tok => process.stdout.write(tok) }
-      );
+      aiTurnContinue();
+      resp = await anthropic.chat(this.model, this.msgs, this.system, allowedDefs, chatOpts);
+      totalCacheRead  += resp.usage?.cache_read_input_tokens    ?? 0;
+      totalCacheWrite += resp.usage?.cache_creation_input_tokens ?? 0;
+    }
+
+    // Gerçek API token sayılarını ve cache usage'ı send()'e aktar
+    this._lastApiUsage = {
+      inputTokens:      resp.usage?.input_tokens  ?? null,
+      outputTokens:     resp.usage?.output_tokens ?? null,
+      cacheReadTokens:  totalCacheRead,
+      cacheWriteTokens: totalCacheWrite,
+    };
+
+    // thinking bloklarını ayrı olay olarak yayınla (extended thinking aktifse dolu gelir)
+    for (const block of resp.content) {
+      if (block.type === "thinking" && block.thinking) {
+        events.emit("thinking_delta", this.id, { thinking: block.thinking });
+      }
     }
 
     const finalText = resp.content.filter(b => b.type === "text").map(b => b.text).join("");
-    process.stdout.write("\n\n");
+    process.stdout.write("\n");
     this.msgs.push({ role: "assistant", content: resp.content });
     return finalText;
   }
@@ -339,7 +429,7 @@ class Session {
     let finalText = "";
     let lastCallSig = "";
     clearInterrupt();
-    process.stdout.write(`\n${C.yellow("orion>")} `);
+    aiTurnStart(this.mode?.name, this.backend);
 
     for (let iter = 0; iter < MAX_ITERS; iter++) {
       if (isInterrupted()) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
@@ -347,7 +437,7 @@ class Session {
       const r = await provider.chatRich(this.model, history, {
         system:  this.system,
         tools:   useTools ? allowedDefs : undefined,
-        onToken: tok => process.stdout.write(tok),
+        onToken: tok => { process.stdout.write(tok); events.emit("text_delta", this.id, { delta: tok }); },
       });
 
       if (!r.toolCalls.length) { finalText = r.text; break; }
@@ -371,7 +461,9 @@ class Session {
       for (const call of r.toolCalls) {
         const perm = this.modes.canUse(call.name);
         let out;
+        events.emit("approval_resolved", this.id, { tool: call.name, ok: perm.ok, reason: perm.reason ?? null });
         if (!perm.ok) {
+          events.emit("approval_request", this.id, { tool: call.name, input: call.input, reason: perm.reason });
           print.warn(perm.reason);
           out = perm.reason;
         } else if (repeated) {
@@ -382,18 +474,20 @@ class Session {
         } else {
           print.tool(call.name, call.input);
           const tStart = Date.now();
-          out = await tools.callTool(call.name, call.input ?? {});
-          this.telemetry.record({ event: "tool_call", tool: call.name, latencyMs: Date.now() - tStart });
+          const _sCached2 = this._specCache.get(call.name, call.input ?? {});
+          out = _sCached2 !== null ? _sCached2 : await tools.callTool(call.name, call.input ?? {}, this.id);
+          { const _e = _toolCallError(out); this.telemetry.record({ event: "tool_call", tool: call.name, latencyMs: _sCached2 !== null ? 0 : Date.now() - tStart, ok: !_e, ...(_e ? { error: _e } : {}), ...(_sCached2 !== null ? { specHit: true } : {}) }); }
+          _emitDiff(call.name, out, this.id);
           print.result(out);
         }
         history.push({ role: "tool", tool_call_id: call.id, content: String(out) });
       }
       if (repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
-      process.stdout.write(`\n${C.yellow("orion>")} `);
+      aiTurnContinue();
     }
 
     finalText = _cleanResponse(finalText);
-    process.stdout.write("\n\n");
+    process.stdout.write("\n");
     this.msgs.push({ role: "assistant", content: finalText });
     return finalText;
   }
@@ -408,7 +502,7 @@ class Session {
     let finalText = "";
     let lastCallSig = "";
     clearInterrupt();
-    process.stdout.write(`\n${C.yellow("orion>")} `);
+    aiTurnStart(this.mode?.name, this.backend);
 
     for (let iter = 0; iter < MAX_ITERS; iter++) {
       if (isInterrupted()) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
@@ -418,7 +512,7 @@ class Session {
         r = await ollama.chatRich(this.model, history, {
           system:  this.system,
           tools:   useTools ? allowedDefs : undefined,
-          onToken: tok => process.stdout.write(tok),
+          onToken: tok => { process.stdout.write(tok); events.emit("text_delta", this.id, { delta: tok }); },
         });
       } catch (err) {
         if (err.noToolSupport && useTools) {
@@ -445,7 +539,9 @@ class Session {
       for (const call of r.toolCalls) {
         const perm = this.modes.canUse(call.name);
         let out;
+        events.emit("approval_resolved", this.id, { tool: call.name, ok: perm.ok, reason: perm.reason ?? null });
         if (!perm.ok) {
+          events.emit("approval_request", this.id, { tool: call.name, input: call.input, reason: perm.reason });
           print.warn(perm.reason);
           out = perm.reason;
         } else if (repeated) {
@@ -456,18 +552,20 @@ class Session {
         } else {
           print.tool(call.name, call.input);
           const tStart = Date.now();
-          out = await tools.callTool(call.name, call.input ?? {});
-          this.telemetry.record({ event: "tool_call", tool: call.name, latencyMs: Date.now() - tStart });
+          const _sCached3 = this._specCache.get(call.name, call.input ?? {});
+          out = _sCached3 !== null ? _sCached3 : await tools.callTool(call.name, call.input ?? {}, this.id);
+          { const _e = _toolCallError(out); this.telemetry.record({ event: "tool_call", tool: call.name, latencyMs: _sCached3 !== null ? 0 : Date.now() - tStart, ok: !_e, ...(_e ? { error: _e } : {}), ...(_sCached3 !== null ? { specHit: true } : {}) }); }
+          _emitDiff(call.name, out, this.id);
           print.result(out);
         }
         history.push({ role: "tool", content: String(out) });
       }
       if (repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
-      process.stdout.write(`\n${C.yellow("orion>")} `);
+      aiTurnContinue();
     }
 
     finalText = _cleanResponse(finalText);
-    process.stdout.write("\n\n");
+    process.stdout.write("\n");
     this.msgs.push({ role: "assistant", content: finalText });
     return finalText;
   }
@@ -481,7 +579,7 @@ class Session {
     const history = [{ role: "system", content: sysWithTools }, ..._flattenMsgs(this.msgs)];
     let iters = 0, finalText = "", lastRaw = "", lastCallSig = "";
 
-    process.stdout.write(`\n${C.yellow("orion>")} `);
+    aiTurnStart(this.mode?.name, this.backend);
     clearInterrupt();
     while (iters < 8) {
       if (isInterrupted()) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
@@ -526,18 +624,19 @@ class Session {
       lastCallSig = sig;
 
       print.tool(call.name, call.input);
-      const result = await tools.callTool(call.name, call.input ?? {});
+      const result = await tools.callTool(call.name, call.input ?? {}, this.id);
+      _emitDiff(call.name, result, this.id);
       print.result(result);
 
       history.push({ role: "assistant", content: rawResp });
       history.push({ role: "user",      content: `<<<RESULT>>>\n${result}\n<<<END>>>` });
-      process.stdout.write(`\n${C.yellow("orion>")} `);
+      aiTurnContinue();
     }
 
     if (!finalText && lastRaw) finalText = lastRaw;
     finalText = _cleanResponse(finalText);
     if (this.mode.allowTools && finalText) process.stdout.write(finalText);
-    process.stdout.write("\n\n");
+    process.stdout.write("\n");
     this.msgs.push({ role: "assistant", content: finalText });
     return finalText;
   }

@@ -184,31 +184,84 @@ function contextWindow(model = "", backend = "") {
   return 128_000;
 }
 
+// ── Chat turn yardımcıları ───────────────────────────────────────────────────
+
+function _boxW() {
+  return Math.min(process.stdout.columns ?? 80, 100);
+}
+
+// ╭─ ozyn ──────── HH:MM ─╮  →  input kutusu üst kenarlığı
+function userTurnHeader() {
+  const W  = _boxW();
+  const ts = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  // ╭─ + " ozyn " + "── " + dashes + " " + ts + " ─╮"
+  const prefix = "╭─ ";
+  const label  = "ozyn";
+  const suffix = ` ${ts} ─╮`;
+  const dashes = "─".repeat(Math.max(2, W - prefix.length - label.length - 1 - suffix.length));
+  process.stdout.write(
+    `\n${T.muted}${prefix}${T.belt}${label}${RESET}${T.muted} ${dashes}${suffix}${RESET}\n`
+  );
+}
+
+// Readline prompt'u — \x01..\x02 readline için genişlik hesabından çıkarır (ANSI)
+function makeInputPrompt() {
+  const Z0  = `\x01${RESET}\x02`;
+  const Zm  = `\x01${T.muted}\x02`;
+  const Za  = `\x01${T.accent}\x02`;
+  return `${Zm}│${Z0} ${Za}►${Z0} `;
+}
+
+// ╰──────────────╯  →  input kutusu alt kenarlığı (Enter'dan sonra çizilir)
+function inputBoxBottom() {
+  const W = _boxW();
+  process.stdout.write(`${T.muted}╰${"─".repeat(W - 2)}╯${RESET}\n`);
+}
+
+// session.js backend döngüsü başında — AI yanıtı başlamadan önce
+function aiTurnStart(mode, backend) {
+  const W    = _boxW();
+  const info = `${mode ?? "chat"} · ${backend ?? ""}`;
+  // "─ orion ✦ ── " + info + dashes (sona kadar uzar)
+  const pre  = "─ orion ✦ ── ";
+  const dashes = "─".repeat(Math.max(2, W - pre.length - info.length));
+  process.stdout.write(
+    `\n${T.muted}${pre}${T.star}${info}${RESET}${T.muted}${dashes}${RESET}\n\n`
+  );
+}
+
+// Araç çağrısı sonrası devam — subtil bağlayıcı
+function aiTurnContinue() {
+  process.stdout.write(`\n${T.muted}  ···${RESET}\n`);
+}
+
 // ── print ────────────────────────────────────────────────────────────────────
 const print = {
+  // Araç çağrısı: screenshot'taki  *  ToolName "arg"  stili
   tool: (name, input) => {
-    const icon = toolIcon(name);
-    const arg  = toolArgPreview(input);
-    process.stderr.write(`  ${T.accent}${icon}${RESET} ${C.bold(name)}${arg ? C.muted(`  ${arg}`) : ""}\n`);
+    const arg = toolArgPreview(input);
+    const argStr = arg ? ` ${T.muted}"${arg.replace(/"/g, "'")}"${RESET}` : "";
+    process.stdout.write(`  ${T.muted}*${RESET} ${T.accent}${name}${RESET}${argStr}\n`);
   },
+  // Araç sonucu: →  öneki
   result: text => {
     const s = String(text).slice(0, 120).replace(/\n/g, " ");
-    process.stderr.write(`  ${C.muted("↳ " + s)}\n`);
+    process.stdout.write(`  ${T.muted}→ ${s}${RESET}\n`);
   },
 
-  // Renkli unified diff — dosya değişikliklerinde gösterilir (pi tarzı)
+  // Renkli unified diff — dosya değişikliklerinde gösterilir
   diff: (diffStr, { maxLines = 40 } = {}) => {
     if (!diffStr) return;
     const lines = diffStr.split("\n");
     const shown = lines.slice(0, maxLines);
     for (const l of shown) {
-      if (l.startsWith("+"))       process.stderr.write(`  ${T.ok}${l}${RESET}\n`);
-      else if (l.startsWith("-"))  process.stderr.write(`  ${T.err}${l}${RESET}\n`);
-      else if (l.startsWith("@@")) process.stderr.write(`  ${T.accent}${l}${RESET}\n`);
-      else                         process.stderr.write(`  ${T.muted}${l}${RESET}\n`);
+      if (l.startsWith("+"))       process.stdout.write(`  ${T.ok}${l}${RESET}\n`);
+      else if (l.startsWith("-"))  process.stdout.write(`  ${T.err}${l}${RESET}\n`);
+      else if (l.startsWith("@@")) process.stdout.write(`  ${T.accent}${l}${RESET}\n`);
+      else                         process.stdout.write(`  ${T.muted}${l}${RESET}\n`);
     }
     if (lines.length > maxLines)
-      process.stderr.write(`  ${C.muted(`… +${lines.length - maxLines} satır daha`)}\n`);
+      process.stdout.write(`  ${C.muted(`… +${lines.length - maxLines} satır daha`)}\n`);
   },
   error:  text => console.error(`${T.err}✗${RESET} ${text}`),
   warn:   text => console.error(`${T.warn}!${RESET} ${text}`),
@@ -222,7 +275,7 @@ const print = {
       "  /help  /model  /mode  /mcp  /provider  /vault  /settings   Ctrl+C×2 exit",
       "  /yardim  /model  /mod  /mcp  /saglayici  /vault  /ayar   Ctrl+C×2 çıkış"
     )));
-    console.log(C.muted("  " + "─".repeat(60)) + "\n");
+    console.log(C.muted("  " + "─".repeat(60)));
   },
 
   // Statusline — her turdan sonra: mod · model · ↑↓ token · $ · ctx%
@@ -279,4 +332,48 @@ const spinner = {
   },
 };
 
-module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow };
+// ── Sticky input (scroll region tabanlı sabit altta kalma) ───────────────────
+const STICKY_H = 3; // üst kenarlık + input satırı + durum/boşluk
+
+// Scroll region'ı kur — content üstte, input kutusu altta sabit kalır
+function stickySetup() {
+  if (!process.stdout.isTTY) return;
+  const rows = process.stdout.rows ?? 24;
+  const scrollBottom = Math.max(5, rows - STICKY_H);
+  process.stdout.write(`\x1b[1;${scrollBottom}r`);        // scroll region
+  process.stdout.write(`\x1b[${scrollBottom + 1};1H\x1b[J`); // input alanını temizle
+}
+
+// Scroll region'ı sıfırla (çıkışta veya headless modunda)
+function stickyTeardown() {
+  process.stdout.write(`\x1b[r`);    // scroll region sıfırla
+  process.stdout.write(`\x1b[?25h`); // cursor'u göster
+}
+
+// Input kutusunu scroll region dışında çiz (her prompt öncesinde çağrılır)
+function stickyRefreshInput() {
+  if (!process.stdout.isTTY) { userTurnHeader(); return; }
+  const rows = process.stdout.rows ?? 24;
+  const W    = _boxW();
+  const ts   = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const topRow = Math.max(5, rows - STICKY_H) + 1;
+
+  // Input alanını temizle ve üst kenarlığı çiz
+  process.stdout.write(`\x1b[${topRow};1H\x1b[J`);
+  const prefix = "╭─ ";
+  const label  = "ozyn";
+  const suffix = ` ${ts} ─╮`;
+  const dashes = "─".repeat(Math.max(2, W - prefix.length - label.length - 1 - suffix.length));
+  process.stdout.write(`${T.muted}${prefix}${T.belt}${label}${RESET}${T.muted} ${dashes}${suffix}${RESET}\n`);
+  // Cursor şimdi topRow+1 (input satırı) — readline burada render eder
+}
+
+// Cursor'u içerik alanının sonuna taşı (AI yanıtı buraya akacak)
+function stickyMoveToContent() {
+  if (!process.stdout.isTTY) return;
+  const rows = process.stdout.rows ?? 24;
+  const scrollBottom = Math.max(5, rows - STICKY_H);
+  process.stdout.write(`\x1b[${scrollBottom};1H`);
+}
+
+module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow, userTurnHeader, makeInputPrompt, inputBoxBottom, aiTurnStart, aiTurnContinue, stickySetup, stickyTeardown, stickyRefreshInput, stickyMoveToContent };

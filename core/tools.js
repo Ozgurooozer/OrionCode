@@ -1,5 +1,6 @@
 // core/tools.js — Araç kaydı, yönlendirme, dinamik (MCP) araçlar, ReAct format
 "use strict";
+const events = require("./events.js");
 const fsTools       = require("../tools/fs.js");
 const shellTools    = require("../tools/shell.js");
 const memoryTools   = require("../tools/memory.js");
@@ -46,17 +47,39 @@ function getDefs() {
   return [...STATIC_DEFS, ...DYNAMIC.defs.map(({ _source, ...d }) => d)];
 }
 
-async function callTool(name, input) {
+/**
+ * Araç çağır — tool_start/tool_end olaylarını yayınlar.
+ * @param {string}      name
+ * @param {object}      input
+ * @param {string|null} sessionId  — opsiyonel, geriye dönük uyumlu
+ */
+async function callTool(name, input, sessionId = null) {
+  events.emit("tool_start", sessionId, { tool: name, input: input ?? {} });
+  const t0 = Date.now();
+
   const dyn = DYNAMIC.executors[name];
   if (dyn) {
-    try { return await dyn(name, input ?? {}); }
-    catch (e) { return `Araç hatası (${name}): ${e.message}`; }
+    try {
+      const result = await dyn(name, input ?? {});
+      events.emit("tool_end", sessionId, { tool: name, latencyMs: Date.now() - t0, ok: true });
+      return result;
+    } catch (e) {
+      events.emit("tool_end", sessionId, { tool: name, latencyMs: Date.now() - t0, ok: false, error: e.message });
+      return `Araç hatası (${name}): ${e.message}`;
+    }
   }
+
   const mod = REGISTRY[name];
-  if (!mod) return `Araç bulunamadı: ${name}`;
+  if (!mod) {
+    events.emit("tool_end", sessionId, { tool: name, latencyMs: Date.now() - t0, ok: false, error: "not found" });
+    return `Araç bulunamadı: ${name}`;
+  }
   try {
-    return await mod.execute(name, input ?? {});
+    const result = await mod.execute(name, input ?? {});
+    events.emit("tool_end", sessionId, { tool: name, latencyMs: Date.now() - t0, ok: true });
+    return result;
   } catch (e) {
+    events.emit("tool_end", sessionId, { tool: name, latencyMs: Date.now() - t0, ok: false, error: e.message });
     return `Araç hatası (${name}): ${e.message}`;
   }
 }

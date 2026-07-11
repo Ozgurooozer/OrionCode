@@ -19,4 +19,18 @@ function load(file = path.join(__dirname, "..", "credentials.json")) {
   } catch { return false; }
 }
 
-module.exports = { load };
+// Key'i credentials.json'a kalıcı kaydet (asla ekrana yazdırılmaz)
+function save(file, envKey, value) {
+  if (!file || !envKey || !value) return false;
+  try {
+    let creds = {};
+    try { creds = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
+    creds[envKey.toLowerCase()] = value;
+    const tmp = file + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(creds, null, 2), "utf8");
+    fs.renameSync(tmp, file);
+    return true;
+  } catch { return false; }
+}
+
+module.exports = { load, save };

@@ -142,12 +142,16 @@ function execute(name, input) {
 
     case "list_files": {
       const dir = path.resolve(input.dir ?? ".");
-      if (!fs.existsSync(dir)) return `HATA: Dizin yok: ${input.dir}`;
+      if (!fs.existsSync(dir)) return `HATA: Dizin yok: ${input.dir ?? "."}`;
+      const SKIP_DIRS = new Set(["node_modules", ".git", "$Recycle.Bin", "System Volume Information"]);
       function walk(d, depth = 0) {
         if (depth > 4) return [];
-        return fs.readdirSync(d, { withFileTypes: true }).flatMap(e => {
+        let entries;
+        try { entries = fs.readdirSync(d, { withFileTypes: true }); }
+        catch { return []; } // EPERM/EACCES → dizini atla
+        return entries.flatMap(e => {
           const rel = path.relative(process.cwd(), path.join(d, e.name));
-          if (e.isDirectory() && !e.name.startsWith(".") && e.name !== "node_modules")
+          if (e.isDirectory() && !e.name.startsWith(".") && !SKIP_DIRS.has(e.name))
             return [rel + "/", ...walk(path.join(d, e.name), depth + 1)];
           if (!input.pattern || _globToRe(input.pattern).test(e.name))
             return [rel];
@@ -159,14 +163,60 @@ function execute(name, input) {
     }
 
     case "search": {
-      try {
-        const dir  = input.dir ?? ".";
-        const glob = input.glob ? `--include="${input.glob}"` : "";
-        const cmd  = `grep -rn "${input.pattern.replace(/"/g,'\\"')}" ${glob} "${dir}" 2>&1`;
-        const out  = execSync(cmd, { cwd: process.cwd(), encoding: "utf8", maxBuffer: 1024*1024 });
-        return out.slice(0, 3000) || "(eşleşme yok)";
-      } catch (e) {
-        return e.stdout || "(eşleşme yok)";
+      const dir  = input.dir  ?? ".";
+      const pat  = input.pattern;
+      const glob = input.glob ?? null;
+
+      // ripgrep (rg) dene — cross-platform, hızlı
+      const tryRg = () => {
+        const args = ["rg", "-n", "--no-heading", "-m", "30",
+          glob ? `--glob=${glob}` : "",
+          `${pat}`, dir].filter(Boolean);
+        return execSync(args.join(" "), { cwd: process.cwd(), encoding: "utf8", maxBuffer: 1024*1024, timeout: 10_000 });
+      };
+
+      // grep dene (POSIX)
+      const tryGrep = () => {
+        const gFlag = glob ? `--include="${glob}"` : "";
+        return execSync(`grep -rn ${gFlag} "${pat.replace(/"/g,'\\"')}" "${dir}"`,
+          { cwd: process.cwd(), encoding: "utf8", maxBuffer: 1024*1024, timeout: 10_000 });
+      };
+
+      // Node.js fallback — sadece metin dosyaları, depth≤5
+      const nodeSearch = () => {
+        let re;
+        try { re = new RegExp(pat, "m"); }
+        catch { return `HATA: Geçersiz regex: ${pat}`; }
+        const absDir = path.resolve(dir);
+        const results = [];
+        const SKIP = new Set(["node_modules", ".git", "dist", "build"]);
+        const walkDir = (d, dep) => {
+          if (dep > 5 || results.length > 200) return;
+          let es;
+          try { es = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+          for (const e of es) {
+            if (e.name.startsWith(".") || SKIP.has(e.name)) continue;
+            const full = path.join(d, e.name);
+            if (e.isDirectory()) { walkDir(full, dep + 1); continue; }
+            if (glob && !_globToRe(glob).test(e.name)) continue;
+            try {
+              const text = fs.readFileSync(full, "utf8");
+              text.split("\n").forEach((line, i) => {
+                if (re.test(line)) {
+                  results.push(`${path.relative(process.cwd(), full)}:${i+1}:${line.trim().slice(0, 120)}`);
+                }
+              });
+            } catch {}
+          }
+        };
+        walkDir(absDir, 0);
+        return results.join("\n") || "(eşleşme yok)";
+      };
+
+      try { return (tryRg() || "").slice(0, 3000) || "(eşleşme yok)"; }
+      catch {
+        try { return (tryGrep() || "").slice(0, 3000) || "(eşleşme yok)"; }
+        catch { return nodeSearch().slice(0, 3000); }
       }
     }
 

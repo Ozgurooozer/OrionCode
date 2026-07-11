@@ -1,27 +1,310 @@
 // core/commands/saglayici.js — BYOK provider management
 // Keys are never printed to screen — only presence/absence is shown.
+// Interactive mode uses select-input + masked-input (clack dependency removed).
 "use strict";
-const { C, print } = require("../../tui/index.js");
+const path = require("path");
+const { C, T, print } = require("../../tui/index.js");
+const { selectInput }  = require("../tui/select-input.js");
+const { maskedInput }  = require("../tui/masked-input.js");
+const credentials      = require("../credentials.js");
 const i18n = require("../i18n.js");
 
+const CRED_FILE = path.join(__dirname, "..", "..", "credentials.json");
+
+const RESET = "\x1b[0m";
+const BOLD  = "\x1b[1m";
+
+function _col(s, w) { return String(s ?? "").padEnd(w); }
+
+// ── Provider bilgi yardımcıları ───────────────────────────────────────────────
+
+function _hasKey(p) {
+  if (p.name === "ollama") return true;
+  if (p.spec?.keyEnv && process.env[p.spec.keyEnv]) return true;
+  const specs = require("../../backends/custom.js").loadSpecs();
+  const s = specs[p.name];
+  return !!(s?.key || (s?.keyEnv && process.env[s.keyEnv]));
+}
+
+function _keyHint(p, ok) {
+  if (p.name === "ollama") return ok ? "local" : "offline";
+  return ok ? "key ✓" : "key ✗";
+}
+
+// ── /provider — interaktif ana liste ─────────────────────────────────────────
+async function listProvidersInteractive(session) {
+  const backends = require("../../backends/index.js");
+  const custom   = backends.custom;
+  const router   = require("../router.js");
+  const cfg      = router.loadConfig();
+  const activeName = cfg.tier2Backend ?? "";
+
+  // Availability kontrolü (paralel)
+  const availability = {};
+  await Promise.all(backends.ALL.map(async p => {
+    availability[p.name] = await p.isAvailable().catch(() => false);
+  }));
+  const customList = custom.loadProviders();
+  await Promise.all(customList.map(async p => {
+    availability[p.name] = await p.isAvailable().catch(() => false);
+  }));
+
+  const allProviders = [...backends.ALL, ...customList];
+
+  // TTY değilse metin listesi göster
+  if (!process.stdin.isTTY) {
+    _printProviderList(allProviders, availability, activeName, custom);
+    return;
+  }
+
+  // Başlık — düz metin (ANSI truecolor cursor takibini bozuyor)
+  process.stdout.write(`\n  ${T.star}Providers${RESET}  ${T.belt}${activeName || "(none)"}${RESET}\n`);
+
+  const options = allProviders.map(p => {
+    const ok   = availability[p.name] ?? false;
+    const hint = _keyHint(p, ok);
+    return { value: p.name, label: p.name, hint };
+  });
+  options.push({ value: "__presets__", label: "presets →", hint: "BYOK hazır servisler" });
+
+  const chosen = await selectInput(
+    i18n.t("Select provider to configure:", "Sağlayıcı seç:"),
+    options
+  );
+
+  if (chosen === null) {
+    process.stdout.write(`  ${C.muted(i18n.t("Cancelled.", "İptal edildi."))}\n\n`);
+    return;
+  }
+
+  if (chosen === "__presets__") {
+    await listPresetsInteractive();
+    return;
+  }
+
+  const provider = allProviders.find(p => p.name === chosen);
+  const ok       = availability[chosen] ?? false;
+  const hasKey   = _hasKey(provider);
+
+  if (provider.name === "ollama") {
+    if (ok && session) {
+      router.saveConfig({ tier2Backend: "ollama" });
+      session.backend = "ollama";
+    }
+    const msg = ok
+      ? i18n.t("Ollama is running locally — activated.", "Ollama yerel olarak çalışıyor — etkinleştirildi.")
+      : i18n.t("Ollama is offline. Start with: ollama serve", "Ollama offline. Başlat: ollama serve");
+    process.stdout.write(`\n  ${ok ? T.ok + "✓" : T.warn + "·"}${RESET}  ${msg}\n\n`);
+    return;
+  }
+
+  if (hasKey) {
+    const defaultModel = custom.loadSpecs()[chosen]?.defaultModel ?? "";
+    router.saveConfig({ tier2Backend: chosen });
+    if (session) {
+      session.backend = chosen;
+      if (defaultModel) session.model = defaultModel;
+    }
+    const suffix = defaultModel ? `  model → ${defaultModel}` : i18n.t("  use /model to select", "  /model ile model seç");
+    process.stdout.write(`\n  ${T.ok}✓${RESET}  ${chosen}: ${i18n.t("activated", "etkinleştirildi")}${suffix}\n\n`);
+    return;
+  }
+
+  // Key yoksa → maskelenmiş giriş
+  let key;
+  try {
+    key = await maskedInput(i18n.t(`API key for ${chosen}: `, `${chosen} için API anahtarı: `));
+  } catch {
+    process.stdout.write(`  ${C.muted(i18n.t("Cancelled.", "İptal edildi."))}\n\n`);
+    return;
+  }
+
+  if (!key || key.trim().length < 8) {
+    process.stdout.write(`  ${T.warn}!${RESET}  ${i18n.t("Key too short (min 8 chars)", "Anahtar çok kısa (en az 8 karakter)")}\n\n`);
+    return;
+  }
+
+  _saveKeyForProvider(chosen, key.trim(), custom);
+  // Built-in provider için env var'a da yükle (openrouter, openai vb. env'den okur)
+  const builtinKeyEnv = provider?.spec?.keyEnv;
+  if (builtinKeyEnv) {
+    process.env[builtinKeyEnv] = key.trim(); // bu oturumda hemen aktif
+    credentials.save(CRED_FILE, builtinKeyEnv, key.trim()); // kalıcı kayıt
+  }
+  const defaultModel = custom.loadSpecs()[chosen]?.defaultModel ?? "";
+  router.saveConfig({ tier2Backend: chosen });
+  if (session) {
+    session.backend = chosen;
+    if (defaultModel) session.model = defaultModel;
+  }
+  const suffix2 = defaultModel ? `  model → ${defaultModel}` : i18n.t("  use /model to select", "  /model ile model seç");
+  process.stdout.write(`\n  ${T.ok}✓${RESET}  ${i18n.t(`Key saved: ${chosen} — activated`, `Anahtar kaydedildi: ${chosen} — etkinleştirildi`)}${suffix2}\n\n`);
+}
+
+// ── /provider presets — interaktif ───────────────────────────────────────────
+async function listPresetsInteractive() {
+  const custom = require("../../backends/custom.js");
+
+  const options = Object.entries(custom.PRESETS).map(([name, p]) => {
+    const short = (p.baseURL ?? "").replace(/^https?:\/\//, "").replace(/\/v1\/?$/, "");
+    const specs  = custom.loadSpecs();
+    const added  = name in specs;
+    return {
+      value: name,
+      label: name,
+      hint:  `${short}${added ? "  (added)" : ""}`,
+    };
+  });
+
+  if (!process.stdin.isTTY) {
+    _printPresets(custom);
+    return;
+  }
+
+  process.stdout.write(`\n  ${T.nebula}Preset Providers${RESET}\n`);
+
+  const chosen = await selectInput(
+    i18n.t("Select preset to add / configure:", "Eklenecek preset:"),
+    options
+  );
+
+  if (chosen === null) {
+    process.stdout.write(`  ${C.muted(i18n.t("Cancelled.", "İptal edildi."))}\n\n`);
+    return;
+  }
+
+  const specs = custom.loadSpecs();
+  if (!(chosen in specs)) {
+    custom.addProvider(chosen, {});
+    print.system(i18n.t(`provider added: ${chosen}`, `sağlayıcı eklendi: ${chosen}`));
+  }
+
+  let key;
+  try {
+    key = await maskedInput(i18n.t(`API key for ${chosen}: `, `${chosen} için API anahtarı: `));
+  } catch {
+    process.stdout.write(`  ${C.muted(i18n.t("Cancelled.", "İptal edildi."))}\n\n`);
+    return;
+  }
+
+  if (!key || key.trim().length < 8) {
+    process.stdout.write(`  ${T.warn}!${RESET}  ${i18n.t("Key too short (min 8 chars)", "Anahtar çok kısa (en az 8 karakter)")}\n\n`);
+    return;
+  }
+
+  _saveKeyForProvider(chosen, key.trim(), custom);
+  // Preset'ler için de env var kaydet (keyEnv varsa)
+  const presetKeyEnv = custom.PRESETS[chosen]?.keyEnv;
+  if (presetKeyEnv) {
+    process.env[presetKeyEnv] = key.trim();
+    credentials.save(CRED_FILE, presetKeyEnv, key.trim());
+  }
+  process.stdout.write(`\n  ${T.ok}✓${RESET}  ${i18n.t(`Key saved: ${chosen} (providers.json — never printed to screen)`, `Anahtar kaydedildi: ${chosen} (providers.json — asla ekrana yazılmaz)`)}\n\n`);
+}
+
+// ── Key kaydetme (asla ekrana yazdırma) ──────────────────────────────────────
+function _saveKeyForProvider(name, key, custom) {
+  const specs   = custom.loadSpecs();
+  const preset  = custom.PRESETS[name];
+  const current = specs[name] ?? {
+    baseURL:      preset?.baseURL,
+    keyEnv:       preset?.keyEnv,
+    defaultModel: preset?.defaultModel,
+  };
+  current.key = key;
+  delete current.keyEnv;
+  specs[name] = current;
+  custom.saveSpecs(specs);
+}
+
+// ── Metin tabanlı fallback (non-TTY / pipe) ───────────────────────────────────
+function _printProviderList(providers, availability, activeName, custom) {
+  const SEP = C.muted("─".repeat(46));
+  console.log(`\n  ${BOLD}${T.star}Providers${RESET}  ${C.muted(i18n.t("tier2 active →", "aktif tier2 →"))} ${T.belt}${activeName}${RESET}\n`);
+  console.log(`  ${SEP}`);
+  for (const p of providers) {
+    const ok = availability[p.name] ?? false;
+    _printProvider(p, ok, activeName, p.spec?.host);
+  }
+  console.log(`  ${SEP}`);
+  _printHints();
+}
+
+function _printProvider(p, ok, activeName, host) {
+  const active = p.name === activeName;
+  const isLocal = p.name === "ollama";
+  const icon = ok ? `${T.ok}✓${RESET}` : `${T.muted}·${RESET}`;
+  const namePad = _col(p.name, 13);
+  const nameStr = active  ? `${BOLD}${T.belt}${namePad}${RESET}`
+                : ok      ? `${T.accent}${namePad}${RESET}`
+                :            `${T.muted}${namePad}${RESET}`;
+  const keyStatus = isLocal
+    ? (ok ? `${T.ok}local${RESET}` : `${T.muted}offline${RESET}`)
+    : ok  ? `${T.muted}key ✓${RESET}`
+          : `${T.err}key ✗${RESET}`;
+  const hostNote = host ? `  ${C.muted(host)}` : "";
+  const activeTag = active ? `  ${T.belt}◀${RESET}` : "";
+  console.log(`  ${icon}  ${nameStr}  ${keyStatus}${hostNote}${activeTag}`);
+}
+
+function _printPresets(custom) {
+  const SEP = C.muted("─".repeat(58));
+  console.log(`\n  ${BOLD}${T.nebula}Preset Providers${RESET}  ${C.muted(i18n.t("OpenAI-compatible", "OpenAI-uyumlu"))}\n`);
+  console.log(`  ${C.muted(_col("name", 11))}  ${C.muted(_col("endpoint", 30))}  ${C.muted("env key")}`);
+  console.log(`  ${SEP}`);
+  for (const [name, p] of Object.entries(custom.PRESETS)) {
+    const short = (p.baseURL ?? "").replace(/^https?:\/\//, "").replace(/\/v1\/?$/, "");
+    console.log(
+      `  ${T.nebula}${_col(name, 11)}${RESET}` +
+      `  ${C.muted(_col(short, 30))}` +
+      `  ${C.dim(p.keyEnv ?? "")}`
+    );
+  }
+  console.log(`  ${SEP}`);
+  _printPresetHints();
+}
+
+function _printHints() {
+  console.log([
+    "",
+    `  ${C.dim("/provider presets")}${C.muted("         " + i18n.t("list BYOK-ready services", "BYOK hazır servisler"))}`,
+    `  ${C.dim("/provider add <name>")}${C.muted("      " + i18n.t("add preset or custom URL", "preset ya da özel URL ekle"))}`,
+    `  ${C.dim("/provider key <name> <key>")}${C.muted("  " + i18n.t("save API key (never shown)", "API anahtarı kaydet (asla gösterilmez)"))}`,
+    `  ${C.dim("/model <provider> <model>")}${C.muted("   " + i18n.t("switch active model", "aktif modeli değiştir"))}`,
+    "",
+  ].join("\n"));
+}
+
+function _printPresetHints() {
+  console.log([
+    "",
+    `  ${C.dim("/provider add <name>")}${C.muted("          →  " + i18n.t("add from preset", "preset'ten ekle"))}`,
+    `  ${C.dim("/provider add <name> <url>")}${C.muted("    →  " + i18n.t("add custom OpenAI-compat URL", "özel OpenAI-uyumlu URL ekle"))}`,
+    `  ${C.dim("/provider key <name> <key>")}${C.muted("    →  " + i18n.t("save API key (never shown)", "API anahtarı kaydet (asla gösterilmez)"))}`,
+    "",
+  ].join("\n"));
+}
+
+// ── Readline izolasyonu: REPL readline'ı select-input/masked-input ile çakışmasın ──
+function _withRlPause(rl, fn) {
+  if (rl) rl.pause();
+  return Promise.resolve().then(fn).finally(() => { if (rl) rl.resume(); });
+}
+
+// ── Command export ────────────────────────────────────────────────────────────
 module.exports = [{
   name:    "provider",
   aliases: ["saglayici", "sg"],
   group:   "Model",
   desc:    "AI providers: list, add (BYOK), remove",
-  usage:   "/provider [add <name> [baseURL] | key <name> <key> | remove <name> | presets]",
-  exec: async ({ args }) => {
+  usage:   "/provider [add <name> [url] | key <name> <key> | remove <name> | presets]",
+  exec: async ({ args, rl, session }) => {
     const backends = require("../../backends/index.js");
     const custom   = backends.custom;
-    const sub = args[0]?.toLowerCase();
+    const sub      = args[0]?.toLowerCase();
 
     if (sub === "presetler" || sub === "presets") {
-      console.log("");
-      for (const [name, p] of Object.entries(custom.PRESETS)) {
-        console.log(`  ${C.cyan(name.padEnd(11))} ${C.muted(p.baseURL)}  ${C.dim(p.keyEnv)}`);
-      }
-      console.log(`\n  ${C.dim(i18n.t("/provider add <name>          →  add from preset", "/saglayici ekle <ad>          →  preset'ten ekle"))}`);
-      console.log(`  ${C.dim(i18n.t("/provider key <name> <key>    →  save API key", "/saglayici anahtar <ad> <key> →  API anahtarını kaydet"))}\n`);
+      await _withRlPause(rl, () => listPresetsInteractive());
       return;
     }
 
@@ -48,12 +331,12 @@ module.exports = [{
       const name = args[1]?.toLowerCase();
       const key  = args[2];
       if (!name || !key) { print.error(i18n.t("Usage: /provider key <name> <key>", "Kullanım: /saglayici anahtar <ad> <key>")); return; }
-      const specs = custom.loadSpecs();
+      const specs  = custom.loadSpecs();
       const preset = custom.PRESETS[name];
       if (!specs[name] && !preset) { print.error(i18n.t(`Add it first: /provider add ${name}`, `Önce ekle: /saglayici ekle ${name}`)); return; }
       const spec = specs[name] ?? { baseURL: preset.baseURL, defaultModel: preset.defaultModel };
       spec.key = key;
-      delete spec.keyEnv; // inline key takes priority
+      delete spec.keyEnv;
       specs[name] = spec;
       custom.saveSpecs(specs);
       print.system(i18n.t(`key saved: ${name} (providers.json — never printed to screen)`, `anahtar kaydedildi: ${name} (providers.json — asla ekrana yazdırılmaz)`));
@@ -70,25 +353,7 @@ module.exports = [{
       return;
     }
 
-    // /provider — list everything
-    console.log("");
-    console.log(`  ${C.bold(i18n.t("Built-in", "Yerleşik"))}`);
-    for (const p of backends.ALL) {
-      const ok = await p.isAvailable().catch(() => false);
-      const dot = ok ? C.green("●") : C.gray("○");
-      const note = ok ? "" : C.dim(i18n.t("  (no key)", "  (anahtar yok)"));
-      console.log(`  ${dot} ${C.cyan(p.name.padEnd(12))}${note}`);
-    }
-    const customs = custom.loadProviders();
-    if (customs.length) {
-      console.log(`\n  ${C.bold(i18n.t("Custom (BYOK)", "Özel (BYOK)"))}`);
-      for (const p of customs) {
-        const ok = await p.isAvailable().catch(() => false);
-        const dot = ok ? C.green("●") : C.gray("○");
-        console.log(`  ${dot} ${C.cyan(p.name.padEnd(12))}${C.muted(p.spec.host)}${ok ? "" : C.dim(i18n.t("  (no key)", "  (anahtar yok)"))}`);
-      }
-    }
-    console.log(`\n  ${C.dim("/provider presets   /provider add <name> [baseURL]")}`);
-    console.log(`  ${C.dim(i18n.t("/model <provider> <model-id>  →  start using", "/model <saglayici> <model-id>  →  kullanmaya başla"))}\n`);
+    // /provider — interaktif ana liste
+    await _withRlPause(rl, () => listProvidersInteractive(session));
   },
 }];

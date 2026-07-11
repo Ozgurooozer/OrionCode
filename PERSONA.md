@@ -160,6 +160,27 @@ mekanizması):
 
 ---
 
+## 9. Hafıza Yoğunluğu (memoryEffort)
+
+Extraction derinliği ve extended thinking üç seviyede çalışır.
+**Otomatik tetikleyici yoktur** — `high` seviyesi yalnızca elle açılır.
+
+| Seviye | Nasıl ayarlanır | Davranış |
+|---|---|---|
+| `low` | Varsayılan | Standart extraction, thinking kapalı |
+| `balanced` | `budgetMode=quality` otomatik buraya gelir; ya da `/settings memoryEffort balanced` | Derin extraction (thinking blokları dahil), thinking kapalı |
+| `high` | **Yalnızca** `/settings memoryEffort high` — elle | Extended thinking açık; API maliyeti artar |
+
+`high` modunda API isteğine eklenenler:
+- `betas: ["interleaved-thinking-2025-05-14"]`
+- `thinking: { type: "enabled", budget_tokens: 8000 }`
+
+Thinking blokları `session.messages`'a signature ile birlikte girer; multi-turn
+tool-use'da otomatik taşınır. Vault daemon extraction'ı thinking bloklarını da görür.
+
+
+---
+
 Bu belge, yeni bir projede/ajanda ilk yüklenecek dosyalardan biri olacak
 şekilde tasarlandı. İçeriği somut, test edilmiş davranışlardan türetildi;
 soyut/iddialı ilke eklenmedi.

@@ -1,10 +1,48 @@
 // core/commands/oturum.js — Session management
 "use strict";
-const { C, print } = require("../../tui/index.js");
+const { C, T, print } = require("../../tui/index.js");
 const persist = require("../persist.js");
 const i18n = require("../i18n.js");
 
+const RESET = "\x1b[0m";
+
 module.exports = [
+  {
+    name:    "gecmis",
+    aliases: ["history", "geçmiş"],
+    group:   "Session",
+    desc:    "Mevcut sohbetin konuşma geçmişini göster",
+    usage:   "/gecmis",
+    exec: async ({ session }) => {
+      const msgs = session.msgs ?? [];
+      const visible = msgs.filter(m => {
+        if (m.role === "system") return false;
+        const c = m.content;
+        if (typeof c === "string") return c.trim().length > 0;
+        if (Array.isArray(c)) return c.some(b => b.type === "text" && b.text?.trim());
+        return false;
+      });
+      if (!visible.length) {
+        print.info(i18n.t("No messages yet in this session.", "Bu oturumda henüz mesaj yok."));
+        return;
+      }
+      console.log("");
+      for (const m of visible) {
+        const isUser = m.role === "user";
+        const label  = isUser ? `${T.belt}sen${RESET}` : `${T.star}orion${RESET}`;
+        let text = "";
+        if (typeof m.content === "string") {
+          text = m.content;
+        } else if (Array.isArray(m.content)) {
+          text = m.content.filter(b => b.type === "text").map(b => b.text).join(" ");
+        }
+        text = text.replace(/\s+/g, " ").trim().slice(0, 120);
+        if (!text) continue;
+        console.log(`  ${label}  ${isUser ? C.dim(text) : C.dim(text)}`);
+      }
+      console.log(`\n  ${C.dim(`${visible.length} mesaj · /load <id> ile geçmiş oturumu yükle`)}\n`);
+    },
+  },
   {
     name:    "sessions",
     aliases: ["oturumlar", "ls"],
