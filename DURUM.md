@@ -135,7 +135,8 @@ BYOK key kaydetme akışı: `maskedInput` → `process.env[keyEnv]` (bu oturum) 
 | `fs.test.js` | Dosya sistemi araçları |
 | `select-input.test.js` | Arrow-key select |
 | `tui.test.js` | TUI bileşenleri |
-| **Toplam** | **121 / 121 ✅** |
+| `slashmenu.test.js` | "/" komut açılır menüsü |
+| **Toplam** | **135 / 135 ✅** |
 
 ---
 
@@ -172,6 +173,18 @@ BYOK key kaydetme akışı: `maskedInput` → `process.env[keyEnv]` (bu oturum) 
 - **History dedup**: ardışık aynı girişler temizlenir
 - **`/gecmis`**: oturum geçmişi komutu (aliases: history)
 
+### Weakness Mining Doğrulama — Sessiz Hata Zinciri Bulundu ve Düzeltildi (bu oturum)
+
+`/weakness` hiç rapor üretmemiş olması araştırılırken (bkz. Açık/Sıradaki → İş A), gerçek Ollama'ya karşı uçtan uca deneme yapıldı ve üç kırık nokta bulundu:
+
+| # | Dosya | Sorun | Düzeltme |
+|---|---|---|---|
+| 12 | `core/extract.js` | `ollamaRequest`, Ollama'nın `{"error": "model not found"}` yanıtını sessizce `""`'e çeviriyordu | `data.error` kontrolü eklendi, artık `throw` ediyor |
+| 13 | `core/extract.js` | `tier1Model` varsayılanı (`qwen2.5-coder:7b`) yerelde kurulu olmayabiliyor, hata hiç görünmüyordu | `resolveOllamaModel()`: `/api/tags`'ten kurulu modelleri okur (60sn önbellek), istenen model yoksa kurulu ilk modele düşer |
+| 14 | `core/daemon.js` | `mineWeaknesses()` boş/kısa Ollama yanıtında sessizce `return` ediyordu, hiçbir yerde iz kalmıyordu | `parentPort.postMessage({type:"error", ...})` ile `daemon_error` olayına bağlandı |
+
+Doğrulama: sahte `≥2` tekrar eden hata kaydı + gerçek yerel Ollama ile uçtan uca test edildi. Düzeltme öncesi model bulunamama hatası 49ms'de sessizce boş dönüyordu; düzeltme sonrası gerçek kurulu modele düşüp gerçek yanıt üretiyor.
+
 ### Provider Düzeltmesi (önceki oturum)
 - **Clack kaldırıldı**: `selectInput` (arrow-key, raw mode) + `maskedInput` (custom) clack bağımlılığını tamamen devre dışı bıraktı — çift render sorunu giderildi
 - **Key env senkron**: built-in provider'lar için key hem `process.env[keyEnv]`'e hem `credentials.json`'a yazılıyor
@@ -184,7 +197,7 @@ BYOK key kaydetme akışı: `maskedInput` → `process.env[keyEnv]` (bu oturum) 
 
 | # | İş | Açıklama | Engel |
 |---|---|---|---|
-| A | Weakness Mining | `daemon.js`'e idle-zaman log analizi, `/weakness` komutu, onay kapılı tool güncelleme | Bekliyor |
+| A | Weakness Mining | `daemon.js`'e idle-zaman log analizi, `/weakness` komutu, onay kapılı tool güncelleme | Kod yazıldı, birim testleri geçiyor, ama üretimde hiç tetiklenmedi (bu makinede `~/.orion/reports/` hiç oluşmamış — tetikleme eşiği olan "7 günde ≥2 aynı hata" gerçek veride henüz hiç oluşmadı). Bu oturumda ayrıca gerçek bir çalıştırma denemesinde `tier1Model` varsayılanının (`qwen2.5-coder:7b`) yerelde kurulu olmadığı ve `ollamaRequest`'in bu hatayı sessizce yuttuğu bulundu — düzeltildi (bkz. aşağı). Onay kapılı tool güncelleme (apply) kısmı hâlâ yazılmadı. |
 | B | Spekülatif yürütme | Tier2 beklerken tier1 read-only tool tahmin + önbellek | Speculex altyapısı hazır, session entegrasyonu eksik |
 | C | FEP Faz 0 | `freeenergy.js` gölge modun gerçek telemetry karşılaştırmasına bağlanması | lambda=0, infrastructure hazır |
 | D | Kimlik adayı | İş A/B/C bitmeden başlanmaz | Ertelendi |

@@ -50,6 +50,28 @@ Sohbet:
 ${String(conversationText).slice(0, 3000)}`;
 }
 
+// tier1Model config'de yerelde kurulu olmayabilir (örn. varsayılan "qwen2.5-coder:7b"
+// hiç pull edilmemiş) — /api/tags'e bakıp kurulu değilse ilk kurulu modele düş.
+// 60sn önbellek: her ollamaRequest çağrısında ekstra HTTP round-trip yapmaz.
+let _modelCache = { ts: 0, models: null };
+async function _availableModels(ollamaHost) {
+  if (_modelCache.models && Date.now() - _modelCache.ts < 60_000) return _modelCache.models;
+  try {
+    const res = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(5_000) });
+    const data = await res.json();
+    const models = (data.models ?? []).map(m => m.name);
+    _modelCache = { ts: Date.now(), models };
+    return models;
+  } catch { return null; } // Ollama'ya erişilemiyor — çağıran kendi hata yolunu işletsin
+}
+
+async function resolveOllamaModel(desired, ollamaHost) {
+  const models = await _availableModels(ollamaHost);
+  if (!models || !models.length) return desired; // tags alınamadı/boş — olduğu gibi dene
+  if (models.includes(desired)) return desired;
+  return models[0]; // istenen kurulu değil — kurulu olan ilk modele düş
+}
+
 // Ollama'ya POST at ve ham metin döndür.
 // 1-arg form: ollamaRequest(prompt) — model ve timeout config'den alınır.
 // 3-arg form: ollamaRequest(model, prompt, opts) — model ve opts explicit verilir.
@@ -65,6 +87,7 @@ async function ollamaRequest(modelOrPrompt, maybePrompt, opts = {}) {
   }
   const ollamaHost = cfg.ollamaHost ?? "http://localhost:11434";
   const timeout    = opts?.timeout ?? 60_000;
+  model = await resolveOllamaModel(model, ollamaHost);
 
   const res = await fetch(`${ollamaHost}/api/chat`, {
     method:  "POST",
@@ -78,6 +101,7 @@ async function ollamaRequest(modelOrPrompt, maybePrompt, opts = {}) {
     signal: AbortSignal.timeout(timeout),
   });
   const data = await res.json();
+  if (data.error) throw new Error(`Ollama: ${data.error}`);
   return data.message?.content ?? "";
 }
 

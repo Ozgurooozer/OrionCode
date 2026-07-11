@@ -372,7 +372,13 @@ FORMAT: Her araç için:
 **Öneri:** [somut düzeltme]`;
 
       const response = await ollamaRequest(_mineModel, prompt, { timeout: 60000 });
-      if (!response || response.length < 30) return;
+      if (!response || response.length < 30) {
+        parentPort.postMessage({
+          type: "error",
+          error: `weakness mining: model "${_mineModel}" boş/çok kısa yanıt döndürdü (${response?.length ?? 0} karakter) — rapor yazılmadı`,
+        });
+        return;
+      }
 
       const date = new Date().toISOString().slice(0, 10);
       const reportsDir = path.join(os.homedir(), ".orion", "reports");
