@@ -18,9 +18,28 @@ function _col(s, w) { return String(s ?? "").padEnd(w); }
 
 // ── Provider bilgi yardımcıları ───────────────────────────────────────────────
 
+// Built-in sağlayıcılar (anthropic/ollama/openrouter/openai/huggingface) SADECE
+// process.env[keyEnv]'e bakar (credentials.js bunu credentials.json'dan yükler).
+// providers.json yalnızca gerçek custom/BYOK sağlayıcılar için geçerlidir —
+// oraya bakmak, built-in bir adı yanlışlıkla custom depoda bulup "key var"
+// yalanı söylemeye yol açar (özellikle _saveKeyForProvider eski bir çalıştırmada
+// built-in bir isme yazdıysa — bkz. _isBuiltin).
+function _isBuiltin(p) {
+  return require("../../backends/index.js").ALL.includes(p);
+}
+
+// anthropic.js openai-compat üzerinden değil, elle yazılmış — .spec yok,
+// ANTHROPIC_API_KEY'i doğrudan hardcode okur. Diğer built-in'ler .spec.keyEnv'e sahip.
+const BUILTIN_KEY_ENV = { anthropic: "ANTHROPIC_API_KEY" };
+function _builtinKeyEnvName(p) {
+  return p?.spec?.keyEnv ?? BUILTIN_KEY_ENV[p?.name];
+}
+
 function _hasKey(p) {
   if (p.name === "ollama") return true;
-  if (p.spec?.keyEnv && process.env[p.spec.keyEnv]) return true;
+  const keyEnv = _builtinKeyEnvName(p);
+  if (keyEnv && process.env[keyEnv]) return true;
+  if (_isBuiltin(p)) return false; // built-in + env'de yok → key yok, providers.json'a bakma
   const specs = require("../../backends/custom.js").loadSpecs();
   const s = specs[p.name];
   return !!(s?.key || (s?.keyEnv && process.env[s.keyEnv]));
@@ -174,12 +193,15 @@ async function listProvidersInteractive(session) {
     return;
   }
 
-  _saveKeyForProvider(chosen, key.trim(), custom);
-  // Built-in provider için env var'a da yükle (openrouter, openai vb. env'den okur)
-  const builtinKeyEnv = provider?.spec?.keyEnv;
-  if (builtinKeyEnv) {
+  // Built-in sağlayıcı → SADECE env + credentials.json (providers.json'a hiç
+  // yazma — oraya yazmak _hasKey()'i sonraki oturumda yanlış "key var" der hale
+  // getirir, çünkü built-in'ler providers.json'u hiç okumaz).
+  const builtinKeyEnv = _builtinKeyEnvName(provider);
+  if (_isBuiltin(provider) && builtinKeyEnv) {
     process.env[builtinKeyEnv] = key.trim(); // bu oturumda hemen aktif
     credentials.save(CRED_FILE, builtinKeyEnv, key.trim()); // kalıcı kayıt
+  } else {
+    _saveKeyForProvider(chosen, key.trim(), custom);
   }
   const defaultModel = custom.loadSpecs()[chosen]?.defaultModel ?? "";
   router.saveConfig({ tier2Backend: chosen });
