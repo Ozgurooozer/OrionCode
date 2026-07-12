@@ -1,7 +1,35 @@
 // core/commands/model.js — Model and backend management
 "use strict";
-const { C, print } = require("../../tui/index.js");
+const { C, print, spinner } = require("../../tui/index.js");
+const { fuzzyPicker } = require("../tui/fuzzy-picker.js");
 const i18n = require("../i18n.js");
+
+// Tüm erişilebilir backend'lerin model listesini topla — arama kutusu için
+// generic detect()'in 20/50 sınırından daha geniş bir havuz çeker.
+async function _gatherSearchableModels() {
+  const backends = require("../../backends/index.js");
+  const items = [];
+  await Promise.all(backends.all().map(async p => {
+    const ok = await p.isAvailable().catch(() => false);
+    if (!ok) return;
+    let models;
+    if (p.name === "openrouter" || p.name === "huggingface") {
+      models = await p.listModelIds(300).catch(() => []);
+    } else {
+      const m = await p.listModels().catch(() => []);
+      models = m.map(x => (typeof x === "string" ? x : x.id));
+    }
+    for (const model of models) {
+      items.push({
+        value:  { backend: p.name, model },
+        label:  model,
+        hint:   p.name,
+        search: `${p.name} ${model}`,
+      });
+    }
+  }));
+  return items;
+}
 
 module.exports = [{
   name:    "model",
@@ -75,7 +103,30 @@ module.exports = [{
       return;
     }
 
-    // /model — current status + detected backends
+    // /model — TTY'de yazarak-ara seçici, pipe/non-TTY'de statik döküm
+    if (process.stdin.isTTY && process.stdout.isTTY) {
+      spinner.start(i18n.t("gathering models", "modeller toplanıyor"));
+      let items;
+      try { items = await _gatherSearchableModels(); }
+      finally { spinner.stop(); }
+
+      if (!items.length) {
+        print.warn(i18n.t("No available backend with models found.", "Model listesi veren erişilebilir backend bulunamadı."));
+        return;
+      }
+
+      console.log(`\n  ${C.bold(i18n.t("Active:", "Aktif:"))} ${C.cyan(session.backend)} ${C.yellow(session.model)}`);
+      const chosen = await fuzzyPicker(i18n.t("Search model:", "Model ara:"), items);
+      if (!chosen) return;
+
+      session.backend = chosen.backend;
+      session.model   = chosen.model;
+      session._manualBackend = true;
+      session._manualModel   = true;
+      return;
+    }
+
+    // Non-TTY — statik döküm (script/CI için)
     console.log(`\n  ${C.bold(i18n.t("Active:", "Aktif:"))} ${C.cyan(session.backend)} ${C.yellow(session.model)}\n`);
     const backends = require("../../backends/index.js");
     const all      = await backends.detect();
