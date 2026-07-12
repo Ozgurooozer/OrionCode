@@ -99,6 +99,7 @@ function attachSlashMenu(rl, getCommands, { render, isBusy, beforeKey }) {
       if (key.name === "down")   { menu.move(1);  doRender(); return; }
       if (key.name === "tab" && !key.shift) {
         menu.completeTo(rl);
+        rl._refreshLine();   // prompt satırını yeni içerikle yeniden çiz
         menu.update(rl.line);
         doRender();
         return;

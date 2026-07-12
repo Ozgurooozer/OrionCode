@@ -3,7 +3,7 @@
 // Interactive mode uses select-input + masked-input (clack dependency removed).
 "use strict";
 const path = require("path");
-const { C, T, print } = require("../../tui/index.js");
+const { C, T, print, spinner } = require("../../tui/index.js");
 const { selectInput }  = require("../tui/select-input.js");
 const { maskedInput }  = require("../tui/masked-input.js");
 const credentials      = require("../credentials.js");
@@ -29,6 +29,55 @@ function _hasKey(p) {
 function _keyHint(p, ok) {
   if (p.name === "ollama") return ok ? "local" : "offline";
   return ok ? "key ✓" : "key ✗";
+}
+
+// ── Provider aktivasyonu sonrası: model listesini çek → seçtir ────────────────
+// Liste alınamazsa NEDENİYLE söyler (anahtar geçersiz / servis yanıt vermiyor).
+async function _pickModelFor(providerName, session) {
+  const backends = require("../../backends/index.js");
+  const router   = require("../router.js");
+
+  spinner.start(i18n.t(`fetching ${providerName} models`, `${providerName} modelleri alınıyor`));
+  let entry = null;
+  try {
+    const all = await backends.detect();
+    entry = all.find(b => b.name === providerName) ?? null;
+  } finally {
+    spinner.stop();
+  }
+
+  const models = entry?.models ?? [];
+  if (!models.length) {
+    print.warn(i18n.t(
+      `Could not fetch model list for ${providerName} — the key may be invalid or the service unreachable.`,
+      `${providerName} model listesi alınamadı — anahtar geçersiz olabilir ya da servis yanıt vermiyor.`
+    ));
+    print.info(i18n.t(
+      `  Check the key: /provider  ·  full list: /model or [filter]`,
+      `  Anahtarı kontrol et: /provider  ·  tam liste: /model or [filtre]`
+    ));
+    return;
+  }
+
+  const defModel = entry.defaultModel;
+  const options = models.slice(0, 15).map(id => ({
+    value: id,
+    label: id,
+    hint:  id === defModel ? i18n.t("default", "varsayılan") : "",
+  }));
+
+  const chosen = await selectInput(i18n.t("Select model:", "Model seç:"), options);
+  if (chosen === null) {
+    print.info(i18n.t("  Model unchanged — /model to pick later", "  Model değişmedi — sonra /model ile seçebilirsin"));
+    return;
+  }
+
+  if (session) {
+    session.model = chosen;
+    session._manualModel = true;
+  }
+  router.saveConfig({ tier2Model: chosen });
+  process.stdout.write(`  ${T.ok}✓${RESET}  model → ${T.accent}${chosen}${RESET}\n\n`);
 }
 
 // ── /provider — interaktif ana liste ─────────────────────────────────────────
@@ -103,10 +152,11 @@ async function listProvidersInteractive(session) {
     router.saveConfig({ tier2Backend: chosen });
     if (session) {
       session.backend = chosen;
+      session._manualBackend = true;
       if (defaultModel) session.model = defaultModel;
     }
-    const suffix = defaultModel ? `  model → ${defaultModel}` : i18n.t("  use /model to select", "  /model ile model seç");
-    process.stdout.write(`\n  ${T.ok}✓${RESET}  ${chosen}: ${i18n.t("activated", "etkinleştirildi")}${suffix}\n\n`);
+    process.stdout.write(`\n  ${T.ok}✓${RESET}  ${chosen}: ${i18n.t("activated", "etkinleştirildi")}\n`);
+    await _pickModelFor(chosen, session);
     return;
   }
 
@@ -135,10 +185,11 @@ async function listProvidersInteractive(session) {
   router.saveConfig({ tier2Backend: chosen });
   if (session) {
     session.backend = chosen;
+    session._manualBackend = true;
     if (defaultModel) session.model = defaultModel;
   }
-  const suffix2 = defaultModel ? `  model → ${defaultModel}` : i18n.t("  use /model to select", "  /model ile model seç");
-  process.stdout.write(`\n  ${T.ok}✓${RESET}  ${i18n.t(`Key saved: ${chosen} — activated`, `Anahtar kaydedildi: ${chosen} — etkinleştirildi`)}${suffix2}\n\n`);
+  process.stdout.write(`\n  ${T.ok}✓${RESET}  ${i18n.t(`Key saved: ${chosen} — activated`, `Anahtar kaydedildi: ${chosen} — etkinleştirildi`)}\n`);
+  await _pickModelFor(chosen, session);
 }
 
 // ── /provider presets — interaktif ───────────────────────────────────────────
@@ -286,9 +337,10 @@ function _printPresetHints() {
 }
 
 // ── Readline izolasyonu: REPL readline'ı select-input/masked-input ile çakışmasın ──
+// Kapanmış readline'da pause/resume fırlatır (pipe EOF) — sessizce yut.
 function _withRlPause(rl, fn) {
-  if (rl) rl.pause();
-  return Promise.resolve().then(fn).finally(() => { if (rl) rl.resume(); });
+  try { if (rl) rl.pause(); } catch {}
+  return Promise.resolve().then(fn).finally(() => { try { if (rl) rl.resume(); } catch {} });
 }
 
 // ── Command export ────────────────────────────────────────────────────────────

@@ -173,24 +173,50 @@ test("userTurnHeader: stdout'a ╭ + ╮ üst kenarlık yazar", () => {
   assert.ok(out.includes("ozyn"), "ozyn etiketi bulunmalı");
 });
 
-// ── Test 10b: stickySetup / stickyRefreshInput / stickyMoveToContent export ──
-test("sticky fonksiyonları export edilmiş", () => {
+// ── Test 10b: akış modeli fonksiyonları export edilmiş ───────────────────────
+test("akış modeli fonksiyonları export edilmiş", () => {
   const mod = require("../tui/index.js");
-  assert.strictEqual(typeof mod.stickySetup, "function");
-  assert.strictEqual(typeof mod.stickyTeardown, "function");
-  assert.strictEqual(typeof mod.stickyRefreshInput, "function");
-  assert.strictEqual(typeof mod.stickyMoveToContent, "function");
+  assert.strictEqual(typeof mod.inputBoxTop, "function");
+  assert.strictEqual(typeof mod.renderMenuBelow, "function");
+  assert.strictEqual(typeof mod.clearMenuBelow, "function");
+  assert.strictEqual(typeof mod.fitLine, "function");
 });
 
-// non-TTY'de stickySetup stdout'a hiçbir şey yazmaz (isTTY=false)
-test("stickySetup: non-TTY ortamında stdout'a yazmaz", () => {
-  const { stickySetup } = require("../tui/index.js");
+// non-TTY'de renderMenuBelow/clearMenuBelow stdout'a hiçbir şey yazmaz
+test("renderMenuBelow/clearMenuBelow: non-TTY ortamında stdout'a yazmaz", () => {
+  const { renderMenuBelow, clearMenuBelow } = require("../tui/index.js");
   const chunks = [];
   const orig = process.stdout.write.bind(process.stdout);
   process.stdout.write = (s) => { chunks.push(s); return true; };
-  try { stickySetup(); } finally { process.stdout.write = orig; }
-  // non-TTY (test ortamı) → hiçbir şey yazılmamalı
+  try {
+    renderMenuBelow(null, { items: [{ name: "model", desc: "test" }], selected: 0 });
+    clearMenuBelow(null);
+  } finally { process.stdout.write = orig; }
   assert.strictEqual(chunks.length, 0, "non-TTY'de stdout'a yazılmamalı");
+});
+
+// inputBoxTop üst kenarlık çizer (╭ + ╮ + ozyn + info)
+test("inputBoxTop: üst kenarlık + info yazar", () => {
+  const { inputBoxTop } = require("../tui/index.js");
+  const chunks = [];
+  const orig = process.stdout.write.bind(process.stdout);
+  process.stdout.write = (s) => { chunks.push(s); return true; };
+  try { inputBoxTop("sonnet · agent"); } finally { process.stdout.write = orig; }
+  const out = chunks.join("");
+  assert.ok(out.includes("╭"), "sol üst köşe bulunmalı");
+  assert.ok(out.includes("╮"), "sağ üst köşe bulunmalı");
+  assert.ok(out.includes("ozyn"), "ozyn etiketi bulunmalı");
+  assert.ok(out.includes("sonnet"), "info metni bulunmalı");
+});
+
+// fitLine: ANSI kodları genişlik hesabına girmez, görünür kısım kırpılır
+test("fitLine: ANSI'yi sayma, görünür genişliğe kırp", () => {
+  const { fitLine } = require("../tui/index.js");
+  const colored = "\x1b[36mabcdef\x1b[0m";
+  const out = fitLine(colored, 3);
+  const plain = out.replace(/\x1b\[[^m]*m/g, "");
+  assert.strictEqual(plain, "abc", "görünür 3 karaktere kırpılmalı");
+  assert.ok(out.includes("\x1b[36m"), "renk kodu korunmalı");
 });
 
 // ── Test 10: print.tool * formatında yazar ───────────────────────────────────

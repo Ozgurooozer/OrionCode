@@ -104,10 +104,10 @@ test("attachSlashMenu: non-TTY ortamında null döner", () => {
   assert.strictEqual(result, null);
 });
 
-test("tui: stickyPanel ve userEchoLine export edilmiş", () => {
+test("tui: inputBoxTop ve renderMenuBelow export edilmiş", () => {
   const tui = require("../tui/index.js");
-  assert.strictEqual(typeof tui.stickyPanel, "function");
-  assert.strictEqual(typeof tui.userEchoLine, "function");
+  assert.strictEqual(typeof tui.inputBoxTop, "function");
+  assert.strictEqual(typeof tui.renderMenuBelow, "function");
 });
 
 test("tui: emblem ORION blok harflerini ve model bilgisini içerir", () => {
@@ -138,25 +138,10 @@ test("tui: setInputLock/isInputLocked — kilit durumu yönetilir", () => {
   assert.strictEqual(isInputLocked(), false, "açılabilmeli");
 });
 
-test("tui: repaintPanelBottom ve placeholder fonksiyonları export edilmiş", () => {
+test("tui: placeholder fonksiyonları export edilmiş ve non-TTY'de çökmez", () => {
   const tui = require("../tui/index.js");
-  assert.strictEqual(typeof tui.repaintPanelBottom, "function");
   assert.strictEqual(typeof tui.showInputPlaceholder, "function");
   assert.strictEqual(typeof tui.clearInputPlaceholder, "function");
-  // non-TTY'de hiçbiri çökmez
-  assert.doesNotThrow(() => tui.repaintPanelBottom());
   assert.doesNotThrow(() => tui.showInputPlaceholder());
   assert.doesNotThrow(() => tui.clearInputPlaceholder());
-});
-
-test("tui: userEchoLine kutu orta satırı yazar (│ + ►)", () => {
-  const { userEchoLine } = require("../tui/index.js");
-  const chunks = [];
-  const orig = process.stdout.write.bind(process.stdout);
-  process.stdout.write = (s) => { chunks.push(s); return true; };
-  try { userEchoLine("test mesajı"); } finally { process.stdout.write = orig; }
-  const out = chunks.join("");
-  assert.ok(out.includes("│"), "sol kenarlık bulunmalı");
-  assert.ok(out.includes("►"), "ok sembolü bulunmalı");
-  assert.ok(out.includes("test mesajı"), "mesaj metni bulunmalı");
 });

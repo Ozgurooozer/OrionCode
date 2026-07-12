@@ -366,102 +366,50 @@ let _inputLock = false;
 function setInputLock(v) { _inputLock = !!v; }
 function isInputLocked() { return _inputLock; }
 
-// ── Sticky input (scroll region tabanlı sabit altta kalma) ───────────────────
-const STICKY_H = 3;      // üst kenarlık + input satırı + alt kenarlık
-let _panelH    = STICKY_H; // aktif panel yüksekliği (öneri menüsü açıkken büyür)
-let _panelPos  = { inputRow: 0, bottomRow: 0, menuOpen: false }; // son render konumu
+// ═══ AKIŞ TABANLI RENDER MODELİ ═══════════════════════════════════════════════
+// Kural: scroll region YOK, mutlak konumlama (\x1b[r;cH) YOK, cursor kaydet/geri
+// dön (\x1b[s/\x1b[u) YOK. Her şey akış içinde yukarıdan aşağı yazılır; kendini
+// tazeleyen widget'lar yalnızca GÖRELİ hareket kullanır (↑n, ↓n, sütun, satır sil).
+// Böylece ekranın neresinde olursak olalım render bozulmaz ve terminalin doğal
+// scrollback'i çalışır.
 
-// Scroll region'ı kur — content üstte, input kutusu altta sabit kalır
-function stickySetup() {
-  if (!process.stdout.isTTY) return;
-  const rows = process.stdout.rows ?? 24;
-  const scrollBottom = Math.max(5, rows - _panelH);
-  process.stdout.write(`\x1b[1;${scrollBottom}r`);        // scroll region
-  process.stdout.write(`\x1b[${scrollBottom + 1};1H\x1b[J`); // input alanını temizle
+// ANSI kaçış kodlarını sayarak görünür genişliğe kırp (satır sarması = satır
+// sayısı hesabı bozulur — widget'lar her satırı terminal genişliğine sığdırmalı)
+function fitLine(s, width) {
+  let visible = 0, out = "";
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === "\x1b") {
+      const m = /^\x1b\[[0-9;]*m/.exec(s.slice(i));
+      if (m) { out += m[0]; i += m[0].length - 1; continue; }
+    }
+    if (visible >= width) break;
+    out += s[i];
+    visible++;
+  }
+  return out + RESET;
 }
 
-// Scroll region'ı sıfırla (çıkışta veya headless modunda)
-function stickyTeardown() {
-  process.stdout.write(`\x1b[r`);    // scroll region sıfırla
-  process.stdout.write(`\x1b[?25h`); // cursor'u göster
-}
-
-// ── Panel kenarlık kurucuları ────────────────────────────────────────────────
+// ── Giriş kutusu (akış içinde) ───────────────────────────────────────────────
+// Yazım sırasında kutu ALT KENARLIKSIZ: üst kenarlık + prompt satırı. readline
+// prompt satırının tek sahibi — altında hiçbir şey yok, clearScreenDown zararsız.
+// Enter'da alt kenarlık basılır, kutu scrollback'te tamamlanmış olarak kalır.
 
 // ╭─ ozyn ─────────────── model · mod · HH:MM ─╮
-function _topBorder(W, info) {
+function inputBoxTop(info = "") {
+  const W      = _boxW();
   const ts     = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const prefix = "╭─ ";
   const label  = "ozyn";
   const right  = info ? ` ${info} · ${ts} ─╮` : ` ${ts} ─╮`;
   let dashes = W - prefix.length - label.length - 1 - right.length;
-  if (dashes < 2 && info) return _topBorder(W, null); // dar terminal — info'yu at
+  if (dashes < 2 && info) return inputBoxTop(); // dar terminal — info'yu at
   dashes = Math.max(2, dashes);
-  return `${T.muted}${prefix}${T.belt}${label}${RESET}${T.muted} ${"─".repeat(dashes)}${DIM}${right.slice(0, right.length - 2)}${RESET}${T.muted}─╮${RESET}`;
+  process.stdout.write(
+    `\n${T.muted}${prefix}${T.belt}${label}${RESET}${T.muted} ${"─".repeat(dashes)}${DIM}${right.slice(0, right.length - 2)}${RESET}${T.muted}─╮${RESET}\n`
+  );
 }
 
-// ╰─ ipucu ─────────────╯  (bağlama göre ipucu değişir)
-function _bottomBorder(W, menuOpen) {
-  const hint = menuOpen
-    ? i18n.t(" ↑↓ navigate · Tab/Enter select · Esc close ", " ↑↓ gezin · Tab/Enter seç · Esc kapat ")
-    : i18n.t(" / commands · Ctrl+C×2 exit ", " / komutlar · Ctrl+C×2 çıkış ");
-  const hDashes = "─".repeat(Math.max(2, W - hint.length - 4));
-  return `${T.muted}╰─${RESET}${DIM}${hint}${RESET}${T.muted}${hDashes}─╯${RESET}`;
-}
-
-// ── Sticky panel: öneri menüsü + tam giriş kutusu ────────────────────────────
-// Düzen (alttan üste): alt kenarlık(ipuçlu) / giriş satırı / üst kenarlık / öneriler
-// Öneriler açıkken scroll region küçülür, kapanınca geri büyür.
-function stickyPanel({ suggestions = [], selected = 0, menuOpen = false, info = "" } = {}) {
-  if (!process.stdout.isTTY) { userTurnHeader(); return; }
-  const rows = process.stdout.rows ?? 24;
-  const W    = _boxW();
-
-  // Panel küçülürken eski öneri satırları artık bırakmasın — geniş aralığı temizle
-  const prevBottom = Math.max(5, rows - _panelH);
-  _panelH = STICKY_H + suggestions.length;
-  const scrollBottom = Math.max(5, rows - _panelH);
-  process.stdout.write(`\x1b[1;${scrollBottom}r`);
-
-  const clearFrom = Math.min(prevBottom, scrollBottom) + 1;
-  process.stdout.write(`\x1b[${clearFrom};1H\x1b[J`);
-  let row = scrollBottom + 1;
-
-  // Öneri listesi — kutunun üstünde açılır menü
-  for (let i = 0; i < suggestions.length; i++) {
-    const s    = suggestions[i];
-    const name = `/${s.name}`.padEnd(16);
-    const desc = String(s.desc ?? "").slice(0, Math.max(10, W - 22));
-    if (i === selected) {
-      process.stdout.write(`\x1b[${row};1H  ${T.accent}▸ ${BOLD}${name}${RESET}${T.accent}${desc}${RESET}`);
-    } else {
-      process.stdout.write(`\x1b[${row};1H    ${T.muted}${name}${desc}${RESET}`);
-    }
-    row++;
-  }
-
-  process.stdout.write(`\x1b[${row};1H${_topBorder(W, info)}`);
-  row++;
-  const inputRow = row;
-
-  process.stdout.write(`\x1b[${row + 1};1H${_bottomBorder(W, menuOpen)}`);
-
-  // Konumu kaydet — repaintPanelBottom readline refresh'lerinden sonra kullanır
-  _panelPos = { inputRow, bottomRow: row + 1, menuOpen };
-
-  // Cursor'u giriş satırına bırak — readline burada render eder
-  process.stdout.write(`\x1b[${inputRow};1H\x1b[2K`);
-}
-
-// readline _refreshLine her yenilemede clearScreenDown yapar — alt kenarlığı siler.
-// Bu fonksiyon her refresh'ten sonra alt kenarlığı geri çizer (cursor korunur).
-function repaintPanelBottom() {
-  if (!process.stdout.isTTY || !_panelPos.bottomRow) return;
-  const W = _boxW();
-  process.stdout.write(`\x1b[s\x1b[${_panelPos.bottomRow};1H\x1b[2K${_bottomBorder(W, _panelPos.menuOpen)}\x1b[u`);
-}
-
-// Placeholder: boş inputta soluk yönlendirme metni (cursor başa döner)
+// Placeholder: boş inputta soluk yönlendirme metni (cursor başa döner — göreli ←)
 function showInputPlaceholder() {
   if (!process.stdout.isTTY) return;
   const text = i18n.t("type a message · / for commands", "mesaj yaz · komutlar için /");
@@ -474,22 +422,41 @@ function clearInputPlaceholder() {
   process.stdout.write(`\x1b[0K`);
 }
 
-// Geriye dönük uyumlu sarmalayıcı — önerisiz panel çizer
-function stickyRefreshInput() {
-  stickyPanel({});
+// ── Slash menü: prompt satırının ALTINA öneri listesi ────────────────────────
+// Prompt satırından: bir satır in, altı temizle, önerileri yaz, prompt satırına
+// GERİ dön (yazılan satır sayısı kadar ↑). Tamamen göreli — scroll olsa bile
+// geri sayım doğru kalır (aşağı inilen satır sayısı = geri çıkılacak satır sayısı).
+const PROMPT_VISIBLE_W = 4; // "│ ► " görünür genişliği
+
+function _promptCol(rl) {
+  return PROMPT_VISIBLE_W + (rl?.cursor ?? 0) + 1; // 1-tabanlı sütun
 }
 
-// Cursor'u içerik alanının sonuna taşı (AI yanıtı buraya akacak)
-function stickyMoveToContent() {
+function renderMenuBelow(rl, { items = [], selected = 0 } = {}) {
   if (!process.stdout.isTTY) return;
-  const rows = process.stdout.rows ?? 24;
-  const scrollBottom = Math.max(5, rows - _panelH);
-  process.stdout.write(`\x1b[${scrollBottom};1H`);
+  if (!items.length) { clearMenuBelow(rl); return; }
+  const W = process.stdout.columns ?? 80;
+
+  const lines = items.map((it, i) => {
+    const name = `/${it.name}`.padEnd(15);
+    const desc = String(it.desc ?? "");
+    return i === selected
+      ? fitLine(`  ${T.accent}▸ ${BOLD}${name}${RESET}${T.accent} ${desc}`, W - 1)
+      : fitLine(`    ${T.muted}${name} ${desc}`, W - 1);
+  });
+  lines.push(fitLine(`  ${DIM}${i18n.t("↑↓ navigate · Tab/Enter select · Esc close", "↑↓ gezin · Tab/Enter seç · Esc kapat")}${RESET}`, W - 1));
+
+  let out = "\x1b[?25l";                     // cursor'u gizle (titreme önleme)
+  out += "\r\n\x1b[J";                       // prompt'un altına in, eski menüyü sil
+  out += lines.join("\r\n");
+  out += `\x1b[${lines.length}A`;            // prompt satırına geri çık
+  out += `\x1b[${_promptCol(rl)}G\x1b[?25h`; // sütunu geri al, cursor'u göster
+  process.stdout.write(out);
 }
 
-// Gönderilen mesajın içerik alanına echo'su — kutu stilinde orta satır
-function userEchoLine(text) {
-  process.stdout.write(`${T.muted}│${RESET} ${T.accent}►${RESET} ${text}\n`);
+function clearMenuBelow(rl) {
+  if (!process.stdout.isTTY) return;
+  process.stdout.write(`\x1b[?25l\r\n\x1b[J\x1b[1A\x1b[${_promptCol(rl)}G\x1b[?25h`);
 }
 
-module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow, userTurnHeader, makeInputPrompt, inputBoxBottom, aiTurnStart, aiTurnContinue, stickySetup, stickyTeardown, stickyRefreshInput, stickyMoveToContent, stickyPanel, userEchoLine, repaintPanelBottom, showInputPlaceholder, clearInputPlaceholder, setInputLock, isInputLocked };
+module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow, userTurnHeader, makeInputPrompt, inputBoxBottom, aiTurnStart, aiTurnContinue, inputBoxTop, renderMenuBelow, clearMenuBelow, fitLine, showInputPlaceholder, clearInputPlaceholder, setInputLock, isInputLocked };

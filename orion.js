@@ -9,8 +9,7 @@ const readline = require("readline");
 const backends = require("./backends/index.js");
 const { Session, interrupt, clearInterrupt } = require("./core/session.js");
 const { C, print, renderMarkdown, userTurnHeader, makeInputPrompt, inputBoxBottom,
-        stickySetup, stickyTeardown, stickyRefreshInput, stickyMoveToContent,
-        stickyPanel, userEchoLine, repaintPanelBottom,
+        inputBoxTop, renderMenuBelow, clearMenuBelow,
         showInputPlaceholder, clearInputPlaceholder } = require("./tui/index.js");
 const { attachSlashMenu } = require("./tui/slashmenu.js");
 const vaultCore = require("./core/vault.js");
@@ -212,8 +211,9 @@ async function main() {
     completer: cmdCompleter,
   });
 
-  // Sticky input: TTY'de scroll region ile input kutusu altta sabit kalır
-  const isSticky = !!(process.stdout.isTTY && !isHeadless);
+  // Akış modeli: kutu ve menü akış içinde çizilir, scroll region YOK.
+  // TTY: üst kenarlık + prompt satırı; Enter'da alt kenarlık basılır.
+  const isTTY = !!(process.stdout.isTTY && process.stdin.isTTY && !isHeadless);
 
   // Üst kenarlıkta gösterilecek bağlam: model · mod (model adı kısaltılır)
   function panelInfo() {
@@ -224,58 +224,43 @@ async function main() {
   // Placeholder: boş inputta soluk yönlendirme; ilk tuşta silinir
   let placeholderShown = false;
 
-  // "/" komut menüsü — yazınca canlı liste açılır (↑↓ Tab/Enter Esc)
+  // "/" komut menüsü — yazınca canlı liste prompt'un ALTINDA açılır (↑↓ Tab/Enter Esc)
   const slashMenu = attachSlashMenu(rl, () => commands.all(), {
     isBusy: () => qRunning,
     beforeKey: () => {
       if (placeholderShown) { clearInputPlaceholder(); placeholderShown = false; }
     },
     render: (state) => {
-      stickyPanel({ suggestions: state.items, selected: state.selected, menuOpen: state.open, info: panelInfo() });
-      rl.prompt(true); // buffer + cursor korunarak giriş satırını yeniden çiz
+      if (state.open) renderMenuBelow(rl, state);
+      else            clearMenuBelow(rl);
     },
   });
 
-  // Birleşik giriş alanı çizimi — panel + prompt + placeholder
+  // Giriş kutusunu çiz: üst kenarlık + prompt (alt kenarlık Enter'da basılır)
+  // Pipe/non-TTY modunda süsleme yok — çıktı temiz kalır.
   function redrawInput() {
-    if (slashMenu) {
-      stickyPanel({
-        suggestions: slashMenu.state.items,
-        selected:    slashMenu.state.selected,
-        menuOpen:    slashMenu.state.open,
-        info:        panelInfo(),
-      });
-    } else if (isSticky) {
-      stickyPanel({ info: panelInfo() });
+    if (isTTY) {
+      inputBoxTop(panelInfo());
+      rl.setPrompt(makePrompt(session));
+      rl.prompt(true);
+      if (rl.line === "") {
+        showInputPlaceholder();
+        placeholderShown = true;
+      }
     } else {
-      userTurnHeader();
-    }
-    rl.setPrompt(makePrompt(session));
-    rl.prompt(true);
-    if (isSticky && rl.line === "") {
-      showInputPlaceholder();
-      placeholderShown = true;
+      rl.setPrompt("");
+      rl.prompt(true);
     }
   }
 
-  if (isSticky) {
-    stickySetup();
-    process.on("exit", () => stickyTeardown());
-
-    // readline _refreshLine her yenilemede clearScreenDown yapar → alt kenarlık silinir.
-    // Her refresh'ten sonra kenarlığı geri çiz; placeholder da refresh'te kaybolur.
+  if (isTTY) {
+    // readline _refreshLine clearScreenDown yapar → açık menü silinir; geri çiz.
     const origRefresh = rl._refreshLine.bind(rl);
     rl._refreshLine = () => {
       origRefresh();
       placeholderShown = false;
-      repaintPanelBottom();
+      if (slashMenu?.state.open) renderMenuBelow(rl, slashMenu.state);
     };
-
-    // Terminal boyutu değişince scroll region'ı ve input'u yenile
-    process.on("SIGWINCH", () => {
-      stickySetup();
-      if (!qRunning) redrawInput();
-    });
   }
 
   // İlk prompt
@@ -294,14 +279,15 @@ async function main() {
       await commands.dispatch(parts[0].toLowerCase(), parts.slice(1), { session, rl });
     } else {
       // Readline'ı duraklat: akış sırasında prompt yeniden render olmasın
-      rl.pause();
+      // (kapanmış readline'da pause/resume fırlatır — pipe EOF'ta sessizce yut)
+      try { rl.pause(); } catch {}
       try {
         await session.send(text);
         print.statusline(session.statusInfo());
       } catch (err) {
         print.error(err.message);
       } finally {
-        rl.resume();
+        try { rl.resume(); } catch {}
       }
     }
     rl.setPrompt(makePrompt(session));
@@ -318,7 +304,7 @@ async function main() {
       console.log(C.gray("\nbye."));
       process.exit(0);
     }
-    // Prompt'u yeniden çiz — sticky modda input kutusu altta sabit
+    // Yeni giriş kutusu çiz — akış içinde, çıktının hemen altına
     redrawInput();
   }
 
@@ -327,16 +313,16 @@ async function main() {
     if (rl.history.length >= 2 && rl.history[0] === rl.history[1]) {
       rl.history.splice(0, 1);
     }
-    if (isSticky) {
-      // Cursor'u content alanına taşı, mesajı transcript'e kutu stiliyle echo'la
-      stickyMoveToContent();
+    if (isTTY) {
+      // Enter sonrası cursor prompt'un bir altında: varsa açık menü artıklarını sil
+      process.stdout.write("\x1b[J");
       if (line.trim()) {
-        userTurnHeader();
-        userEchoLine(line.trim());
+        // Kutuyu kapat — yazılan satır scrollback'te kutunun içinde kalır
         inputBoxBottom();
+      } else {
+        // Boş giriş: kutuyu geri sar (↑3 = prompt + üst kenarlık + boşluk satırı)
+        process.stdout.write("\r\x1b[3A\x1b[J");
       }
-    } else if (line.trim()) {
-      inputBoxBottom();
     }
     lineQueue.push(line.trim());
     drainQueue();
@@ -358,11 +344,12 @@ async function main() {
     }
     ctrlCCount++;
     if (ctrlCCount === 1) {
-      process.stdout.write(`\n${C.gray(i18n.t("Ctrl+C again to exit", "Çıkmak için tekrar Ctrl+C"))}\n`);
+      // Açık kutuyu geri sar (cursor prompt satırında: ↑2 = üst kenarlık + boşluk)
+      if (isTTY) process.stdout.write("\r\x1b[2A\x1b[J");
+      process.stdout.write(`${C.gray(i18n.t("Ctrl+C again to exit", "Çıkmak için tekrar Ctrl+C"))}\n`);
       setTimeout(() => { ctrlCCount = 0; }, 2000);
       redrawInput();
     } else {
-      if (isSticky) stickyTeardown();
       console.log(C.gray("\nbye."));
       process.exit(0);
     }
