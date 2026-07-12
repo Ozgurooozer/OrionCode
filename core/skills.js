@@ -38,6 +38,7 @@ function saveSkill(name, content) {
   ensureDir();
   const file = path.join(SKILLS_DIR, `${name}.md`);
   fs.writeFileSync(file, content, "utf8");
+  _resetSkillCache(); // yeni skill bir sonraki turda hemen eşleşebilsin
   return file;
 }
 
@@ -152,7 +153,64 @@ async function proposeSkills(print, prompt_fn) {
   return { name: finalName, file, content };
 }
 
+// ─── Tembel yükleme (jcode tarzı) ────────────────────────────────────────────
+// Skill'ler başlangıçta yüklenmez; kullanıcı mesajı bir skill'in adı/açıklamasıyla
+// semantik (embedding) ya da fuzzy eşleşince İLGİLİ skill'in içeriği o tura
+// enjekte edilir. Eşleşme yoksa hiçbir skill bağlama girmez.
+
+let _skillCache = { ts: 0, skills: [] };
+function _resetSkillCache() { _skillCache = { ts: 0, skills: [] }; } // test + saveSkill sonrası
+
+async function findRelevantSkills(text, limit = 2) {
+  const now = Date.now();
+  if (now - _skillCache.ts > 60_000) _skillCache = { ts: now, skills: listSkills() };
+  const skills = _skillCache.skills;
+  if (!skills.length || !text?.trim()) return [];
+
+  // 1) Embedding yolu — nomic-embed-text varsa cosine benzerliği
+  try {
+    const embed = require("./embed.js");
+    if (await embed.isAvailable()) {
+      const qVec = await embed.embedText(text.slice(0, 1000));
+      if (qVec) {
+        const scored = [];
+        for (const s of skills) {
+          const sVec = await embed.embedText(`${s.name} ${s.desc}`); // LRU cache'li
+          if (!sVec) continue;
+          const score = embed.cosineSim(qVec, sVec);
+          if (score > 0.55) scored.push({ ...s, score });
+        }
+        return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+      }
+    }
+  } catch {}
+
+  // 2) Fuzzy düşüş — mesaj kelimeleri skill adı/açıklamasındaki token'larla eşleşiyor mu
+  try {
+    const { fuzzyScoreTokens } = require("./tui/fuzzy.js");
+    const words  = text.toLowerCase().split(/\s+/).filter(w => w.length >= 4).slice(0, 20);
+    const scored = [];
+    for (const s of skills) {
+      const hay  = `${s.name.replace(/-/g, " ")} ${s.desc}`.toLowerCase();
+      const hits = words.filter(w => fuzzyScoreTokens(w, hay) !== null).length;
+      if (hits >= 2) scored.push({ ...s, score: hits });
+    }
+    return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+  } catch { return []; }
+}
+
+// Eşleşen skill'leri system eki olarak biçimle
+function buildSkillSuffix(matched, i18n) {
+  if (!matched?.length) return "";
+  const header = i18n.t(
+    "\n\n## Relevant Skills [distilled from your own successful workflows — follow when applicable]\n",
+    "\n\n## İlgili Skill'ler [kendi başarılı iş akışlarından damıtıldı — uygunsa izle]\n"
+  );
+  return header + matched.map(s => s.raw.slice(0, 1200)).join("\n---\n");
+}
+
 module.exports = {
   listSkills, readSkill, saveSkill, deleteSkill,
   minePatterns, distillSkill, proposeSkills, slugify,
+  findRelevantSkills, buildSkillSuffix, _resetSkillCache,
 };

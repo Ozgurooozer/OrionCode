@@ -7,9 +7,10 @@ const anthropic   = require("./anthropic.js");
 const huggingface = require("./huggingface.js");
 const openai      = require("./openai.js");
 const openrouter  = require("./openrouter.js");
+const lmstudio    = require("./lmstudio.js");
 const custom      = require("./custom.js");
 
-const BUILTIN = [anthropic, ollama, openrouter, openai, huggingface];
+const BUILTIN = [anthropic, ollama, lmstudio, openrouter, openai, huggingface];
 
 // Plugin'lerin kayıt ettiği ek provider'lar (core/plugins.js)
 const EXTRA = [];

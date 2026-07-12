@@ -17,7 +17,7 @@ const MODES = {
     get desc() { return i18n.t("Read + analyze — no writes/commands", "Okuma + analiz — yazma/komut yok"); },
     allowTools:   true,
     allowWrite:   false,
-    onlyTools:    ["read_file", "list_files", "search", "memory_read", "moltbook_feed", "moltbook_status", "vault_search", "vault_recent", "vault_read"],
+    onlyTools:    ["read_file", "list_files", "search", "memory_read", "moltbook_feed", "moltbook_status", "vault_search", "vault_recent", "vault_read", "web_fetch"],
   },
   build: {
     name: "build",

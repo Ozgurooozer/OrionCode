@@ -4,6 +4,7 @@
 
 // ── Credentials → env (kimlik bilgileri asla çıktıya yazdırılmaz) ────────────
 require("./core/credentials.js").load();
+require("./core/accounts.js").applyActive(); // aktif hesap profili credentials üzerine biner
 
 const readline = require("readline");
 const backends = require("./backends/index.js");
@@ -33,6 +34,12 @@ const MODEL_ARG = argModelFlag ?? argModel;
 // -p "soru" → tek atış modu: cevapla ve çık (pipe/CI için)
 const oneShotPrompt = (() => {
   const i = args.indexOf("-p");
+  return i !== -1 ? args[i + 1] : null;
+})();
+
+// --resume <id> → kayıtlı oturumu devral (self-dev restart bunu kullanır)
+const resumeId = (() => {
+  const i = args.indexOf("--resume");
   return i !== -1 ? args[i + 1] : null;
 })();
 
@@ -139,6 +146,20 @@ async function main() {
 
   const model   = pickModel(backend, MODEL_ARG);
   const session = new Session({ backend: backend.name, model });
+
+  if (resumeId) {
+    try {
+      const data = require("./core/persist.js").load(resumeId);
+      if (data) {
+        session.loadFrom(data, resumeId);
+        print.system(i18n.t(`session resumed: ${resumeId} (${session.msgs.length} messages)`, `oturum devralındı: ${resumeId} (${session.msgs.length} mesaj)`));
+      } else {
+        print.warn(i18n.t(`session not found: ${resumeId}`, `oturum bulunamadı: ${resumeId}`));
+      }
+    } catch (e) {
+      print.warn(i18n.t(`resume failed: ${e.message}`, `devralma başarısız: ${e.message}`));
+    }
+  }
 
   if (isHeadless) {
     return runHeadless(session);
@@ -265,6 +286,14 @@ async function main() {
 
   // İlk prompt
   redrawInput();
+
+  // --bench: arayüz hazır — süreç başlangıcından bu ana kadar geçen süre + RSS
+  if (args.includes("--bench")) {
+    const startupMs = Math.round(performance.now());
+    const rssMB = (process.memoryUsage().rss / 1024 / 1024).toFixed(1);
+    process.stdout.write(`\nBENCH ${JSON.stringify({ startupMs, rssMB: parseFloat(rssMB) })}\n`);
+    process.exit(0);
+  }
 
   // Sıralı kuyruk — readline pipe'ta birden fazla line hemen gelir,
   // async handler bitmeden bir sonraki başlamamalı.

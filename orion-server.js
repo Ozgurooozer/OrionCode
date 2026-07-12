@@ -9,6 +9,11 @@
 //   GET  /status            → sunucu + aktif oturum özetleri
 //   GET  /sessions          → kayıtlı oturum listesi
 //   POST /chat              → { text, sessionId?, backend?, model? } → { sessionId, text }
+//   POST /message           → { to: <id>|"all", text, from? } — swarm: oturuma mesaj bırak
+//   GET  /events            → SSE canlı olay akışı (?sessionId= filtre)
+//
+// Swarm-lite: iki oturum 10 dk içinde aynı dosyaya yazarsa ikisine de
+// çakışma uyarısı düşer (diff olayından tespit).
 //
 // Güvenlik: sadece 127.0.0.1'e bağlanır; run_command sunucu modunda kapalıdır
 // (onay istemi olmadan komut çalıştırılamaz).
@@ -18,6 +23,7 @@
 if (!process.argv.includes("--headless")) process.argv.push("--headless");
 
 require("./core/credentials.js").load();
+require("./core/accounts.js").applyActive(); // aktif hesap profili credentials üzerine biner
 
 const http   = require("http");
 const fs     = require("fs");
@@ -64,6 +70,30 @@ function authorized(req) {
 // ── Oturum havuzu — istek başına değil, sessionId başına bir Session ────────
 const SESSIONS = new Map(); // id → { session, busy: Promise }
 const startedAt = Date.now();
+
+// ── Swarm-lite: dosya çakışma tespiti ────────────────────────────────────────
+// Bir oturum dosya yazınca kaydedilir; başka bir oturum 10 dk içinde aynı
+// dosyaya yazarsa İKİ oturumun da gelen kutusuna çakışma notu düşer.
+const RECENT_WRITES = new Map(); // path → { sessionId, ts }
+const CONFLICT_WINDOW_MS = 10 * 60 * 1000;
+
+function _inbox(sessionId, from, text) {
+  const entry = SESSIONS.get(sessionId);
+  if (entry?.session?.inbox) entry.session.inbox.push({ from, text, ts: Date.now() });
+}
+
+orionEvents.on("diff", ev => {
+  const p = ev.payload?.path;
+  if (!p || !ev.sessionId) return;
+  const prev = RECENT_WRITES.get(p);
+  RECENT_WRITES.set(p, { sessionId: ev.sessionId, ts: Date.now() });
+  if (RECENT_WRITES.size > 500) RECENT_WRITES.delete(RECENT_WRITES.keys().next().value);
+  if (prev && prev.sessionId !== ev.sessionId && Date.now() - prev.ts < CONFLICT_WINDOW_MS) {
+    const note = `ÇAKIŞMA UYARISI: ${p} dosyasına hem ${prev.sessionId} hem ${ev.sessionId} oturumu son 10 dk içinde yazdı. Üzerine yazmadan önce dosyanın güncel halini oku.`;
+    _inbox(prev.sessionId, "swarm", note);
+    _inbox(ev.sessionId,  "swarm", note);
+  }
+});
 
 async function getSession(sessionId, backend, model) {
   if (sessionId && SESSIONS.has(sessionId)) return SESSIONS.get(sessionId);
@@ -157,6 +187,26 @@ const server = http.createServer(async (req, res) => {
       });
 
       return; // yanıt açık kalır — res.end() çağrılmaz
+    }
+
+    // ── POST /message — swarm: oturumlar arası mesaj (DM ya da broadcast) ──
+    // { to: "<sessionId>"|"all", text, from? } — hedefin bir SONRAKİ turunda
+    // system bağlamına "Diğer Oturumlardan Mesajlar" olarak girer.
+    if (req.method === "POST" && url.pathname === "/message") {
+      const body = JSON.parse(await readBody(req) || "{}");
+      if (!body.text || typeof body.text !== "string")
+        return json(res, 400, { error: "'text' alanı gerekli" });
+      const from = String(body.from ?? "operator").slice(0, 40);
+
+      if (body.to === "all") {
+        let n = 0;
+        for (const [id] of SESSIONS) { _inbox(id, from, body.text); n++; }
+        return json(res, 200, { ok: true, delivered: n });
+      }
+      if (!body.to || !SESSIONS.has(body.to))
+        return json(res, 404, { error: `oturum bulunamadı: ${body.to ?? "?"} — GET /status ile aktif oturumları gör` });
+      _inbox(body.to, from, body.text);
+      return json(res, 200, { ok: true, delivered: 1 });
     }
 
     if (req.method === "POST" && url.pathname === "/chat") {

@@ -38,6 +38,7 @@ function fuzzyPicker(message, items) {
     let selected = 0;
     let filtered = items;
     let rendered = 0;
+    let scrollOffset = 0;
 
     function refilter() {
       if (!query.trim()) {
@@ -59,21 +60,28 @@ function fuzzyPicker(message, items) {
     function buildLines() {
       const W = process.stdout.columns ?? 80;
       const lines = [fitLine(`  ${T.accent}?${RESET} ${BOLD}${message}${RESET}  ${query}${DIM}▏${RESET}`, W - 1)];
-      const visible = filtered.slice(0, MAX_VISIBLE);
+      // Seçili öğe pencerenin dışına çıkarsa pencereyi onunla birlikte kaydır
+      let start = Math.min(scrollOffset, Math.max(0, filtered.length - MAX_VISIBLE));
+      if (selected < start) start = selected;
+      if (selected >= start + MAX_VISIBLE) start = selected - MAX_VISIBLE + 1;
+      scrollOffset = start;
+      const visible = filtered.slice(start, start + MAX_VISIBLE);
       if (!visible.length) {
         lines.push(fitLine(`    ${DIM}${i18n.t("no matches", "eşleşme yok")}${RESET}`, W - 1));
       }
       for (let i = 0; i < visible.length; i++) {
         const it   = visible[i];
+        const idx  = start + i;
         const pos  = query.trim() ? fuzzyMatchPositions(query, it.label) : [];
-        const name = highlight(it.label, pos, i === selected);
+        const name = highlight(it.label, pos, idx === selected);
         const hint = it.hint ? `  ${DIM}${it.hint}${RESET}` : "";
-        lines.push(i === selected
+        lines.push(idx === selected
           ? fitLine(`  ${T.accent}▸${RESET} ${name}${hint}`, W - 1)
           : fitLine(`    ${name}${hint}`, W - 1));
       }
-      if (filtered.length > MAX_VISIBLE) {
-        lines.push(fitLine(`    ${DIM}${i18n.t(`+${filtered.length - MAX_VISIBLE} more — keep typing to narrow`, `+${filtered.length - MAX_VISIBLE} daha — daraltmak için yazmaya devam et`)}${RESET}`, W - 1));
+      const remaining = filtered.length - (start + visible.length);
+      if (remaining > 0) {
+        lines.push(fitLine(`    ${DIM}${i18n.t(`+${remaining} more — keep typing to narrow`, `+${remaining} daha — daraltmak için yazmaya devam et`)}${RESET}`, W - 1));
       }
       lines.push(fitLine(`  ${DIM}${i18n.t("type to search · ↑↓ select · Enter confirm · Esc cancel", "aramak için yaz · ↑↓ seç · Enter onayla · Esc iptal")}${RESET}`, W - 1));
       return lines;

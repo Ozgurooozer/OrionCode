@@ -1,6 +1,10 @@
 // core/commands/index.js — Komut kayıt defteri ve dispatcher
+// Komut modülleri bu dizinden otomatik keşfedilir (index.js hariç tüm .js).
+// reload(): self-dev modu için — dosyalar cache'ten düşürülüp yeniden yüklenir.
 "use strict";
 
+const fs   = require("fs");
+const path = require("path");
 const { print } = require("../../tui/index.js");
 const i18n      = require("../i18n.js");
 const REGISTRY  = new Map();
@@ -12,12 +16,31 @@ function register(cmds) {
   }
 }
 
-[
-  "./temel", "./model", "./mod", "./oturum", "./tree",
-  "./hafiza", "./vault", "./router", "./budget", "./checkpoint",
-  "./arac", "./ayar", "./mcp", "./saglayici", "./plugin", "./diff",
-  "./language", "./stats", "./skill", "./weakness", "./yardim",
-].forEach(m => register(require(m)));
+function _commandFiles() {
+  return fs.readdirSync(__dirname)
+    .filter(f => f.endsWith(".js") && f !== "index.js")
+    .map(f => path.join(__dirname, f));
+}
+
+function loadAll() {
+  for (const file of _commandFiles()) {
+    try { register(require(file)); }
+    catch (e) { print.error(`komut yüklenemedi: ${path.basename(file)} — ${e.message}`); }
+  }
+}
+loadAll();
+
+// Self-dev: komut modüllerini cache'ten düşür, yeniden tara ve kaydet.
+// Yeni eklenen komut dosyaları da bu noktada devreye girer.
+function reload() {
+  const files = _commandFiles();
+  for (const file of files) {
+    try { delete require.cache[require.resolve(file)]; } catch {}
+  }
+  REGISTRY.clear();
+  loadAll();
+  return files.length;
+}
 
 async function dispatch(name, args, ctx) {
   const cmd = REGISTRY.get(name.toLowerCase());
@@ -36,4 +59,4 @@ async function dispatch(name, args, ctx) {
 }
 
 function all() { return [...new Set(REGISTRY.values())]; }
-module.exports = { dispatch, all, register };
+module.exports = { dispatch, all, register, reload };

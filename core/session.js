@@ -162,6 +162,9 @@ class Session {
     this.telemetry   = new SessionLogger(this.id);
     this._lastInputTokens = 0;
     this._specCache  = new (require("./speculex.js").SpeculativeCache)();
+    this._turnMemory = new (require("./turnmemory.js").TurnMemory)();
+    this._compacted  = false; // _trim geçmişi özete indirdiyse turn belleği devreye girer
+    this.inbox       = [];    // swarm: diğer oturumlardan gelen mesajlar {from, text, ts}
     _activeSession   = this; // bu session interrupt hedefi olarak kaydet
   }
 
@@ -177,6 +180,7 @@ class Session {
   statusInfo() {
     const b = this.budget.get();
     return {
+      id:      this.id,
       mode:    this.mode.name,
       backend: this.backend,
       model:   this.model,
@@ -211,8 +215,38 @@ class Session {
           i18n.t("\n[/UNTRUSTED EXTERNAL DATA]", "\n[/GÜVENILMEZ DIŞ VERİ]");
       }
     } catch {}
+
+    // Turn belleği — bağlam sıkıştırıldıysa eski turn'lerin tam içeriğini geri çağır
+    let turnSuffix = "";
+    if (this._compacted) {
+      try {
+        const tm = require("./turnmemory.js");
+        const hits = await this._turnMemory.recall(text, 2, MAX_HISTORY);
+        turnSuffix = tm.buildRecallSuffix(hits, i18n);
+      } catch {}
+    }
+    this._turnMemory.add("user", text); // arka planda embed edilir, beklenmez
+
+    // Tembel skill enjeksiyonu — mesaj bir skill'le eşleşirse içeriği bu tura girer
+    let skillSuffix = "";
+    try {
+      const skills = require("./skills.js");
+      const matched = await skills.findRelevantSkills(text, 2);
+      skillSuffix = skills.buildSkillSuffix(matched, i18n);
+      if (matched.length) this.telemetry.record({ event: "skill_injected", skills: matched.map(s => s.name) });
+    } catch {}
+
+    // Swarm gelen kutusu — diğer oturumlardan bekleyen mesajlar bu tura eklenir
+    let swarmSuffix = "";
+    if (this.inbox.length) {
+      const notes = this.inbox.splice(0);
+      swarmSuffix = i18n.t("\n\n## Messages From Other Sessions\n", "\n\n## Diğer Oturumlardan Mesajlar\n") +
+        notes.map(n => `[${n.from}] ${String(n.text).slice(0, 500)}`).join("\n");
+    }
+
     const origSystem = this.system;
-    if (memSuffix || vaultSuffix) this.system = this.system + memSuffix + vaultSuffix;
+    const suffixes = memSuffix + vaultSuffix + turnSuffix + skillSuffix + swarmSuffix;
+    if (suffixes) this.system = this.system + suffixes;
 
     const inputTokens = countMessages(this.msgs, this.system);
     this._lastInputTokens = inputTokens;
@@ -280,6 +314,8 @@ class Session {
       try { require("./thompson.js").update(this._lastRoute.tier, this._lastRoute.reason, true); } catch {}
     }
     this._usedFallback = false;
+
+    if (result) this._turnMemory.add("assistant", result); // arka planda embed edilir
 
     this._save();
     events.emit("session_saved", this.id, { sessionId: this.id });
@@ -747,6 +783,7 @@ class Session {
       ),
     };
     this.msgs = [compacted, ...recent];
+    this._compacted = true; // bundan sonra turn belleği eski turn'leri geri çağırabilir
     print.system(i18n.t(`context compacted (${old.length} messages → summary)`, `bağlam sıkıştırıldı (${old.length} mesaj → özet)`));
   }
 

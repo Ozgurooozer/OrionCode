@@ -37,6 +37,7 @@ function _builtinKeyEnvName(p) {
 
 function _hasKey(p) {
   if (p.name === "ollama") return true;
+  if (_isBuiltin(p) && !_builtinKeyEnvName(p)) return true; // anahtarsız yerel built-in (lmstudio)
   const keyEnv = _builtinKeyEnvName(p);
   if (keyEnv && process.env[keyEnv]) return true;
   if (_isBuiltin(p)) return false; // built-in + env'de yok → key yok, providers.json'a bakma
@@ -154,15 +155,17 @@ async function listProvidersInteractive(session) {
   const ok       = availability[chosen] ?? false;
   const hasKey   = _hasKey(provider);
 
-  if (provider.name === "ollama") {
+  if (provider.name === "ollama" || provider.name === "lmstudio") {
     if (ok && session) {
-      router.saveConfig({ tier2Backend: "ollama" });
-      session.backend = "ollama";
+      router.saveConfig({ tier2Backend: provider.name });
+      session.backend = provider.name;
     }
+    const startHint = provider.name === "ollama" ? "ollama serve" : i18n.t("LM Studio → Developer → Start Server", "LM Studio → Developer → Start Server");
     const msg = ok
-      ? i18n.t("Ollama is running locally — activated.", "Ollama yerel olarak çalışıyor — etkinleştirildi.")
-      : i18n.t("Ollama is offline. Start with: ollama serve", "Ollama offline. Başlat: ollama serve");
+      ? i18n.t(`${provider.name} is running locally — activated.`, `${provider.name} yerel olarak çalışıyor — etkinleştirildi.`)
+      : i18n.t(`${provider.name} is offline. Start with: ${startHint}`, `${provider.name} offline. Başlat: ${startHint}`);
     process.stdout.write(`\n  ${ok ? T.ok + "✓" : T.warn + "·"}${RESET}  ${msg}\n\n`);
+    if (ok) await _pickModelFor(provider.name, session);
     return;
   }
 

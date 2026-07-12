@@ -19,6 +19,12 @@ const PRESETS = {
   fireworks: { baseURL: "https://api.fireworks.ai/inference/v1", keyEnv: "FIREWORKS_API_KEY", defaultModel: "accounts/fireworks/models/llama-v3p3-70b-instruct" },
   cerebras:  { baseURL: "https://api.cerebras.ai/v1",           keyEnv: "CEREBRAS_API_KEY",  defaultModel: "llama-3.3-70b" },
   moonshot:  { baseURL: "https://api.moonshot.ai/v1",           keyEnv: "MOONSHOT_API_KEY",  defaultModel: "kimi-k2-0711-preview" },
+  alibaba:   { baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", keyEnv: "DASHSCOPE_API_KEY", defaultModel: "qwen-max" },
+  minimax:   { baseURL: "https://api.minimax.io/v1",            keyEnv: "MINIMAX_API_KEY",   defaultModel: "MiniMax-M2" },
+  zai:       { baseURL: "https://api.z.ai/api/paas/v4",         keyEnv: "ZAI_API_KEY",       defaultModel: "glm-4.6" },
+  nvidia:    { baseURL: "https://integrate.api.nvidia.com/v1",  keyEnv: "NVIDIA_API_KEY",    defaultModel: "meta/llama-3.3-70b-instruct" },
+  perplexity:{ baseURL: "https://api.perplexity.ai",            keyEnv: "PERPLEXITY_API_KEY", defaultModel: "sonar" },
+  sambanova: { baseURL: "https://api.sambanova.ai/v1",          keyEnv: "SAMBANOVA_API_KEY", defaultModel: "Meta-Llama-3.3-70B-Instruct" },
 };
 
 function loadSpecs() {

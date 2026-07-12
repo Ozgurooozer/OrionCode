@@ -136,7 +136,16 @@ BYOK key kaydetme akışı: `maskedInput` → `process.env[keyEnv]` (bu oturum) 
 | `select-input.test.js` | Arrow-key select |
 | `tui.test.js` | TUI bileşenleri |
 | `slashmenu.test.js` | "/" komut açılır menüsü |
-| **Toplam** | **135 / 135 ✅** |
+| `fuzzy.test.js` | Typo-toleranslı fuzzy eşleştirici (jcode portu) |
+| `fuzzy-picker.test.js` | Yazarak-filtrele model seçici |
+| `web.test.js` | web_fetch: HTML→metin, SSRF koruması |
+| `turnmemory.test.js` | Oturum-içi turn belleği |
+| `accounts.test.js` | Çoklu hesap profilleri |
+| `harness-import.test.js` | Claude Code oturum devralma |
+| `selfdev.test.js` | Self-dev + komut hot-reload |
+| `skills-lazy.test.js` | Tembel skill eşleştirme |
+| `lmstudio.test.js` | LM Studio backend |
+| **Toplam** | **178 / 178 ✅** |
 
 ---
 
@@ -224,11 +233,37 @@ yapmayan bir tier1 modeli kurulursa iyileşir.
 | C | FEP Faz 0 | `freeenergy.js` gölge modun gerçek telemetry karşılaştırmasına bağlanması | `shadowLog()` zaten `session.js:251`'de çağrılıyor ve gerçek `fep_shadow` telemetry olayı üretiyor görünüyor — ama bu iş bu oturumda B gibi canlı doğrulanmadı, sadece kod okundu. `isEnabled()` `cfg.freeEnergyMode` varsayılan kapalı olduğundan gölge mod hiç tetiklenmemiş olabilir — İş A/B'deki "yazıldı ama hiç ateşlenmedi" deseni burada da tekrarlıyor olabilir, doğrulanmadı. |
 | D | Kimlik adayı | İş A/B/C bitmeden başlanmaz | Ertelendi |
 
+### jcode Karşılaştırması Sonrası Eklenenler (2026-07-12)
+
+jcode (github.com/1jehuang/jcode) ile satır satır karşılaştırma yapıldı; eksik bulunan
+özelliklerin Node.js karşılıkları eklendi. Kapsam dışı bırakılanlar: Rust'a geçiş,
+gerçek OAuth akışları (provider'ların özel client kayıtları gerekir), iOS uygulaması,
+mermaid renderer, dikte/STT.
+
+| Özellik (jcode satırı) | Orion'daki karşılığı | Dosya |
+|---|---|---|
+| LM Studio yerel model | Built-in backend, `http://localhost:1234/v1`, anahtarsız, canlı erişilebilirlik kontrolü | `backends/lmstudio.js` |
+| Tarayıcı aracı | `web_fetch`: HTML→metin, SSRF koruması (özel ağ engelli), 3 yönlendirme, güvenilmez-veri işareti | `tools/web.js` |
+| Turn embedding + pasif hatırlama | Oturum-içi turn belleği: her turn embed edilir, bağlam sıkıştıktan sonra eski turn'lerin TAM içeriği pasif geri çağrılır | `core/turnmemory.js` |
+| Tembel skill yükleme | Skill'ler başta yüklenmez; mesaj embedding/fuzzy ile eşleşince o tura enjekte edilir | `core/skills.js findRelevantSkills` |
+| `/account` çoklu hesap | Adlandırılmış anahtar profilleri, `~/.orion/accounts.json`, başlangıçta otomatik uygulanır | `core/accounts.js` + `commands/account.js` |
+| 20+ provider | 6 yeni preset: alibaba, minimax, zai, nvidia, perplexity, sambanova (toplam 14 preset + 6 built-in) | `backends/custom.js` |
+| Self-dev modu | `/selfdev on`: Orion kendi kaynağını düzenler; reload/restart öncesi testler zorunlu yeşil; restart oturumu `--resume` ile devralır | `core/selfdev.js` |
+| Cross-harness resume | `/import`: Claude Code JSONL oturumlarını listeler ve devralır | `core/harness-import.js` |
+| Swarm | Swarm-lite: `POST /message` (DM/broadcast), aynı dosyaya 10 dk içinde iki oturum yazarsa ikisine de çakışma uyarısı | `orion-server.js` + `session.inbox` |
+| Performans ölçümü | `npm run bench`: **260ms başlangıç, 80MB RSS** (medyan, 3 koşu) — jcode 14ms/28MB (Rust), Claude Code ~3437ms/387MB (jcode'un tablosu) | `scripts/bench.js` |
+
+Ayrıca: komut kayıt defteri artık dizin taramalı (`core/commands/*.js` otomatik keşif) —
+yeni komut dosyası eklemek kayıt gerektirmez; `reload()` self-dev hot-reload'ı sağlar.
+`/model` fuzzy arama seçicisinde kaydırma penceresi düzeltildi (seçim 10. satırı geçince
+liste artık kayıyor).
+
 ### Bilinen Sınırlamalar
-- **@clack/prompts** hâlâ `package.json`'da bağımlılık — kullanılmıyor, silinebilir
-- **Sticky input + çok uzun selectInput UI**: scroll region dışına taşma teorik risk
 - **SIGWINCH**: Windows'ta `SIGWINCH` desteği sınırlı (terminal resize tepkisi çalışmayabilir)
 - **Moltbook araçları**: `tools/moltbook.js` mevcutken `feed_read` ve `post_at` Ozyn onayı olmadan çalışmaz
+- **Turn belleği / tembel skill (embedding yolu)**: `nomic-embed-text` yüklü Ollama gerektirir; yoksa turn belleği devre dışı, skill eşleşmesi fuzzy'ye düşer
+- **`/selfdev reload`** sadece komut modüllerini yeniler; çekirdek (`core/session.js` vb.) değişiklikleri `/selfdev restart` ister
+- **Yeni presetlerin baseURL'leri** (minimax, zai, perplexity...) canlı anahtarla doğrulanmadı — yanlışsa `/provider` üzerinden baseURL elle verilebilir
 
 ---
 

@@ -6,6 +6,7 @@ const shellTools    = require("../tools/shell.js");
 const memoryTools   = require("../tools/memory.js");
 const moltbookTools = require("../tools/moltbook.js");
 const vaultTools    = require("../tools/vault.js");
+const webTools      = require("../tools/web.js");
 
 const STATIC_DEFS = [
   ...fsTools.DEFS,
@@ -13,10 +14,11 @@ const STATIC_DEFS = [
   ...memoryTools.DEFS,
   ...moltbookTools.DEFS,
   ...vaultTools.DEFS,
+  ...webTools.DEFS,
 ];
 
 const REGISTRY = {};
-for (const mod of [fsTools, shellTools, memoryTools, moltbookTools, vaultTools]) {
+for (const mod of [fsTools, shellTools, memoryTools, moltbookTools, vaultTools, webTools]) {
   for (const def of mod.DEFS) REGISTRY[def.name] = mod;
 }
 
