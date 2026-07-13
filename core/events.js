@@ -34,6 +34,9 @@ const EVENT_TYPES = Object.freeze({
   session_saved:     "session_saved",
   weakness_mined:    "weakness_mined",
   security_boundary_hit: "security_boundary_hit", // fs aracı çalışma kökü dışına yazma/okuma denedi
+  speculex_hit:      "speculex_hit",       // spekülatif tier1 tahmini tier2 kararıyla eşleşti
+  speculex_miss:     "speculex_miss",      // spekülatif tahmin ıskaladı, cache atıldı
+  router_shadow_decision: "router_shadow_decision", // FEP gölge kararı: {realDecision, shadowDecision, context}
 });
 
 const emitter = new EventEmitter();

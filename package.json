@@ -1,8 +1,8 @@
 {
   "name": "molp",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "BYOK CLI kodlama ajanı — yerel (Ollama) ve bulut modelleri, MCP ve kalıcı vault hafızasını tek çekirdekte birleştiren araştırma projesi.",
+  "main": "orion.js",
   "bin": {
     "orion": "./orion.js"
   },
@@ -12,9 +12,13 @@
     "server": "node orion-server.js",
     "bench": "node scripts/bench.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["cli", "coding-agent", "byok", "mcp", "ollama", "anthropic"],
+  "author": "Ozyn",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ozgurooozer/OrionCode.git"
+  },
   "type": "commonjs",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
