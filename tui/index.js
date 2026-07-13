@@ -23,6 +23,8 @@ const T = {
   warn:    rgb(250, 204, 21),
   err:     rgb(248, 113, 113),
   muted:   rgb(120, 130, 150),
+  boxBg:   rgbBg(36, 43, 62),   // input bloğu zemini — koyu kayrak mavisi
+  boxFg:   rgb(222, 229, 242),  // zemin üstü metin
   code:    rgb(125, 211, 252),
   string:  rgb(190, 242, 100),
   keyword: rgb(244, 114, 182),
@@ -214,35 +216,19 @@ function contextWindow(model = "", backend = "") {
 // ── Chat turn yardımcıları ───────────────────────────────────────────────────
 
 function _boxW() {
-  return Math.min(process.stdout.columns ?? 80, 100);
-}
-
-// ╭─ ozyn ──────── HH:MM ─╮  →  input kutusu üst kenarlığı
-function userTurnHeader() {
-  const W  = _boxW();
-  const ts = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  // ╭─ + " ozyn " + "── " + dashes + " " + ts + " ─╮"
-  const prefix = "╭─ ";
-  const label  = "ozyn";
-  const suffix = ` ${ts} ─╮`;
-  const dashes = "─".repeat(Math.max(2, W - prefix.length - label.length - 1 - suffix.length));
-  process.stdout.write(
-    `\n${T.muted}${prefix}${T.belt}${label}${RESET}${T.muted} ${dashes}${suffix}${RESET}\n`
-  );
+  // Tam terminal genişliği: canlı satır dolgusu (refreshInputFill) satırı
+  // kolon sonuna kadar boyar — bant aynı genişlikte olmalı ki blok hizalansın.
+  return process.stdout.columns ?? 80;
 }
 
 // Readline prompt'u — \x01..\x02 readline için genişlik hesabından çıkarır (ANSI)
+// Zemin renkli " ► " sekmesi; sonda zemin AÇIK bırakılır: readline'ın yazdığı
+// karakterler de blok zeminine düşer. Satırın kalan boşluğunu refreshInputFill
+// boyar; RESET gereken her yazma noktası kendi başına RESET basar.
 function makeInputPrompt() {
-  const Z0  = `\x01${RESET}\x02`;
-  const Zm  = `\x01${T.muted}\x02`;
-  const Za  = `\x01${T.accent}\x02`;
-  return `${Zm}│${Z0} ${Za}►${Z0} `;
-}
-
-// ╰──────────────╯  →  input kutusu alt kenarlığı (Enter'dan sonra çizilir)
-function inputBoxBottom() {
-  const W = _boxW();
-  process.stdout.write(`${T.muted}╰${"─".repeat(W - 2)}╯${RESET}\n`);
+  const Za = `\x01${T.boxBg}${T.accent}\x02`;
+  const Zf = `\x01${T.boxFg}\x02`;
+  return `${Za} ► ${Zf} `;
 }
 
 // session.js backend döngüsü başında — AI yanıtı başlamadan önce
@@ -389,44 +375,98 @@ function fitLine(s, width) {
   return out + RESET;
 }
 
-// ── Giriş kutusu (akış içinde) ───────────────────────────────────────────────
-// Yazım sırasında kutu ALT KENARLIKSIZ: üst kenarlık + prompt satırı. readline
-// prompt satırının tek sahibi — altında hiçbir şey yok, clearScreenDown zararsız.
-// Enter'da alt kenarlık basılır, kutu scrollback'te tamamlanmış olarak kalır.
+// ── Giriş bloğu (akış içinde) ────────────────────────────────────────────────
+// Çizgi karakteri yok: turn, zemin rengiyle dolu bir blok. Yazım sırasında
+// yalnızca başlık bandı + zemin renkli " ► " sekmesi görünür — readline prompt
+// satırının tek sahibi, altında hiçbir şey yok, clearScreenDown zararsız.
+// Enter'da finishUserTurn canlı satırları geri sarıp bloğu kalıcı çizer.
 
-// ╭─ ozyn ─────────────── model · mod · HH:MM ─╮
+// Dolgulu başlık bandı: " ozyn ······················ model · mod · HH:MM "
+function _bandHeader(info = "") {
+  const W    = _boxW();
+  const ts   = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const left = " ozyn";
+  let right  = info ? `${info} · ${ts}` : ts;
+  if (left.length + right.length + 2 > W) right = ts; // dar terminal — info'yu at
+  const pad = Math.max(1, W - left.length - right.length - 1);
+  return `${T.boxBg}${BOLD}${T.belt}${left}${RESET}${T.boxBg}${T.muted}${" ".repeat(pad)}${right} ${RESET}`;
+}
+
 function inputBoxTop(info = "") {
-  const W      = _boxW();
-  const ts     = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const prefix = "╭─ ";
-  const label  = "ozyn";
-  const right  = info ? ` ${info} · ${ts} ─╮` : ` ${ts} ─╮`;
-  let dashes = W - prefix.length - label.length - 1 - right.length;
-  if (dashes < 2 && info) return inputBoxTop(); // dar terminal — info'yu at
-  dashes = Math.max(2, dashes);
-  process.stdout.write(
-    `\n${T.muted}${prefix}${T.belt}${label}${RESET}${T.muted} ${"─".repeat(dashes)}${DIM}${right.slice(0, right.length - 2)}${RESET}${T.muted}─╮${RESET}\n`
-  );
+  process.stdout.write(`\n${_bandHeader(info)}\n`);
+}
+
+// Enter sonrası: canlı yazılan satırları geri sarıp turn'ü dolgulu blok olarak
+// scrollback'e kalıcı çizer. rawLine = readline'ın ham satırı (geri sarılacak
+// satır sayısı, ekranda gerçekten kaplanan alan üzerinden hesaplanır).
+function finishUserTurn(rawLine, info = "") {
+  if (!process.stdout.isTTY) return;
+  const cols = process.stdout.columns ?? 80;
+  const W    = _boxW();
+  // canlı prompt satırının kapladığı görsel satır sayısı (terminal sarması dahil)
+  const liveRows = Math.max(1, Math.ceil((PROMPT_VISIBLE_W + rawLine.length) / cols));
+  // ↑ prompt satırları + başlık bandı + üstteki boş satır, sonra altı temizle
+  // (RESET önce: canlı zemin açıkken \x1b[J ekranın altını da boyar — BCE)
+  let out = `${RESET}\r\x1b[${liveRows + 2}A\x1b[J`;
+  out += `\n${_bandHeader(info)}\n`;
+  const text  = rawLine.trim();
+  const bodyW = W - 4; // sol " ► " + sağda en az bir boşluk
+  const rows  = [];
+  for (let i = 0; i < text.length; i += bodyW) rows.push(text.slice(i, i + bodyW));
+  if (!rows.length) rows.push("");
+  rows.forEach((r, i) => {
+    const head = i === 0 ? ` ${T.accent}► ${T.boxFg}` : `   ${T.boxFg}`;
+    out += `${T.boxBg}${head}${r}${" ".repeat(Math.max(1, W - 3 - r.length))}${RESET}\n`;
+  });
+  process.stdout.write(out);
+}
+
+// Canlı input satırının son satırındaki kalan boşluğu blok zeminiyle doldur.
+// _refreshLine'dan SONRA çağrılır: cursor'un ve içerik sonunun satır/sütununu
+// hesaplar, içerik sonundan satır sonuna kadar zemin renkli boşluk basar,
+// cursor'u aynen geri bırakır. Tamamen göreli hareket (↓n, ↑n, sütun) —
+// BCE'ye güvenmez: dolgu gerçek boşluk karakterleriyle yapılır.
+function refreshInputFill(rl) {
+  if (!process.stdout.isTTY || !rl?.getCursorPos) return;
+  const cols = process.stdout.columns ?? 80;
+  const pos  = rl.getCursorPos(); // prompt başlangıcına göre {rows, cols}
+  const total = PROMPT_VISIBLE_W + (rl.line?.length ?? 0);
+  let rowE = Math.floor(total / cols);
+  let colE = total % cols;
+  if (colE === 0 && total > 0) { rowE -= 1; colE = cols; } // satır sonu: ertelenmiş sarma
+  const fill = cols - colE;
+  const down = Math.max(0, rowE - pos.rows);
+  let out = "\x1b[?25l";
+  if (down > 0)  out += `\x1b[${down}B`;
+  out += `\x1b[${colE + 1}G`;
+  if (fill > 0)  out += `${T.boxBg}${" ".repeat(fill)}`;
+  if (down > 0)  out += `\x1b[${down}A`;
+  out += `\x1b[${pos.cols + 1}G${T.boxBg}${T.boxFg}\x1b[?25h`;
+  process.stdout.write(out);
 }
 
 // Placeholder: boş inputta soluk yönlendirme metni (cursor başa döner — göreli ←)
+// Zemin açıkken çizilir; sonunda zemin+metin rengi geri kurulur ki bir sonraki
+// tuş vuruşu blok zemininde kalsın.
 function showInputPlaceholder() {
   if (!process.stdout.isTTY) return;
   const text = i18n.t("type a message · / for commands", "mesaj yaz · komutlar için /");
-  process.stdout.write(`${DIM}${T.muted}${text}${RESET}\x1b[${text.length}D`);
+  process.stdout.write(`${DIM}${T.muted}${text}${RESET}${T.boxBg}${T.boxFg}\x1b[${text.length}D`);
 }
 
-// Placeholder'ı sil — cursor placeholder'ın başında bekliyor
+// Placeholder'ı sil — cursor placeholder'ın başında bekliyor. Üzerine zemin
+// renkli boşluk yazılır (BCE'siz), cursor geri döner, metin rengi kurulur.
 function clearInputPlaceholder() {
   if (!process.stdout.isTTY) return;
-  process.stdout.write(`\x1b[0K`);
+  const len = i18n.t("type a message · / for commands", "mesaj yaz · komutlar için /").length;
+  process.stdout.write(`${T.boxBg}${" ".repeat(len)}\x1b[${len}D${T.boxFg}`);
 }
 
 // ── Slash menü: prompt satırının ALTINA öneri listesi ────────────────────────
 // Prompt satırından: bir satır in, altı temizle, önerileri yaz, prompt satırına
 // GERİ dön (yazılan satır sayısı kadar ↑). Tamamen göreli — scroll olsa bile
 // geri sayım doğru kalır (aşağı inilen satır sayısı = geri çıkılacak satır sayısı).
-const PROMPT_VISIBLE_W = 4; // "│ ► " görünür genişliği
+const PROMPT_VISIBLE_W = 4; // " ► " sekmesi + boşluk görünür genişliği
 
 function _promptCol(rl) {
   return PROMPT_VISIBLE_W + (rl?.cursor ?? 0) + 1; // 1-tabanlı sütun
@@ -446,17 +486,17 @@ function renderMenuBelow(rl, { items = [], selected = 0 } = {}) {
   });
   lines.push(fitLine(`  ${DIM}${i18n.t("↑↓ navigate · Tab/Enter select · Esc close", "↑↓ gezin · Tab/Enter seç · Esc kapat")}${RESET}`, W - 1));
 
-  let out = "\x1b[?25l";                     // cursor'u gizle (titreme önleme)
+  let out = `${RESET}\x1b[?25l`;             // RESET: canlı zemin \x1b[J'ye taşmasın; cursor'u gizle
   out += "\r\n\x1b[J";                       // prompt'un altına in, eski menüyü sil
   out += lines.join("\r\n");
   out += `\x1b[${lines.length}A`;            // prompt satırına geri çık
-  out += `\x1b[${_promptCol(rl)}G\x1b[?25h`; // sütunu geri al, cursor'u göster
+  out += `\x1b[${_promptCol(rl)}G${T.boxBg}${T.boxFg}\x1b[?25h`; // sütun + blok zemini geri kur
   process.stdout.write(out);
 }
 
 function clearMenuBelow(rl) {
   if (!process.stdout.isTTY) return;
-  process.stdout.write(`\x1b[?25l\r\n\x1b[J\x1b[1A\x1b[${_promptCol(rl)}G\x1b[?25h`);
+  process.stdout.write(`${RESET}\x1b[?25l\r\n\x1b[J\x1b[1A\x1b[${_promptCol(rl)}G${T.boxBg}${T.boxFg}\x1b[?25h`);
 }
 
-module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow, userTurnHeader, makeInputPrompt, inputBoxBottom, aiTurnStart, aiTurnContinue, inputBoxTop, renderMenuBelow, clearMenuBelow, fitLine, showInputPlaceholder, clearInputPlaceholder, setInputLock, isInputLocked };
+module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow, makeInputPrompt, finishUserTurn, refreshInputFill, aiTurnStart, aiTurnContinue, inputBoxTop, renderMenuBelow, clearMenuBelow, fitLine, showInputPlaceholder, clearInputPlaceholder, setInputLock, isInputLocked };

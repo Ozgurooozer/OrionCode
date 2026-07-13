@@ -152,8 +152,15 @@ function createServer() {
     };
 
     const result = await vault.writeSession(session_id, data, knowledge);
+    // Yerel çıkarım çalışmadıysa (Ollama kapalı) extractWithOllama "manuel"
+    // etiketli ham yedek döndürür — özet gerçek analiz değil, ilk 120 karakter.
+    // Başarı gibi göstermek yanıltıcı; durumu açıkça bildir.
+    const fellBack = (knowledge.tags ?? []).includes("manuel");
+    const note = fellBack
+      ? "\n\n⚠ Local extraction (Ollama) did not run — summary is a raw excerpt, not analyzed, and no embedding was created (semantic search won't find it)."
+      : "";
     return { content: [{ type: "text", text:
-      `Saved to vault.\nFile: ${result.file}\nSummary: ${knowledge.summary}\nTags: ${knowledge.tags.join(", ")}`
+      `Saved to vault.\nFile: ${result.file}\nSummary: ${knowledge.summary}\nTags: ${knowledge.tags.join(", ")}${note}`
     }] };
   });
 

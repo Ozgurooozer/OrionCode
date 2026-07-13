@@ -33,6 +33,7 @@ const EVENT_TYPES = Object.freeze({
   error:             "error",
   session_saved:     "session_saved",
   weakness_mined:    "weakness_mined",
+  security_boundary_hit: "security_boundary_hit", // fs aracı çalışma kökü dışına yazma/okuma denedi
 });
 
 const emitter = new EventEmitter();

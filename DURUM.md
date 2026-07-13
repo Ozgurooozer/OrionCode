@@ -72,7 +72,7 @@ orion.js (CLI)          orion-server.js (HTTP)
 |---|---|---|
 | Tema + render | `tui/index.js` (379 satır) | Truecolor, markdown renderer |
 | Sticky input | `tui/index.js` → `stickySetup/Refresh/MoveToContent` | Scroll region, altta sabit |
-| Input box | `userTurnHeader` + `makeInputPrompt` + `inputBoxBottom` | `╭─ ozyn ─╮ / │ ► / ╰──╯` |
+| Input bloğu | `inputBoxTop` + `makeInputPrompt` + `refreshInputFill` + `finishUserTurn` | Dolgulu blok: bant + canlı zeminli satır, Enter'da kalıcı çizim; asenkron mesajlar `notifyAbove` ile bandın üstüne |
 | Masked input | `core/tui/masked-input.js` | API key girişi, echo yok |
 | Select input | `core/tui/select-input.js` | Arrow-key seçim, clack bağımlılığı yok |
 | Tool format | `print.tool / print.result` | `* ToolName "arg"` / `→ result` |

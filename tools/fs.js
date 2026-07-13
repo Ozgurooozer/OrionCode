@@ -1,11 +1,48 @@
 // tools/fs.js — Dosya sistemi araçları
 const fs   = require("fs");
 const path = require("path");
+const os   = require("os");
 const { execSync, spawnSync } = require("child_process");
 const checkpoint  = require("../core/checkpoint.js");
 const diagnostics = require("../core/diagnostics.js");
 const diff        = require("../core/diff.js");
+const events      = require("../core/events.js");
 const { print }   = require("../tui/index.js");
+
+// ── Workspace sandbox ────────────────────────────────────────────────────────
+// Bu araçlar path.resolve(input.path) kullanır; sınır olmadan mutlak yol ve
+// "../" ile çalışma alanı dışına (kimlik dosyaları, ~/.ssh, sistem config'i)
+// erişilebilir. LLM çıktısı doğrudan bu yollara döndüğü için — onay verilse bile —
+// yazmanın NEREYE gittiğini kısıtlamak gerekir. İzin verilen kökler:
+//   1) Çalışma kökü: ORION_WORKSPACE env, yoksa süreç başlangıç cwd'si
+//   2) Bilinçli istisna: ~/.orion (vault, hafıza, raporlar) — açık allowlist
+// Bu köklerin dışına düşen her çağrı SESSİZCE değil, açık hatayla reddedilir ve
+// events.js'e security_boundary_hit olayı yayınlanır.
+function _workspaceRoot() {
+  return path.resolve(process.env.ORION_WORKSPACE || process.cwd());
+}
+function _orionHome() {
+  return path.join(process.env.ORION_HOME || os.homedir(), ".orion");
+}
+function _allowedRoots() {
+  return [_workspaceRoot(), _orionHome()];
+}
+function _isInside(root, target) {
+  const rel = path.relative(root, target);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+// { abs } döndürür; izinli değilse { abs:null, error } + sınır-ihlali olayı.
+function _guardPath(inputPath, op) {
+  const abs   = path.resolve(inputPath ?? ".");
+  const roots = _allowedRoots();
+  if (roots.some(r => _isInside(r, abs))) return { abs };
+  try { events.emit("security_boundary_hit", null, { tool: op, path: inputPath, resolved: abs, roots }); } catch {}
+  return {
+    abs: null,
+    error: `HATA: '${inputPath}' izin verilen çalışma kökü dışında — reddedildi.\n` +
+           `  Çalışma kökü: ${roots[0]}\n  (İstisna: ${roots[1]})`,
+  };
+}
 
 // Değişikliği terminale renkli bas + modele kısa diff döndür (pi tarzı)
 function _diffReport(oldContent, newContent) {
@@ -99,7 +136,9 @@ function execute(name, input) {
   switch (name) {
     case "read_file": {
       if (!input.path) return "HATA: 'path' parametresi eksik.";
-      const abs = path.resolve(input.path);
+      const g = _guardPath(input.path, "read_file");
+      if (g.error) return g.error;
+      const abs = g.abs;
       if (!fs.existsSync(abs)) return `HATA: Dosya bulunamadı: ${input.path}`;
       const lines = fs.readFileSync(abs, "utf8").split("\n");
       const start = Math.max(0, (input.offset ?? 1) - 1);
@@ -110,7 +149,9 @@ function execute(name, input) {
     }
 
     case "write_file": {
-      const abs = path.resolve(input.path);
+      const g = _guardPath(input.path, "write_file");
+      if (g.error) return g.error;
+      const abs = g.abs;
       const existed = fs.existsSync(abs) && fs.statSync(abs).isFile();
       const old = existed ? fs.readFileSync(abs, "utf8") : null;
       const cp = checkpoint.snapshot(abs, "write_file");
@@ -126,7 +167,9 @@ function execute(name, input) {
     }
 
     case "edit_file": {
-      const abs = path.resolve(input.path);
+      const g = _guardPath(input.path, "edit_file");
+      if (g.error) return g.error;
+      const abs = g.abs;
       if (!fs.existsSync(abs)) return `HATA: Dosya bulunamadı: ${input.path}`;
       const content = fs.readFileSync(abs, "utf8");
       const count   = content.split(input.old_str).length - 1;
@@ -141,7 +184,9 @@ function execute(name, input) {
     }
 
     case "list_files": {
-      const dir = path.resolve(input.dir ?? ".");
+      const g = _guardPath(input.dir ?? ".", "list_files");
+      if (g.error) return g.error;
+      const dir = g.abs;
       if (!fs.existsSync(dir)) return `HATA: Dizin yok: ${input.dir ?? "."}`;
       const SKIP_DIRS = new Set(["node_modules", ".git", "$Recycle.Bin", "System Volume Information"]);
       function walk(d, depth = 0) {
@@ -163,7 +208,9 @@ function execute(name, input) {
     }
 
     case "search": {
-      const dir  = input.dir  ?? ".";
+      const g = _guardPath(input.dir ?? ".", "search");
+      if (g.error) return g.error;
+      const dir  = g.abs;
       const pat  = input.pattern;
       const glob = input.glob ?? null;
 

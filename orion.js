@@ -9,7 +9,7 @@ require("./core/accounts.js").applyActive(); // aktif hesap profili credentials 
 const readline = require("readline");
 const backends = require("./backends/index.js");
 const { Session, interrupt, clearInterrupt } = require("./core/session.js");
-const { C, print, renderMarkdown, userTurnHeader, makeInputPrompt, inputBoxBottom,
+const { C, print, renderMarkdown, makeInputPrompt, finishUserTurn, refreshInputFill,
         inputBoxTop, renderMenuBelow, clearMenuBelow,
         showInputPlaceholder, clearInputPlaceholder } = require("./tui/index.js");
 const { attachSlashMenu } = require("./tui/slashmenu.js");
@@ -197,6 +197,10 @@ async function main() {
     }
   } catch {}
 
+  // Asenkron sistem mesajları (vault daemon vb.) için yazma noktası.
+  // rl kurulunca prompt-üstüne-yaz sürümüyle değiştirilir; o ana dek doğrudan.
+  let notifyAbove = (writeFn) => writeFn();
+
   // Vault daemon başlat — arka planda not alan yapay zeka
   if (!isHeadless) {
     try {
@@ -205,19 +209,19 @@ async function main() {
       const d = daemon.startDaemon();
       d.on("vault_updated", ({ sessionId, novelty }) => {
         const nov = novelty != null ? ` (novelty: ${(novelty * 100).toFixed(0)}%)` : "";
-        print.system(i18n.t(`vault: saved [${sessionId}]${nov}`, `vault: kaydedildi [${sessionId}]${nov}`));
+        notifyAbove(() => print.system(i18n.t(`vault: saved [${sessionId}]${nov}`, `vault: kaydedildi [${sessionId}]${nov}`)));
       });
       d.on("vault_skipped", ({ sessionId, maxSim, closestId }) => {
-        print.info(i18n.t(
+        notifyAbove(() => print.info(i18n.t(
           `vault: skipped [${sessionId}] — too similar to ${closestId} (${(maxSim * 100).toFixed(0)}%)`,
           `vault: atlandı [${sessionId}] — ${closestId} ile çok benzer (%${(maxSim * 100).toFixed(0)})`
-        ));
+        )));
       });
       d.on("digest_ready", ({ file }) => {
-        print.system(i18n.t(`lovelace: digest ready — /vault digest to read`, `lovelace: özet hazır — /vault digest ile oku`));
+        notifyAbove(() => print.system(i18n.t(`lovelace: digest ready — /vault digest to read`, `lovelace: özet hazır — /vault digest ile oku`)));
       });
       d.on("daemon_error", ({ error }) => {
-        print.warn(`vault daemon: ${error}`);
+        notifyAbove(() => print.warn(`vault daemon: ${error}`));
       });
     } catch (err) {
       print.warn(i18n.t(`vault daemon failed to start: ${err.message}`, `vault daemon başlatılamadı: ${err.message}`));
@@ -257,7 +261,10 @@ async function main() {
     },
   });
 
-  // Giriş kutusunu çiz: üst kenarlık + prompt (alt kenarlık Enter'da basılır)
+  // Prompt açık mı? Asenkron mesajların (notifyAbove) açık bloğu bölmemesi için.
+  let promptOpen = false;
+
+  // Giriş bloğunu çiz: başlık bandı + prompt (Enter'da finishUserTurn kalıcılar)
   // Pipe/non-TTY modunda süsleme yok — çıktı temiz kalır.
   function redrawInput() {
     if (isTTY) {
@@ -268,6 +275,7 @@ async function main() {
         showInputPlaceholder();
         placeholderShown = true;
       }
+      promptOpen = true;
     } else {
       rl.setPrompt("");
       rl.prompt(true);
@@ -276,11 +284,25 @@ async function main() {
 
   if (isTTY) {
     // readline _refreshLine clearScreenDown yapar → açık menü silinir; geri çiz.
+    // RESET önce: canlı zemin açıkken clearScreenDown ekranın altını boyar (BCE).
+    // Sonra satırın kalan boşluğu blok zeminiyle doldurulur.
     const origRefresh = rl._refreshLine.bind(rl);
     rl._refreshLine = () => {
+      process.stdout.write("\x1b[0m");
       origRefresh();
+      refreshInputFill(rl);
       placeholderShown = false;
       if (slashMenu?.state.open) renderMenuBelow(rl, slashMenu.state);
+    };
+
+    // Prompt açıkken gelen asenkron mesaj: açık bloğu geri sar, mesajı yaz,
+    // bloğu (yazılmakta olan satır dahil) yeniden çiz. Prompt kapalıyken doğrudan.
+    notifyAbove = (writeFn) => {
+      if (!promptOpen) { writeFn(); return; }
+      const rows = (rl.getCursorPos?.().rows ?? 0) + 2; // cursor satırı + bant + boşluk
+      process.stdout.write(`\x1b[0m\r\x1b[${rows}A\x1b[J`);
+      writeFn();
+      redrawInput();
     };
   }
 
@@ -338,18 +360,20 @@ async function main() {
   }
 
   rl.on("line", line => {
+    promptOpen = false;
     // Ardışık tekrar girişleri history'den çıkar
     if (rl.history.length >= 2 && rl.history[0] === rl.history[1]) {
       rl.history.splice(0, 1);
     }
     if (isTTY) {
-      // Enter sonrası cursor prompt'un bir altında: varsa açık menü artıklarını sil
-      process.stdout.write("\x1b[J");
+      // Enter sonrası cursor prompt'un bir altında: varsa açık menü artıklarını
+      // sil (RESET önce — canlı zemin \x1b[J'ye taşmasın)
+      process.stdout.write("\x1b[0m\x1b[J");
       if (line.trim()) {
-        // Kutuyu kapat — yazılan satır scrollback'te kutunun içinde kalır
-        inputBoxBottom();
+        // Canlı satırları geri sar, turn'ü dolgulu blok olarak kalıcı çiz
+        finishUserTurn(line, panelInfo());
       } else {
-        // Boş giriş: kutuyu geri sar (↑3 = prompt + üst kenarlık + boşluk satırı)
+        // Boş giriş: bloğu geri sar (↑3 = prompt + başlık bandı + boşluk satırı)
         process.stdout.write("\r\x1b[3A\x1b[J");
       }
     }
@@ -359,6 +383,7 @@ async function main() {
 
   rl.on("close", () => {
     if (qRunning || lineQueue.length) { pendingEOF = true; return; }
+    process.stdout.write("\x1b[0m");
     console.log(C.gray("\nbye."));
     process.exit(0);
   });
@@ -373,12 +398,16 @@ async function main() {
     }
     ctrlCCount++;
     if (ctrlCCount === 1) {
-      // Açık kutuyu geri sar (cursor prompt satırında: ↑2 = üst kenarlık + boşluk)
-      if (isTTY) process.stdout.write("\r\x1b[2A\x1b[J");
+      // Açık bloğu geri sar: cursor satırı (sarılmış girişte >0) + bant + boşluk
+      if (isTTY) {
+        const rows = (rl.getCursorPos?.().rows ?? 0) + 2;
+        process.stdout.write(`\x1b[0m\r\x1b[${rows}A\x1b[J`);
+      }
       process.stdout.write(`${C.gray(i18n.t("Ctrl+C again to exit", "Çıkmak için tekrar Ctrl+C"))}\n`);
       setTimeout(() => { ctrlCCount = 0; }, 2000);
       redrawInput();
     } else {
+      process.stdout.write("\x1b[0m");
       console.log(C.gray("\nbye."));
       process.exit(0);
     }

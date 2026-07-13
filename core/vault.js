@@ -27,14 +27,40 @@ function ensureVault(dir) {
     const p = path.join(d, sub);
     if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
   }
-  // CSS kopyala (eğer molp assets varsa)
+  // Stil dosyası yoksa gömülü varsayılanı yaz. (Eski kod var olmayan bir yola
+  // — <molp>/../vault/assets — bakıyordu; stil hiç kopyalanmıyor, tüm vault
+  // HTML'i stilsiz kalıyordu.)
   const srcCss = path.join(d, "assets", "style.css");
   if (!fs.existsSync(srcCss)) {
-    const builtinCss = path.join(__dirname, "..", "..", "vault", "assets", "style.css");
-    if (fs.existsSync(builtinCss)) fs.copyFileSync(builtinCss, srcCss);
+    try { fs.writeFileSync(srcCss, _BUILTIN_CSS); } catch {}
   }
   return d;
 }
+
+const _BUILTIN_CSS = `:root{--bg:#0b0e14;--fg:#c9d1d9;--muted:#8b949e;--accent:#60dcff;--tag:#a78bfa;--card:#111722;--border:#2d3650}
+*{box-sizing:border-box}
+body{margin:0;padding:24px;max-width:900px;margin:0 auto;background:var(--bg);color:var(--fg);
+  font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.6}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+nav{margin-bottom:16px;font-size:14px}
+h1{font-size:24px;margin:8px 0}h2{font-size:16px;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:4px;margin-top:28px}
+.meta{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin-bottom:12px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.tag{background:var(--card);color:var(--tag);border:1px solid var(--border);border-radius:999px;padding:2px 10px;font-size:12px}
+pre{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:12px;overflow-x:auto}
+code{font-family:ui-monospace,Consolas,monospace;font-size:13px}
+ul{padding-left:20px}li{margin:4px 0}
+.vault-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px}
+.vault-title{font-size:22px;font-weight:600}.vault-count{color:var(--muted);font-size:13px}
+#search-box{width:100%;padding:10px 14px;background:var(--card);border:1px solid var(--border);
+  border-radius:8px;color:var(--fg);font-size:14px;margin-bottom:20px}
+.cards{display:grid;gap:12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;transition:border-color .15s}
+.card:hover{border-color:var(--accent)}.card a{display:block;padding:14px}
+.card-date{color:var(--muted);font-size:12px;margin-bottom:6px}
+.card-summary{font-size:15px;color:var(--fg);margin-bottom:8px}
+.card.hidden{display:none}
+`;
 
 function _esc(s) {
   return String(s ?? "")
@@ -113,7 +139,10 @@ async function writeSession(sessionId, data, knowledge) {
 
   const date    = new Date(data.updatedAt ?? Date.now()).toISOString().slice(0, 10);
   const slug    = (knowledge.summary ?? sessionId).slice(0, 40).replace(/[^\wÀ-ɏ\s-]/g, "").replace(/\s+/g, "-").toLowerCase();
-  const fname   = `${date}_${sessionId}_${slug || "session"}.html`;
+  // sessionId dosya adına gömülür — yol ayracı/traversal ("../", "a/b") dosyayı
+  // sessions/ dışına taşır ya da yazmayı çökertir. Sadece güvenli karakterlere indir.
+  const safeSid = String(sessionId).replace(/[^\w.-]/g, "_").slice(0, 80) || "session";
+  const fname   = `${date}_${safeSid}_${slug || "session"}.html`;
   const htmlPath = path.join(vaultDir, "sessions", fname);
 
   // HTML yaz
@@ -176,12 +205,15 @@ async function searchVault(queryText, limit = 5) {
   let vecs = [], index = [];
   try { vecs  = JSON.parse(fs.readFileSync(vPath, "utf8")); } catch {}
   try { index = JSON.parse(fs.readFileSync(iPath, "utf8")); } catch {}
-  if (!vecs.length || !index.length) return [];
+  if (!index.length) return [];
+  // Embedding yoksa (Ollama/nomic kurulu değil ya da vectors.json hiç üretilmedi)
+  // semantik arama imkânsız — sessizce boş dönmek yerine anahtar-kelime yedeğine düş.
+  if (!vecs.length) return _keywordSearch(index, queryText, limit);
 
   try {
     const embed = require("./embed.js");
     const qVec = await embed.embedText(queryText);
-    if (!qVec) return recentEntries(limit);
+    if (!qVec) return _keywordSearch(index, queryText, limit);
 
     // Aktivasyon ağırlıklı skor: cosine * sqrt(activation)
     const rawRanked = embed.topK(qVec, vecs, limit * 3);
@@ -204,7 +236,22 @@ async function searchVault(queryText, limit = 5) {
     _bumpActivations(result.map(e => e.id), vaultDir, iPath);
 
     return result;
-  } catch { return recentEntries(limit); }
+  } catch { return _keywordSearch(index, queryText, limit); }
+}
+
+// Embedding yokken devreye giren yedek arama: summary + tags üzerinde
+// terim eşleşmesi say, en çok eşleşenleri döndür. Hiç eşleşme yoksa son kayıtlar.
+function _keywordSearch(index, queryText, limit = 5) {
+  const terms = String(queryText).toLowerCase().split(/\s+/).filter(t => t.length > 2);
+  if (!terms.length) return recentEntries(limit);
+  const scored = index.map(e => {
+    const hay = `${e.summary ?? ""} ${(e.tags ?? []).join(" ")}`.toLowerCase();
+    const score = terms.reduce((s, t) => s + (hay.includes(t) ? 1 : 0), 0);
+    return { ...e, score };
+  }).filter(e => e.score > 0)
+    .sort((a, b) => b.score - a.score || (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    .slice(0, limit);
+  return scored.length ? scored : recentEntries(limit);
 }
 
 // Aktivasyon artır: +0.3, max 5.0 (mutex ile index.json yarışı önlenir)

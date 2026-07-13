@@ -10,6 +10,10 @@ const assert   = require("node:assert");
 // İzole temp dizini
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "orion-fs-"));
 
+// Bu test kendi çalışma kökünü TMP olarak bildirir — fs.js workspace sandbox'ı
+// aksi halde repo kökü dışındaki temp yazımlarını reddederdi.
+process.env.ORION_WORKSPACE = TMP;
+
 // tools/fs.js'i yükle — ORION_HOME yolunun çakışmaması için
 const { execute } = require("../tools/fs.js");
 
