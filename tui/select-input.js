@@ -1,12 +1,12 @@
-// core/tui/select-input.js — Ok-tuşu select prompt (akış tabanlı, göreli render)
+// tui/select-input.js — Ok-tuşu select prompt (akış tabanlı, göreli render)
 // KURAL: mutlak konumlama ve \x1b[s/\x1b[u YOK. Blok akış içinde çizilir;
 // her tazelemede "blok başına ↑k çık, satırları üzerine yaz" yapılır.
 // Seçim bitince blok tek satırlık özete indirgenir (clack tarzı collapse).
 "use strict";
 
 const readline = require("readline");
-const { T, C, setInputLock, fitLine } = require("../../tui/index.js");
-const i18n  = require("../i18n.js");
+const { T, C, setInputLock, fitLine } = require("./index.js");
+const i18n  = require("../core/i18n.js");
 const RESET = "\x1b[0m";
 const BOLD  = "\x1b[1m";
 const DIM   = "\x1b[2m";

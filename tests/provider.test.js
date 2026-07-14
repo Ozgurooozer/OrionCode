@@ -54,7 +54,7 @@ test("/provider key: anahtarı providers.json'a yazar, ekrana basmaz", async () 
 // Burada davranışı mock stdin üzerinden test ediyoruz.
 test("maskedInput: non-TTY ortamında boş string döner (pipe/test güvenliği)", async () => {
   // process.stdin.isTTY false olduğu için maskedInput hemen resolve("") döner
-  const { maskedInput } = require("../core/tui/masked-input.js");
+  const { maskedInput } = require("../tui/masked-input.js");
   const result = await maskedInput("Test prompt: ");
   assert.strictEqual(result, "", "TTY olmayan ortamda boş string dönmeli");
 });

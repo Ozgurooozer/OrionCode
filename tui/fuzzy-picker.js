@@ -1,12 +1,12 @@
-// core/tui/fuzzy-picker.js — Yazarak-filtrele seçici (jcode model picker'ı gibi)
+// tui/fuzzy-picker.js — Yazarak-filtrele seçici (jcode model picker'ı gibi)
 // select-input.js ile aynı akış-tabanlı çizim kuralı: mutlak konum / \x1b[s-u yok,
 // blok kendi başına çıkıp üzerine yazar. Fark: burada bir de metin arama kutusu var.
 "use strict";
 
 const readline = require("readline");
-const { T, C, setInputLock, fitLine } = require("../../tui/index.js");
+const { T, C, setInputLock, fitLine } = require("./index.js");
 const { fuzzyScoreTokens, fuzzyMatchPositions } = require("./fuzzy.js");
-const i18n  = require("../i18n.js");
+const i18n  = require("../core/i18n.js");
 const RESET = "\x1b[0m";
 const BOLD  = "\x1b[1m";
 const DIM   = "\x1b[2m";

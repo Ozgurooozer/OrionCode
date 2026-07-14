@@ -62,7 +62,11 @@ async function plan(task, session) {
     const clean = raw.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
     const parsed = JSON.parse(clean);
     if (parsed.subtasks?.length) return parsed;
-  } catch {}
+  } catch (err) {
+    // Plan JSON'u ayrıştırılamadı → tek-subtask yedeğe düşülür; yedek plan gerçek
+    // plandan ayırt edilemezdi — olayla görünür kıl, dönüş şekli değişmez.
+    require("./events.js").emitSilentCatch("coordinator.js:plan", err, session?.id ?? null, "parse");
+  }
 
   return {
     subtasks:   [{ id: "1", role: "coder", task }],

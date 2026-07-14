@@ -4,8 +4,8 @@
 "use strict";
 const path = require("path");
 const { C, T, print, spinner } = require("../../tui/index.js");
-const { selectInput }  = require("../tui/select-input.js");
-const { maskedInput }  = require("../tui/masked-input.js");
+const { selectInput }  = require("../../tui/select-input.js");
+const { maskedInput }  = require("../../tui/masked-input.js");
 const credentials      = require("../credentials.js");
 const i18n = require("../i18n.js");
 

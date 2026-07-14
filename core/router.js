@@ -52,7 +52,22 @@ function complexityScore(text) {
   return complex - simple;
 }
 
-function decide(text, { tokenCount = 0, mode = "agent", budgetTracker = null } = {}) {
+// Gerçek routing kararı + FEP gölge kancası.
+// /router freeenergy on açıkken her gerçek kararın yanında freeenergy.js'in
+// scoreOption() gölge kararı da hesaplanır ve router_shadow_decision olayıyla
+// loglanır. Fire-and-forget: gölge hesabı hata verse bile gerçek karar
+// DEĞİŞMEZ, akış etkilenmez.
+function decide(text, opts = {}) {
+  const decision = _decideCore(text, opts);
+  // shadowHook kendi iç try/catch ile guard'lı — dış catch gereksiz.
+  require("./freeenergy.js").shadowHook(decision, text, {
+    tokenCount: opts.tokenCount ?? 0,
+    mode:       opts.mode ?? "agent",
+  });
+  return decision;
+}
+
+function _decideCore(text, { tokenCount = 0, mode = "agent", budgetTracker = null } = {}) {
   const cfg = loadConfig();
 
   const tier1 = { backend: "ollama",        model: cfg.tier1Model,   tier: 1 };

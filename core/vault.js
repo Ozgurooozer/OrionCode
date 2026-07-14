@@ -188,11 +188,19 @@ async function writeSession(sessionId, data, knowledge) {
         fs.renameSync(vTmp, vPath);
       }
     }
-  } catch {}
+  } catch (err) {
+    // Vektör yazılamadı → oturum vault'a "başarıyla" girer ama semantik aramada
+    // görünmez olur. Yazma akışını bozmadan olay kanalına düş.
+    require("./events.js").emitSilentCatch("vault.js:writeSession", err, sessionId, "vectors");
+  }
 
   // index.html + graph.html yeniden oluştur
   await rebuildIndex(vaultDir);
-  try { rebuildGraph(vaultDir); } catch {}
+  try { rebuildGraph(vaultDir); }
+  catch (err) {
+    // graph.html sessizce bayat kalır — kullanıcıya sunulan bir görünüm; olayla bildir.
+    require("./events.js").emitSilentCatch("vault.js:writeSession", err, sessionId, "rebuildGraph");
+  }
 
   return { file: fname, id: sessionId };
 }
@@ -236,22 +244,31 @@ async function searchVault(queryText, limit = 5) {
     _bumpActivations(result.map(e => e.id), vaultDir, iPath);
 
     return result;
-  } catch { return _keywordSearch(index, queryText, limit); }
+  } catch (err) {
+    // Embedding araması hatayla düştü — anahtar-kelime yedeği sonuç döndürse de
+    // semantik yolun kaybını gizler; olayla ayırt edilir kıl, sonra yedeğe in.
+    require("./events.js").emitSilentCatch("vault.js:searchVault", err, null, "keyword-fallback");
+    return _keywordSearch(index, queryText, limit);
+  }
 }
 
 // Embedding yokken devreye giren yedek arama: summary + tags üzerinde
-// terim eşleşmesi say, en çok eşleşenleri döndür. Hiç eşleşme yoksa son kayıtlar.
+// terim eşleşmesi say, normalize et [0,1], en çok eşleşenleri döndür.
+// Eşleşme yoksa boş dizi — recentEntries() son çaresi kaldırıldı; alakasız
+// kayıtların context'e sızması (kimlik/yetenek soruları dahil) bunu tetikliyordu.
 function _keywordSearch(index, queryText, limit = 5) {
-  const terms = String(queryText).toLowerCase().split(/\s+/).filter(t => t.length > 2);
-  if (!terms.length) return recentEntries(limit);
+  const terms = String(queryText).toLowerCase().split(/\s+/).filter(t => t.length > 1);
+  if (!terms.length) return [];
   const scored = index.map(e => {
     const hay = `${e.summary ?? ""} ${(e.tags ?? []).join(" ")}`.toLowerCase();
-    const score = terms.reduce((s, t) => s + (hay.includes(t) ? 1 : 0), 0);
+    const hits = terms.reduce((s, t) => s + (hay.includes(t) ? 1 : 0), 0);
+    // normalize: eşleşen term sayısı / toplam term sayısı → [0, 1]
+    const score = hits / terms.length;
     return { ...e, score };
   }).filter(e => e.score > 0)
     .sort((a, b) => b.score - a.score || (b.createdAt ?? 0) - (a.createdAt ?? 0))
     .slice(0, limit);
-  return scored.length ? scored : recentEntries(limit);
+  return scored;
 }
 
 // Aktivasyon artır: +0.3, max 5.0 (mutex ile index.json yarışı önlenir)

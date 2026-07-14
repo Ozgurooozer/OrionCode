@@ -1,4 +1,4 @@
-// core/tui/fuzzy.js — Yazım hatasına toleranslı fuzzy eşleştirici
+// tui/fuzzy.js — Yazım hatasına toleranslı fuzzy eşleştirici
 // jcode (github.com/1jehuang/jcode) crates/jcode-fuzzy'nin JS'e taşınmış hali:
 // alt-dizi eşleştirme + sınırlı ikame/devrik/eksik karakter toleransı. Tam,
 // ardışık, sınır ve ilk-karakter eşleşmeleri bonus alır — typo toleransı

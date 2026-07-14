@@ -94,9 +94,145 @@ function setEnabled(on) {
   require("./router.js").saveConfig({ freeEnergyMode: Boolean(on) });
 }
 
+// ── Gölge değerlendirme (tek hesap noktası) ──────────────────────────────────
+// router.decide() kancası ve session.js'in shadowLog çağrısı aynı turda aynı
+// metinle gelir — kısa ömürlü memo sayesinde sürpriz (embed) bir kez hesaplanır
+// ve iki kanal (events + telemetry) aynı değerleri görür.
+let _evalMemo = { text: null, ts: 0, promise: null };
+const EVAL_MEMO_TTL_MS = 10_000;
+
+/**
+ * Metin için gölge FEP değerlendirmesi: { tier, surprise, lambda, scores }
+ */
+async function evaluateShadow(text) {
+  const now = Date.now();
+  if (_evalMemo.promise && _evalMemo.text === text && now - _evalMemo.ts < EVAL_MEMO_TTL_MS) {
+    return _evalMemo.promise;
+  }
+  const promise = (async () => {
+    const cfg      = require("./router.js").loadConfig();
+    const lambda   = cfg.freeEnergyLambda ?? 0.5;
+    const surprise = await computeSurprise(text);
+    return {
+      tier:     shadowDecide(surprise, lambda),
+      surprise,
+      lambda,
+      scores: {
+        1: +scoreOption(1, surprise, lambda).toFixed(4),
+        2: +scoreOption(2, surprise, lambda).toFixed(4),
+      },
+    };
+  })();
+  // Reject durumunda memo'yu temizle: poisoned promise 10s boyunca tüm çağırıcılara
+  // dönmesin, bir sonraki çağrı yeniden denesin.
+  promise.catch(() => { if (_evalMemo.promise === promise) _evalMemo.promise = null; });
+  _evalMemo = { text, ts: now, promise };
+  return promise;
+}
+
+// ── Oturum içi gölge sayaçları ───────────────────────────────────────────────
+// /router shadow-report'un "bu süreç" bölümü buradan okur.
+const MAX_SAMPLES = 20;
+const shadowStats = {
+  total:    0,   // değerlendirilen gerçek karar sayısı
+  diverged: 0,   // gölge tier ≠ gerçek tier
+  byReason: {},  // normalize reason → { total, diverged }
+  samples:  [],  // son MAX_SAMPLES {realDecision, shadowDecision, context}
+};
+
+/** Reason'ı sınırlı kardinaliteye indir: thompson ekini at, sayıları N yap */
+function normalizeReason(reason) {
+  return String(reason ?? "?").replace(/\s*\[.*?\]\s*$/, "").replace(/\d+/g, "N");
+}
+
+function getShadowStats() {
+  return {
+    total:    shadowStats.total,
+    diverged: shadowStats.diverged,
+    byReason: { ...shadowStats.byReason },
+    samples:  [...shadowStats.samples],
+  };
+}
+
+function resetShadowStats() {
+  shadowStats.total    = 0;
+  shadowStats.diverged = 0;
+  shadowStats.byReason = {};
+  shadowStats.samples  = [];
+  // Eval memo'yu da temizle: testler resetShadowStats çağırınca bir önceki
+  // testin promise'i bir sonraki testi etkilemesin (paylaşımlı singleton).
+  _evalMemo = { text: null, ts: 0, promise: null };
+}
+
+/**
+ * Hesaplanmış gölge kararı kaydet: oturum içi sayaçları güncelle ve
+ * core/events.js üzerinden `router_shadow_decision` olayı yayınla.
+ * Payload: { realDecision, shadowDecision, context }
+ * @param {{ tier: number, backend?: string, model?: string, reason?: string }} realDecision
+ * @param {{ tier: number, surprise: number, lambda: number, scores: object }} shadow
+ * @param {{ textPreview?: string, tokenCount?: number, mode?: string, sessionId?: string|null }} context
+ */
+function recordShadow(realDecision, shadow, context = {}) {
+  const real = {
+    tier:    realDecision.tier,
+    backend: realDecision.backend ?? null,
+    model:   realDecision.model   ?? null,
+    reason:  realDecision.reason  ?? "?",
+  };
+  const shadowDecision = {
+    tier:     shadow.tier,
+    surprise: shadow.surprise,
+    lambda:   shadow.lambda,
+    scores:   shadow.scores,
+  };
+  const diverges = shadowDecision.tier !== real.tier;
+
+  shadowStats.total++;
+  if (diverges) shadowStats.diverged++;
+  const rKey = normalizeReason(real.reason);
+  if (!shadowStats.byReason[rKey]) shadowStats.byReason[rKey] = { total: 0, diverged: 0 };
+  shadowStats.byReason[rKey].total++;
+  if (diverges) shadowStats.byReason[rKey].diverged++;
+
+  const ctx = {
+    textPreview: String(context.textPreview ?? "").slice(0, 80),
+    tokenCount:  context.tokenCount ?? 0,
+    mode:        context.mode ?? "agent",
+    diverges,
+  };
+  const sample = { realDecision: real, shadowDecision, context: ctx };
+  shadowStats.samples.push(sample);
+  if (shadowStats.samples.length > MAX_SAMPLES) shadowStats.samples.shift();
+
+  // Evrensel olay kanalı — EVENT_TYPES.router_shadow_decision (events.js'de kayıtlı)
+  try {
+    const events = require("./events.js");
+    events.emit(events.EVENT_TYPES.router_shadow_decision, context.sessionId ?? null, sample);
+  } catch {}
+
+  return sample;
+}
+
+/**
+ * router.decide() kancası — gerçek kararın yanına gölge kararı hesaplar.
+ * Fire-and-forget: senkron döner, hata sessizce yutulur, gerçek karar
+ * hiçbir koşulda etkilenmez.
+ * @returns {Promise|null} — test için beklenebilir; kapalıysa/geçersizse null
+ */
+function shadowHook(realDecision, text, context = {}) {
+  try {
+    if (!realDecision || !isEnabled()) return null;
+    return evaluateShadow(String(text ?? ""))
+      .then(shadow => recordShadow(realDecision, shadow, { ...context, textPreview: String(text ?? "") }))
+      .catch(() => null);
+  } catch { return null; }
+}
+
 /**
  * Gerçek routing kararının yanına gölge FEP kararını telemetry'ye logla.
- * Fire-and-forget: await etme.
+ * Fire-and-forget: await etme. (session.js buradan çağırır — kalıcı NDJSON iz.)
+ * Events yayını ve oturum içi sayaçlar shadowHook/recordShadow'da yapılır;
+ * burada tekrar sayılmaz, sadece kalıcı telemetry kaydı düşülür.
  * @param {{ tier: number, reason: string }} realDecision
  * @param {string} text
  * @param {string|null} sessionId
@@ -106,28 +242,63 @@ async function shadowLog(realDecision, text, sessionId, telemetry) {
   try {
     if (!isEnabled()) return;
 
-    const cfg      = require("./router.js").loadConfig();
-    const lambda   = cfg.freeEnergyLambda ?? 0.5;
-    const surprise = await computeSurprise(text);
-    const shadowTier = shadowDecide(surprise, lambda);
-    const s1 = +scoreOption(1, surprise, lambda).toFixed(4);
-    const s2 = +scoreOption(2, surprise, lambda).toFixed(4);
-
-    const diverges = shadowTier !== realDecision.tier;
+    const shadow   = await evaluateShadow(String(text ?? ""));
+    const diverges = shadow.tier !== realDecision.tier;
 
     if (telemetry?.record) {
       telemetry.record({
         event:       "fep_shadow",
         realTier:    realDecision.tier,
         realReason:  realDecision.reason,
-        shadowTier,
-        surprise,
-        lambda,
-        scores:      { 1: s1, 2: s2 },
+        shadowTier:  shadow.tier,
+        surprise:    shadow.surprise,
+        lambda:      shadow.lambda,
+        scores:      shadow.scores,
         diverges,
       });
     }
   } catch {}
 }
 
-module.exports = { scoreOption, shadowDecide, computeSurprise, isEnabled, setEnabled, shadowLog, PRAGMATIC, epistemicValue };
+/**
+ * Kalıcı telemetry loglarından (fep_shadow kayıtları) sapma özeti çıkar.
+ * /router shadow-report'un "kalıcı log" bölümü buradan okur.
+ */
+function aggregateShadowReport(days = 30) {
+  const out = { days, sessions: 0, total: 0, diverged: 0, byReason: {}, avgSurprise: 0 };
+  try {
+    const { listLogs, readLog } = require("./telemetry.js");
+    const since = Date.now() - days * 86_400_000;
+    let surpriseSum = 0;
+    for (const { sessionId, mtime } of listLogs(200)) {
+      if (mtime < since) continue;
+      let seen = false;
+      for (const e of readLog(sessionId)) {
+        if (e.event !== "fep_shadow") continue;
+        seen = true;
+        out.total++;
+        if (e.diverges) out.diverged++;
+        surpriseSum += e.surprise ?? 0;
+        const rKey = normalizeReason(e.realReason);
+        if (!out.byReason[rKey]) out.byReason[rKey] = { total: 0, diverged: 0 };
+        out.byReason[rKey].total++;
+        if (e.diverges) out.byReason[rKey].diverged++;
+      }
+      if (seen) out.sessions++;
+    }
+    out.avgSurprise = out.total ? +(surpriseSum / out.total).toFixed(4) : 0;
+  } catch (err) {
+    // Telemetry okuma hatası raporu sıfıra indirir — "veri yok" ile "okuma hatası"
+    // aynı görünür; olayla ayırt edilir kıl.
+    require("./events.js").emitSilentCatch("freeenergy.js:aggregateShadowReport", err);
+  }
+  return out;
+}
+
+module.exports = {
+  scoreOption, shadowDecide, computeSurprise, isEnabled, setEnabled, shadowLog,
+  PRAGMATIC, epistemicValue,
+  // gölge telemetri entegrasyonu
+  evaluateShadow, recordShadow, shadowHook,
+  getShadowStats, resetShadowStats, aggregateShadowReport, normalizeReason,
+};

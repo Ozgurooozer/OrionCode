@@ -183,11 +183,15 @@ async function findRelevantSkills(text, limit = 2) {
         return scored.sort((a, b) => b.score - a.score).slice(0, limit);
       }
     }
-  } catch {}
+  } catch (err) {
+    // Embedding yolu hatayla düştü — fuzzy'ye sessizce inmek semantik eşleşmenin
+    // kaybını gizler; olay kanalına yaz, akışı bozmadan fuzzy'ye devam et.
+    require("./events.js").emitSilentCatch("skills.js:findRelevantSkills", err, null, "embed-yolu");
+  }
 
   // 2) Fuzzy düşüş — mesaj kelimeleri skill adı/açıklamasındaki token'larla eşleşiyor mu
   try {
-    const { fuzzyScoreTokens } = require("./tui/fuzzy.js");
+    const { fuzzyScoreTokens } = require("../tui/fuzzy.js");
     const words  = text.toLowerCase().split(/\s+/).filter(w => w.length >= 4).slice(0, 20);
     const scored = [];
     for (const s of skills) {
@@ -196,7 +200,11 @@ async function findRelevantSkills(text, limit = 2) {
       if (hits >= 2) scored.push({ ...s, score: hits });
     }
     return scored.sort((a, b) => b.score - a.score).slice(0, limit);
-  } catch { return []; }
+  } catch (err) {
+    // Boş liste "eşleşme yok" ile aynı görünür — hatayı olayla ayırt edilir kıl.
+    require("./events.js").emitSilentCatch("skills.js:findRelevantSkills", err, null, "fuzzy-yolu");
+    return [];
+  }
 }
 
 // Eşleşen skill'leri system eki olarak biçimle

@@ -304,7 +304,11 @@ ${sessionLines}`;
       const header = `# Lovelace Haftalık Rapor — ${date}\n\n> Rapor-only: otonom eylem içermez.\n\n`;
       const file = vault.writeDigest(header + response);
       parentPort.postMessage({ type: "digest_ready", file, date });
-    } catch {}
+    } catch (err) {
+      // Worker thread: events.js singleton'ı ana thread'e taşınmaz — mineWeaknesses
+      // ile aynı kanal (parentPort "error" → daemon_error) kullanılır.
+      parentPort.postMessage({ type: "error", error: `digest: ${err.message}` });
+    }
     finally { lovelaceRunning = false; }
   }
 

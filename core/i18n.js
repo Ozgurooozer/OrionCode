@@ -22,7 +22,10 @@ function getLocale() {
 
 function setLocale(l) {
   _locale = normalize(l);
-  try { router.saveConfig({ language: _locale }); } catch {}
+  // Kalıcılaştırma başarısız olursa dil bu oturumda değişir ama sonraki açılışta
+  // geri döner — sessiz kalmak "kaydedildi" izlenimi verir, olayla görünür kıl.
+  try { router.saveConfig({ language: _locale }); }
+  catch (err) { require("./events.js").emitSilentCatch("i18n.js:setLocale", err); }
   return _locale;
 }
 

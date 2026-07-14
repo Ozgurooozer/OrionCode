@@ -1,11 +1,11 @@
-// core/tui/masked-input.js — Maskelenmiş terminal girişi
+// tui/masked-input.js — Maskelenmiş terminal girişi
 // Her karakter yerine * basar, Backspace + Ctrl+C + Enter destekler.
 // clack.text() maskelemeyi desteklemediği için readline.emitKeypressEvents
 // tabanlı manuel implementasyon — başka secret girişlerinde de kullanılabilir.
 "use strict";
 
 const readline = require("readline");
-const { T, C, setInputLock } = require("../../tui/index.js");
+const { T, C, setInputLock } = require("./index.js");
 const RESET = "\x1b[0m";
 
 /**

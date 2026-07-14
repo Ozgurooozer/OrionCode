@@ -18,6 +18,9 @@ const { EventEmitter } = require("events");
 //   error             payload: { message, backend?, code? }
 //   session_saved     payload: { sessionId, file? }
 //   weakness_mined    payload: { file, groups, date }          (daemon idle-time raporu)
+//   silent_catch_hit  payload: { site: "dosya:fonksiyon", error, detail? }
+//                     (sessizce yutulan catch bloğu tetiklendi — "başarılı" ile
+//                      "sessizce başarısız" ayrımı için görünürlük kanalı)
 //
 // NDJSON serialize: toNDJSON(event) → satır sonu dahil string.
 // Gelecek: 1 saatlik TTL cache tipi gibi yeni alanlar payload içinde genişletilir.
@@ -37,6 +40,7 @@ const EVENT_TYPES = Object.freeze({
   speculex_hit:      "speculex_hit",       // spekülatif tier1 tahmini tier2 kararıyla eşleşti
   speculex_miss:     "speculex_miss",      // spekülatif tahmin ıskaladı, cache atıldı
   router_shadow_decision: "router_shadow_decision", // FEP gölge kararı: {realDecision, shadowDecision, context}
+  silent_catch_hit:  "silent_catch_hit",    // sessiz catch bloğu tetiklendi: {site, error, detail?}
 });
 
 const emitter = new EventEmitter();
@@ -68,4 +72,22 @@ function toNDJSON(event) {
   return JSON.stringify(event) + "\n";
 }
 
-module.exports = { emitter, emit, toNDJSON, EVENT_TYPES };
+/**
+ * Sessizce yutulan catch blokları için ortak görünürlük yardımcısı.
+ * Kendisi asla fırlatmaz — görünürlük mekanizması akışı bozamaz.
+ * @param {string} site        — "dosya:fonksiyon" biçiminde konum
+ * @param {*} err              — yakalanan hata (Error ya da başka değer)
+ * @param {string|null} sessionId
+ * @param {*} [detail]         — opsiyonel ek bağlam (ör. hangi alt-adım)
+ */
+function emitSilentCatch(site, err, sessionId = null, detail = undefined) {
+  try {
+    emit(EVENT_TYPES.silent_catch_hit, sessionId, {
+      site,
+      error: String(err?.message ?? err ?? "unknown").slice(0, 300),
+      ...(detail !== undefined ? { detail } : {}),
+    });
+  } catch {}
+}
+
+module.exports = { emitter, emit, toNDJSON, emitSilentCatch, EVENT_TYPES };

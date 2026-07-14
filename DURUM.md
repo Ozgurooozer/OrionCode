@@ -1,5 +1,5 @@
 # Orion Aethelred v4 — Durum Raporu
-> Tarih: 2026-07-11 · Test: 135/135 · Kod: ~8 200 satır
+> Tarih: 2026-07-13 · Test: 210/210 · Kod: ~8 200 satır
 
 ---
 
@@ -14,7 +14,7 @@
 | MCP | ✅ Client + Server | stdio + HTTP, autoConnect |
 | Vault (bellek) | ✅ 4 katman | working / episodic / semantic / personalized |
 | TUI | ✅ Yenilendi | Sticky input, input box, * tool format, → result |
-| Test | ✅ 121/121 | 18 test dosyası |
+| Test | ✅ 207/207 | 33 test dosyası |
 
 ---
 
@@ -145,7 +145,226 @@ BYOK key kaydetme akışı: `maskedInput` → `process.env[keyEnv]` (bu oturum) 
 | `selfdev.test.js` | Self-dev + komut hot-reload |
 | `skills-lazy.test.js` | Tembel skill eşleştirme |
 | `lmstudio.test.js` | LM Studio backend |
-| **Toplam** | **178 / 178 ✅** |
+| `fs-sandbox.test.js` | fs araçları workspace sandbox sınırı |
+| `extract.test.js` | Model fallback embedding filtresi + `stripThinking` (2026-07-13) |
+| `speculex-integration.test.js` | Spekülatif prefetch ↔ session.js entegrasyonu, KATI SINIR kanıtı (2026-07-13) |
+| `freeenergy-shadow.test.js` | FEP gölge kararı ↔ gerçek router kararı, sapma raporu (2026-07-13) |
+| `silent-catch.test.js` | `silent_catch_hit` görünürlük kanalı (2026-07-13) |
+| **Toplam** | **207 / 207 ✅** |
+
+---
+
+## Son Oturumda Yapılanlar (2026-07-13) — V→F→B→C→S Zinciri
+
+### Bağlam ve karar
+
+Bu oturum, aşağıdaki "Açık/Sıradaki" tablosundaki İş A/B/C'nin **2026-07-11'de
+"Düzeltildi ve doğrulandı" olarak kapatılmış olmasına rağmen**, canlı bir
+testte (İş V) hâlâ aynı aile hatayı üretmesiyle başladı. Bu, PERSONA.md
+Kural 7'nin ("eski sonuca bile şüpheyle bak") doğrudan bir uygulaması oldu —
+"zaten doğrulandı" etiketi yeniden bakılana kadar sadece bir varsayım olarak
+ele alındı ve haklı çıktı: 07-11'in doğrulaması **yeterince derin değildi**
+(bkz. aşağıdaki "07-11 doğrulamasıyla uzlaştırma").
+
+Üç bağımsız sessiz-hata örneği (weakness-mining yanlış model adı, embedding
+modelinin sessizce yok sayılması, `extractWithOllama`'da `<think>` bloğu
+temizlenmeden parse) karşısında iki seçenek vardı: (1) weakness-mining'i
+genişletip bu sınıf hataları "tespit ettirmek", (2) kaynağı tek seferlik
+sistemik bir taramayla kapatmak. **Karar #2 idi** — bu, weakness-mining'i
+basit/dar tutma kararını da otomatik olarak doğru seçenek yaptı, çünkü kaynak
+kapatılınca tespit edilecek yeni bir hata sınıfı kalmadı.
+
+Dört ayrı, birbirinin dosyasına dokunmayan prompt olarak yürütüldü (paralel
+ajanlar çakışmasın diye): **V** (gözlem, kod yok) → **F** (kök-neden,
+`core/extract.js`) → **B** (`core/speculex.js`+`core/session.js`, paralel) →
+**C** (`core/freeenergy.js`+`core/router.js`+`core/commands/router.js`,
+paralel) → **S** (sistemik catch taraması, B/C bitince tek başına — çünkü
+B/C'nin değiştirdiği dosyaları da tarayacaktı). `EVENT_TYPES`'a
+`speculex_hit`/`speculex_miss`/`router_shadow_decision` event tipleri B/C
+başlamadan **önce tek elden** `core/events.js`'e eklendi ki üç iş de aynı
+dosyaya yazmak zorunda kalmasın.
+
+### İş V — Canlı doğrulama (kod yok, gözlem)
+
+| Adım | Bulgu |
+|---|---|
+| `ollama list` | `nomic-embed-text` kurulu değildi (kurulu: `vibethinker`, `ornith`, `qwen-coder`) |
+| `ollama pull nomic-embed-text` | 274 MB indirildi, doğrulandı |
+| Gerçek modda `node orion.js`, canlı `/vault kaydettir` | Üretilen HTML: `<h1>[user]: ...[assistant]: \`setMaxListeners(n)\` bir Ev</h1>`, `orion-tags="claude-code,manuel"`, Kararlar/Kavramlar/Hatalar bölümleri **boş** — ham alıntı, gerçek özet değil |
+| `/vault ara` aynı oturumda | Az önce kaydedilen girdi döndü (boş değil) ama skor **%100** — cosine'dan çok keyword eşleşmesi kokusu, embedding'in arama tarafında gerçekten devrede olup olmadığı bu turda ayrıca doğrulanmadı (açık kaldı) |
+
+**İroni:** V'nin kendi 2. adımı (embedding modelini kurmak), `resolveOllamaModel`'in
+o zamanki (07-11'den kalma) "kurulu ilk modele düş" mantığını **daha da
+kötüleştirdi** — pull sonrası `/api/tags`'in ilk sırasına çoğunlukla
+`nomic-embed-text` (chat bile yapamayan bir model) geldi. "Düzeltme" sanılan
+bir adımın yeni bir sessiz-hata yolu açabileceğinin canlı kanıtı.
+
+### İş F — Extraction kök-neden düzeltmesi (`core/extract.js`)
+
+V'nin bulduğu ham-alıntı sorununun kök nedeni iki parçalıydı:
+
+1. **`resolveOllamaModel`** (satır 82-95) artık `/api/tags`'i isim + model
+   ailesiyle (`details.family(ies)`) okuyor; `_isEmbeddingModel()` filtresiyle
+   embedding-only modelleri (`nomic-embed`, `mxbai-embed`, `bge`... isim veya
+   `bert`/`embed` ailesi) fallback adayı olmaktan **eliyor**. Hepsi embedding
+   ise istenen adla deniyor ki hata görünür kalsın (sessizce başka bir şeye
+   kaymıyor).
+2. **`extractWithOllama`** (satır 131-163) artık `JSON.parse`'tan önce zaten
+   tanımlı-ama-hiç-çağrılmayan `stripThinking()`'i çağırıyor — thinking
+   modelleri (`vibethinker` vb.) `<think>...</think>` bloğunu JSON'dan önce
+   basıyordu, temizlenmeden parse her denemede patlıyordu.
+3. `~/.orion/config.json`'a `tier1Model: "qwen-coder:latest"` yazıldı (bu
+   makinede kurulu gerçek ada sabitlendi). **Bilinçli olarak `core/router.js`
+   DEFAULTS'a dokunulmadı** — hem C ajanı o dosyada eşzamanlı çalışıyordu hem
+   de `qwen-coder:latest` makineye özgü bir ad, evrensel kod varsayımı olarak
+   yanlış olur.
+
+**Canlı doğrulama** (V ile birebir aynı akış, farklı soru): üretilen HTML'de
+Kararlar dolu ("Promise.allSettled kullanmak daha güvenli…"), Kod Kalıpları
+2 snippet, Kavramlar 3 madde, **`manuel` etiketi yok**. Test: `tests/extract.test.js`
+(3 test) — mock Ollama'da embedding modeli **bilerek ilk sırada** kurularak
+(hatayı yeniden üreten dizilim) filtrenin gerçekten çalıştığı kanıtlandı.
+
+### İş B — Spekülatif salt-okunur yürütme (`core/speculex.js` + `core/session.js`)
+
+`core/session.js:246`'da tier2 rotasında `speculex.startPrefetch()` çağrısı
+zaten **vardı** (07-11'in İş B notu "session.js'e entegre değil" artık yanlış
+bir varsayımdı — kod okunarak düzeltildi). Gerçek problem, İş V/F'yle **aynı
+kök aileden** bir başkasıydı: tahmin prompt'undaki örnek `list_files` için
+`{"path":...}` kullanıyordu, gerçek araç şeması `{dir}` — cache anahtarı
+tool+input JSON'unun **tam eşleşmesi** olduğundan bu, `list_files`/`search`
+isabetini yapısal olarak imkânsız kılıyordu. 07-11'in doğrulaması bu
+detayı yakalamamıştı (bkz. aşağı, "07-11 doğrulamasıyla uzlaştırma").
+
+| Değişiklik | Dosya | Not |
+|---|---|---|
+| Tahmin prompt şeması gerçek araç şemalarıyla hizalandı | `core/speculex.js` | `list_files`/`search` isabeti artık yapısal olarak mümkün |
+| Girdi tüketim takibi (`consumed`) + `generation` tur çiti | `core/speculex.js` | Geç biten prefetch yeni turun cache'ini kirletemiyor |
+| `drainUnconsumed(expectedGen)`, `get()`'e opsiyonel `sessionId` (TTL) | `core/speculex.js` | Tüketilmeyen/TTL'i kaçıran tahminler `speculex_miss` ile görünür |
+| `_callToolCached` isabette `speculex_hit` yayınlar | `core/session.js` | — |
+| `send()` tier2 dalında prefetch promise + generation yakalanır, `finally`'de `_sweepSpeculexMisses` | `core/session.js` | Hata `speculex_miss reason:"error"` olarak yayınlanır, kullanıcıya asla yansımaz |
+
+**KATI SINIR kanıtı** (`tests/speculex-integration.test.js`, 6 test): tahminci
+*kasıtlı olarak* `write_file`/`edit_file`/`run_command` döndürse bile
+hiçbiri yürütülmüyor/cache'lenmiyor; cache'e zorla write girdisi enjekte
+edilse bile `get()` çiti derinlemesine savunmayla dönüşü engelliyor.
+
+**Ölçüm** (yarı-gerçek: tier1 gerçek Ollama ile gerçekten yürütüldü, tier2
+tarafı bulut maliyeti olmasın diye 10 senaryoda elle ground-truth): **%80
+isabet (8/10)**. Iskalar makul cinsten (farklı path tahmini, `memory_read`
+yerine `read_file`). Tur başına beklenen gecikme kazancı **~2.0 sn**
+(`search` aracının ~10 sn sürmesi domine ediyor; fs araçları ~1ms, ihmal
+edilebilir). Dürüst sınır: prefetch 2.4–15.8 sn sürebiliyor — tier2 daha
+hızlı yanıtlarsa girdi geç kalır, bu durumda regresyon yok, sadece
+`speculex_miss reason:"unused"`.
+
+**Kapsam dışı bırakılan iki gözlem** (raporlandı, dokunulmadı): `search`
+aracı muhtemelen `node_modules`'ı tarıyor (ignore filtresi ayrı iş olarak
+değerli — speculex'in en değerli hedefini de hızlandırır); spekülasyon
+yalnızca router'ın tier2 kararında tetikleniyor, kullanıcı `_manualBackend`
+ile bulut backend'i elle seçtiğinde prefetch hiç çalışmıyor.
+
+### İş C — FEP gölge modu telemetri (`core/freeenergy.js` + `core/router.js` + `core/commands/router.js`)
+
+`core/router.js`'te `decide()` ikiye bölündü: gerçek karar mantığı bayt bayt
+aynı şekilde `_decideCore()`'a taşındı, `decide()` kararı alıp fire-and-forget
+bir `shadowHook`'u ateşleyip kararı **değiştirmeden** döndürüyor.
+`core/freeenergy.js`'e tek hesap noktası (`evaluateShadow`, 10 sn memo —
+aynı turda `shadowHook` ve session.js'in önceden var olan `shadowLog`
+çağrısı sürprizi/embed'i **bir kez** hesaplıyor), sayaç + `router_shadow_decision`
+event yayını (`recordShadow`) ve kalıcı NDJSON loglarından okuyan
+`aggregateShadowReport` eklendi. `session.js:251`'deki mevcut `shadowLog`
+çağrısına dokunulmadı (kapsam dışıydı) — çift sayım riski kanalları ayırarak
+çözüldü: kanca → event + oturum içi sayaç, `shadowLog` → yalnız kalıcı
+telemetri. Yeni komut: **`/router shadow-report [gün]`**.
+
+**Ölçüm** (20 turluk simüle oturum, gerçek `decide()` yolundan):
+
+| Konfig | Sapma | Yapı |
+|---|---|---|
+| Varsayılan (λ=0.5, boş vault → sürpriz sabit 0.5) | 12/20 = %60 | Gölge bu konfigde hep tier2 seçiyor — sapma birebir "gerçek kararın tier1 olduğu turlar" (`balanced default` 9/9, `chat mode` 2/2, `budget exceeded` 1/1) |
+| λ=1.0 + sentetik sürpriz taraması | 10/20 = %50 | Yön değişiyor: gölge yüksek sürprizli girdilerde tier1'e kayıyor |
+
+Test: `tests/freeenergy-shadow.test.js` (8 test) — kapalıyken sıfır etki,
+gerçek kararın değişmezliği, 6 turluk deterministik simülasyon, bozuk girdi
+toleransı, çift-saymama, `/router shadow-report` komutu.
+
+### İş S — Sessiz catch{} sistemik taraması (kök nedeni kapatan iş)
+
+`core/*.js`, `core/commands/*.js`, `tools/*.js` içinde gövdesi boş/yalnız-yorum
+**58 catch bloğu** tek tek elle gözden geçirildi. **44'ü zararsız/zaten-görünür**
+(dosya-yoksa-varsayılan türü desenler + B/C'nin bugün event'li hale getirdiği
+speculex/freeenergy gölge kanalları). **15'i sessiz-başarısızlık** olarak
+`core/events.js`'e eklenen `EVENT_TYPES.silent_catch_hit` + hiçbir zaman
+fırlatmayan `emitSilentCatch(site, err, sessionId?, detail?)` yardımcısıyla
+görünür kılındı — hiçbir dönüş sözleşmesi bozulmadı, sadece olay kanalı
+eklendi:
+
+| Site | Detail | Neden görünür kılındı |
+|---|---|---|
+| `core/extract.js:148` `extractWithOllama` | `manuel-fallback` | Manuel yedek "başarı gibi" dönüyordu (bu zincirin başlangıç noktası) |
+| `core/i18n.js:28` `setLocale` | — | Dil bellekte değişip diske yazılamayınca "kaydedildi" izlenimi kalıyordu |
+| `core/skills.js:189` `findRelevantSkills` | `embed-yolu` | Embedding→fuzzy sessiz düşüş |
+| `core/skills.js:205` `findRelevantSkills` | `fuzzy-yolu` | Fuzzy de başarısızsa boş sonuç ayrımsızdı |
+| `core/thompson.js:80` `_save` | — | Bandit öğrenmesi süreç kapanınca sessizce kayboluyordu |
+| `core/vault.js:194` `writeSession` | `vectors` | Vektör yazılamayınca oturum semantik aramada görünmez ama "kaydedildi" raporlanıyordu |
+| `core/vault.js:202` `writeSession` | `rebuildGraph` | `graph.html` sessizce bayat kalıyordu |
+| `core/vault.js:250` `searchVault` | `keyword-fallback` | Embedding hatası keyword sonuçlarıyla maskeleniyordu (V'nin şüphelendiği %100 skorla aynı aile) |
+| `core/session.js:233` `chat` | `vault-inject` | Bağlam enjeksiyonu sessizce yok oluyordu, "eşleşme yok" ile karışıyordu |
+| `core/session.js:245` `chat` | `turn-recall` | Aynı aile |
+| `core/session.js:259` `chat` | `skill-inject` | Aynı aile |
+| `core/session.js:759` `_extractMemories` | — | Başarıda mesaj basılıyor, başarısızlık tamamen görünmezdi |
+| `core/session.js:843` `_save` | — | **En kritik:** oturum diske yazılamasa bile `session_saved` event'i yayınlanıyordu — sessiz veri kaybı riski |
+| `core/coordinator.js:68` `plan` | `parse` | Yedek tek-subtask plan gerçek plandan ayırt edilemiyordu |
+| `core/daemon.js` `generateDigest` | — | Worker thread — `events.js` singleton'ı ana thread'e taşınmaz; `mineWeaknesses`'ın mevcut kanalı (`parentPort` → `daemon_error`) kullanıldı, event değil |
+
+**Bilinçli olarak dokunulmayanlar:** `core/telemetry.js` (gözlemlenebilirlik
+kanalının kendisi — disk hatasında emit fırtınası/döngü riski);
+`tools/fs.js:263` grep fallback iç döngüsü (arama başına yüzlerce beklenen
+hata — sıcak yol); `core/router.js`'in gölge kancası (zaten fire-and-forget);
+`core/daemon.js`'in çoğu worker-thread catch'i (beklenen ilk-çalıştırma/bakım
+durumları). **Yeni bulunan, kapsam dışı bırakılan bir gözlem:**
+`core/coordinator.js:57`'de LLM çağrı hatası da aynı desenle sessizce yedek
+plana düşüyor — S bunu raporladı, düzeltmedi (aynı desenle görünür
+kılınabilir, ayrı bir iş).
+
+Test: `tests/silent-catch.test.js` (5 test) — event şeması, fırlatmazlık
+garantisi, iki gerçek site uçtan uca (`extractWithOllama` Ollama erişilemezken,
+`setLocale` `saveConfig` hatasında).
+
+### 07-11 doğrulamasıyla uzlaştırma (Kural 7 uygulaması)
+
+Aşağıdaki tablo, 2026-07-11'de "Düzeltildi ve doğrulandı" denen maddelerin
+2026-07-13'te yeniden bakılınca ne çıktığını gösteriyor — hiçbiri yanlıştı
+demek değil, ama **doğrulama derinliği yetersizdi**:
+
+| 07-11 iddiası | 07-13'te bulunan | Sonuç |
+|---|---|---|
+| İş A: "model bulunamama hatası artık sessizce yutulmuyor" (`data.error` kontrolü) | Doğruydu, hâlâ duruyor — ama bu, `extractWithOllama`'nın **kendi** `catch{}`'ini kapsamıyordu; o ayrı ve hâlâ açıktı | Kısmi doğru — dar kapsamlıydı |
+| İş A: `resolveOllamaModel` "kurulu ilk modele düşer" | Embedding modelleri filtre dışı değildi — V'nin pull'u bunu **aktif hale getirdi** | Yanlış eksikti (embedding farkındalığı yoktu) |
+| İş A: "`extractWithOllama` parse'tan önce `stripThinking` uygular" (07-11 notu) | Kod okunduğunda bu çağrı **yoktu** — sadece `speculex.js`'in kendi tahmin fonksiyonuna uygulanmıştı | Doğrulama notu, gerçek koddan ileri gitmişti |
+| İş B: "Düzeltildi ve doğrulandı", "`list_files`+`read_file`, doğru path'lerle" | Tahmin prompt'unun `list_files` örneği yanlış şemaydı (`path` vs `dir`) — cache anahtarı hiç eşleşmiyordu | Doğrulama sadece "geçerli JSON üretildi mi"ne baktı, "gerçek tool girdisiyle eşleşiyor mu"ya bakmadı |
+| İş C: "muhtemelen çalışıyor ama doğrulanmadı" (07-11 kendi notu) | Bugün gerçekten uçtan uca ölçüldü, ilk kez sayısal sapma oranı çıktı | Bu madde zaten dürüsttü — sadece tamamlandı |
+
+Ders: "yazıldı ve testi geçti" ile "gerçek veriyle uçtan uca doğrulandı"
+arasındaki fark, bu zincirde üç kere aynı yönde hataya yol açtı. Bundan
+sonraki "Düzeltildi ve doğrulandı" notları, hangi doğrulamanın (birim test /
+mock / gerçek Ollama+gerçek dosya) yapıldığını açıkça belirtmeli.
+
+### Açık kalan, aksiyon alınmamış notlar
+
+- `vault_ara`'nın %100 benzerlik skoru (İş V) — gerçek embedding devredeyken
+  cosine skorunun 1.0'dan farklı, anlamlı bir dağılım verdiği hâlâ ayrıca
+  doğrulanmadı.
+- `core/coordinator.js:57` — LLM çağrı hatası sessizce yedek plana düşüyor
+  (S'nin bulduğu, dokunmadığı gözlem).
+- `search` aracının `node_modules` taraması muhtemelen gereksiz yavaşlık
+  kaynağı (İş B gözlemi).
+- Manuel backend seçiliyken (`_manualBackend`) speculex prefetch hiç
+  tetiklenmiyor (İş B gözlemi).
+- TUI'deki AI turn başlığının bayat backend etiketi ("agent · openrouter"
+  gösterip gerçek backend ollama olması) — TUI hattı bu oturumda ayrı bir
+  akışta aktif olduğu için dokunulmadı.
 
 ---
 
@@ -189,7 +408,7 @@ BYOK key kaydetme akışı: `maskedInput` → `process.env[keyEnv]` (bu oturum) 
 | # | Dosya | Sorun | Düzeltme |
 |---|---|---|---|
 | 12 | `core/extract.js` | `ollamaRequest`, Ollama'nın `{"error": "model not found"}` yanıtını sessizce `""`'e çeviriyordu | `data.error` kontrolü eklendi, artık `throw` ediyor |
-| 13 | `core/extract.js` | `tier1Model` varsayılanı (`qwen2.5-coder:7b`) yerelde kurulu olmayabiliyor, hata hiç görünmüyordu | `resolveOllamaModel()`: `/api/tags`'ten kurulu modelleri okur (60sn önbellek), istenen model yoksa kurulu ilk modele düşer |
+| 13 | `core/extract.js` | `tier1Model` varsayılanı (`qwen2.5-coder:7b`) yerelde kurulu olmayabiliyor, hata hiç görünmüyordu | `resolveOllamaModel()`: `/api/tags`'ten kurulu modelleri okur (60sn önbellek), istenen model yoksa chat yapabilen ilk modele düşer (embedding modelleri elenir); `extractWithOllama` parse'tan önce `stripThinking` uygular |
 | 14 | `core/daemon.js` | `mineWeaknesses()` boş/kısa Ollama yanıtında sessizce `return` ediyordu, hiçbir yerde iz kalmıyordu | `parentPort.postMessage({type:"error", ...})` ile `daemon_error` olayına bağlandı |
 
 Doğrulama: sahte `≥2` tekrar eden hata kaydı + gerçek yerel Ollama ile uçtan uca test edildi. Düzeltme öncesi model bulunamama hatası 49ms'de sessizce boş dönüyordu; düzeltme sonrası gerçek kurulu modele düşüp gerçek yanıt üretiyor.
@@ -226,12 +445,12 @@ yapmayan bir tier1 modeli kurulursa iyileşir.
 
 ### Plan (öncelik sırasıyla)
 
-| # | İş | Açıklama | Engel |
+| # | İş | Açıklama | Durum (2026-07-13) |
 |---|---|---|---|
-| A | Weakness Mining | `daemon.js`'e idle-zaman log analizi, `/weakness` komutu, onay kapılı tool güncelleme | Kod yazıldı, birim testleri geçiyor, ama üretimde hiç tetiklenmedi (bu makinede `~/.orion/reports/` hiç oluşmamış — tetikleme eşiği olan "7 günde ≥2 aynı hata" gerçek veride henüz hiç oluşmadı). Bu oturumda ayrıca gerçek bir çalıştırma denemesinde `tier1Model` varsayılanının (`qwen2.5-coder:7b`) yerelde kurulu olmadığı ve `ollamaRequest`'in bu hatayı sessizce yuttuğu bulundu — düzeltildi (bkz. aşağı). Onay kapılı tool güncelleme (apply) kısmı hâlâ yazılmadı. |
-| B | Spekülatif yürütme | Tier2 beklerken tier1 read-only tool tahmin + önbellek | **Düzeltildi ve doğrulandı.** `session.js:246` entegrasyonu zaten vardı (plan bunu bilmiyordu) — İş A'yla aynı kök nedenden (model çözümleme + `<think>` temizliği eksikti) sessizce hiç çalışmıyordu. Şimdi canlı testte doğru JSON tahmini üretiyor. Açık nokta: yerel model yavaş (14-20sn), tier2'den yavaş kalabilir — kod değil, model seçimi meselesi. |
-| C | FEP Faz 0 | `freeenergy.js` gölge modun gerçek telemetry karşılaştırmasına bağlanması | `shadowLog()` zaten `session.js:251`'de çağrılıyor ve gerçek `fep_shadow` telemetry olayı üretiyor görünüyor — ama bu iş bu oturumda B gibi canlı doğrulanmadı, sadece kod okundu. `isEnabled()` `cfg.freeEnergyMode` varsayılan kapalı olduğundan gölge mod hiç tetiklenmemiş olabilir — İş A/B'deki "yazıldı ama hiç ateşlenmedi" deseni burada da tekrarlıyor olabilir, doğrulanmadı. |
-| D | Kimlik adayı | İş A/B/C bitmeden başlanmaz | Ertelendi |
+| A | Weakness Mining | `daemon.js`'e idle-zaman log analizi, `/weakness` komutu, onay kapılı tool güncelleme | Kaynak zinciri (model fallback + `<think>` temizliği) **kapatıldı** (bkz. İş F yukarıda), canlı doğrulandı — gerçek özet üretiyor, `manuel` etiketine düşmüyor. Genişletme yerine kaynağı kapatma kararı alındı (bkz. yukarıki "Bağlam ve karar"), weakness-mining'in kendisi hâlâ dar/basit tutuluyor — bilinçli. Onay kapılı tool güncelleme (apply) kısmı hâlâ yazılmadı. |
+| B | Spekülatif yürütme | Tier2 beklerken tier1 read-only tool tahmin + önbellek | **Gerçekten ölçüldü ve KATI SINIR testle kanıtlandı** (bkz. İş B yukarıda) — %80 isabet, ~2.0sn/tur beklenen kazanç. 07-11'in "doğru path'lerle" iddiası yanlış çıktı (şema uyuşmazlığı vardı, düzeltildi). Açık: manuel backend seçiminde prefetch hiç çalışmıyor; `search` aracı `node_modules` tarıyor, yavaş. |
+| C | FEP Faz 0 | `freeenergy.js` gölge modun gerçek telemetry karşılaştırmasına bağlanması | **Kapatıldı ve ölçüldü.** `/router shadow-report` komutu + `router_shadow_decision` event'i eklendi, gerçek karar hiç değiştirilmiyor. 20 turluk simülasyonda sapma oranı ve yapısı çıkarıldı (varsayılan konfigde %60, λ=1.0'da %50 farklı yönde). |
+| D | Kimlik adayı | İş A/B/C bitmeden başlanmaz | A/B/C artık gerçek veriyle doğrulanmış durumda — başlanabilir, henüz başlanmadı |
 
 ### jcode Karşılaştırması Sonrası Eklenenler (2026-07-12)
 

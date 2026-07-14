@@ -74,7 +74,11 @@ function _save(state) {
     const dir = path.dirname(STATE_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-  } catch {}
+  } catch (err) {
+    // Bellek-içi öğrenme sürer ama diske yazılamadı — süreç kapanınca gözlemler
+    // kaybolur. Sessiz kalmak kalıcı öğrenme izlenimi verir; olayla görünür kıl.
+    require("./events.js").emitSilentCatch("thompson.js:_save", err);
+  }
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
