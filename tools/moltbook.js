@@ -1,12 +1,11 @@
 // tools/moltbook.js — Moltbook API araçları
 const https = require("https");
-const fs    = require("fs");
-const path  = require("path");
 
-const CREDS = path.join(__dirname, "..", "credentials.json");
-
-function getCreds() {
-  return JSON.parse(fs.readFileSync(CREDS, "utf8"));
+// core/credentials.js startup'ta moltbook_api_key → MOLTBOOK_API_KEY olarak env'e yükler
+function _getMoltApiKey() {
+  const k = process.env.MOLTBOOK_API_KEY ?? process.env.API_KEY;
+  if (!k) throw new Error("Moltbook API key yapılandırılmamış. /saglayici ile ekle.");
+  return k;
 }
 
 function apiReq(method, endpoint, body) {
@@ -17,7 +16,7 @@ function apiReq(method, endpoint, body) {
       path: `/api/v1${endpoint}`,
       method,
       headers: {
-        Authorization: `Bearer ${getCreds().api_key}`,
+        Authorization: `Bearer ${_getMoltApiKey()}`,
         "Content-Type": "application/json",
         ...(data ? { "Content-Length": Buffer.byteLength(data) } : {}),
       },
@@ -79,12 +78,15 @@ async function execute(name, input) {
       return JSON.stringify(d, null, 2);
     }
     case "moltbook_post": {
-      // Ozyn onayı kod düzeyinde zorunlu — model tek başına post atamaz
       if (process.argv.includes("--headless")) return "moltbook_post headless modda kullanılamaz.";
-      const shell = require("./shell.js");
-      process.stdout.write(`\n  ⚡ Moltbook post: [${input.submolt}] ${input.title}\n  ${(input.content ?? "").slice(0, 200)}\n`);
-      const ans = await shell.readLine("  Onay için EVET: ");
-      if (ans.toUpperCase() !== "EVET") return "İptal — Ozyn onayı verilmedi.";
+      const { selectInput } = require("../tui/select-input.js");
+      const { C } = require("../tui/index.js");
+      process.stdout.write(`\n  ${C.yellow("⚡ Moltbook post:")} [${input.submolt}] ${input.title}\n  ${C.dim((input.content ?? "").slice(0, 200))}\n`);
+      const ok = await selectInput("Moltbook'a gönderilsin mi?", [
+        { value: "yes", label: "Evet, gönder" },
+        { value: "no",  label: "İptal" },
+      ]);
+      if (ok !== "yes") return "İptal — Ozyn onayı verilmedi.";
       const d = await apiReq("POST", "/posts", input);
       return JSON.stringify(d, null, 2);
     }

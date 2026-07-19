@@ -37,7 +37,7 @@ module.exports = [{
   group:   "Model",
   desc:    "Show or switch active model/backend",
   usage:   "/model [or [filter] | hf | <backend> <id> | <id>]",
-  exec: async ({ args, session }) => {
+  exec: async ({ args, session, rl }) => {
     const sub = args[0]?.toLowerCase();
 
     // /model or [filter] → OpenRouter list
@@ -116,7 +116,14 @@ module.exports = [{
       }
 
       console.log(`\n  ${C.bold(i18n.t("Active:", "Aktif:"))} ${C.cyan(session.backend)} ${C.yellow(session.model)}`);
-      const chosen = await fuzzyPicker(i18n.t("Search model:", "Model ara:"), items);
+      try { if (rl) rl.pause(); } catch {}
+      let chosen;
+      try {
+        chosen = await fuzzyPicker(i18n.t("Search model:", "Model ara:"), items);
+      } finally {
+        // fuzzyPicker.cleanup() stdin.pause() çağırır — rl.resume() ile geri aç
+        try { if (rl) rl.resume(); } catch {}
+      }
       if (!chosen) return;
 
       session.backend = chosen.backend;

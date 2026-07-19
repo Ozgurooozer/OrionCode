@@ -1,0 +1,30 @@
+{
+  "name": "orion-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Orion Aethelred — CLI kullanmak istemeyenler için masaüstü (Electron) istemcisi. orion-server.js'e HTTP+SSE ile bağlanır, CLI ile aynı core/ mantığını paylaşır.",
+  "main": "main.js",
+  "scripts": {
+    "build:renderer": "node build.js",
+    "dev": "node build.js --watch & electron . ",
+    "start": "npm run build:renderer && electron .",
+    "dist": "npm run build:renderer && electron-builder"
+  },
+  "author": "Ozyn",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "electron": "^43.1.1",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.1"
+  },
+  "build": {
+    "appId": "com.ozyn.orion-desktop",
+    "productName": "Orion",
+    "files": ["main.js", "preload.js", "index.html", "dist/**", "assets/**"],
+    "directories": { "output": "release" }
+  }
+}

@@ -16,12 +16,17 @@ const CMDS = [
   { name: "stats",    aliases: [],            desc: "Telemetri" },
 ];
 
-test("slashmenu: '/' tüm komutları açar, en fazla 6 öğe", () => {
+test("slashmenu: '/' tüm komutları açar, tam liste items içinde, pencere MAX_ITEMS ile sınırlı", () => {
+  const { MAX_ITEMS } = require("../tui/slashmenu.js");
   const m = createSlashMenu(() => CMDS);
   m.update("/");
   assert.strictEqual(m.state.open, true);
-  assert.ok(m.state.items.length <= 6, "6 öğe sınırı aşılmamalı");
-  assert.ok(m.state.items.length > 0);
+  assert.ok(m.state.items.length > 0, "en az 1 öğe olmalı");
+  // items tam liste — render sırasında slicenenar; offset 0'dan başlar
+  assert.strictEqual(m.state.offset, 0, "başlangıçta offset 0 olmalı");
+  // Görünen pencere MAX_ITEMS'ı geçemez
+  const visible = m.state.items.slice(m.state.offset, m.state.offset + MAX_ITEMS);
+  assert.ok(visible.length <= MAX_ITEMS, `görünen pencere ${MAX_ITEMS} öğeyi geçmemeli`);
 });
 
 test("slashmenu: '/mo' filtresi model+mod döndürür", () => {

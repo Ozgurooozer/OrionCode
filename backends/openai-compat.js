@@ -3,6 +3,20 @@
 // hepsi bu fabrikanın bir konfigürasyonudur. BYOK: anahtar env'den okunur,
 // asla çıktıya yazılmaz.
 "use strict";
+
+/**
+ * @typedef {Object} ListModelsOpts
+ * @property {string}  [filter]  - regex filter applied to model id/name
+ * @property {number}  [limit]   - max results (default 50)
+ */
+
+/**
+ * @typedef {Object} ChatOpts
+ * @property {string}                   [system]    - system prompt injected as first message
+ * @property {(token: string) => void}  [onToken]   - streaming callback, called per text delta
+ * @property {Array<Object>}            [tools]     - Anthropic-format tool definitions
+ * @property {number}                   [maxTokens] - max_tokens passed to provider
+ */
 const https = require("https");
 const http  = require("http");
 
@@ -36,9 +50,12 @@ function createProvider(spec) {
   const proto  = spec.protocol === "http" ? http : https;
   const port   = spec.port ?? (spec.protocol === "http" ? 80 : 443);
   const keyEnvs = spec.keyEnvs ?? (spec.keyEnv ? [spec.keyEnv] : []);
+  // Lazy cache: credentials.js startup'ta env'i doldurur; oturum boyunca değişmez
+  let _apiKeyCache;
   const apiKey = () => {
-    for (const e of keyEnvs) if (process.env[e]) return process.env[e];
-    return "";
+    if (_apiKeyCache !== undefined) return _apiKeyCache;
+    for (const e of keyEnvs) { if (process.env[e]) return (_apiKeyCache = process.env[e]); }
+    return (_apiKeyCache = "");
   };
 
   function _headers(body) {
@@ -74,7 +91,9 @@ function createProvider(spec) {
     });
   }
 
-  // Model listesi — {id, name, context, promptPrice, free} normalize
+  /**
+   * @param {ListModelsOpts} [opts]
+   */
   async function listModels(opts = {}) {
     const { filter, limit = 50 } = typeof opts === "object" ? opts : {};
     if (spec.staticModels) return spec.staticModels.slice(0, limit);
@@ -102,6 +121,9 @@ function createProvider(spec) {
   /**
    * chatRich — native tool calling + streaming.
    * → { text, toolCalls: [{id, name, input}], finish }
+   * @param {string} model
+   * @param {Array<Object>} messages
+   * @param {ChatOpts} [opts]
    */
   function chatRich(model, messages, { system, tools, onToken, maxTokens } = {}) {
     const key = apiKey();
@@ -184,7 +206,12 @@ function createProvider(spec) {
     });
   }
 
-  // Eski imza — string döndürür (coordinator, extract vb. için)
+  /**
+   * Eski imza — string döndürür (coordinator, extract vb. için)
+   * @param {string} model
+   * @param {Array<Object>} messages
+   * @param {ChatOpts} [opts]
+   */
   async function chat(model, messages, { onToken, system } = {}) {
     const r = await chatRich(model, messages, { system, onToken });
     return r.text;

@@ -50,3 +50,32 @@ test("callTool: executor hatası yakalanır", async () => {
   assert.match(out, /patladı/);
   tools.unregisterDynamic("test3");
 });
+
+test("think: düşünce kaydedilir, yan etkisiz", async () => {
+  const out = await tools.callTool("think", { thought: "Bu bir test düşüncesidir." });
+  assert.ok(out.includes("düşünce kaydedildi"), `beklenen mesaj yok: ${out}`);
+  assert.ok(out.includes("Bu bir test"), "düşünce içeriği döner");
+});
+
+test("think: boş düşünce hata mesajı döner", async () => {
+  const out = await tools.callTool("think", { thought: "" });
+  assert.ok(out.includes("boş"), `boş mesajı bekleniyor: ${out}`);
+});
+
+test("think: STATIC_DEFS'te tanımlı", () => {
+  const def = tools.getDefs().find(d => d.name === "think");
+  assert.ok(def, "think aracı tanımlı olmalı");
+  assert.ok(def.input_schema.properties.thought, "thought parametresi var");
+});
+
+test("read_many_files: birden fazla dosyayı tek turda okur", async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orion-rmf-"));
+  process.env.ORION_WORKSPACE = tmpDir;
+  fs.writeFileSync(path.join(tmpDir, "a.txt"), "dosya_a içeriği\n");
+  fs.writeFileSync(path.join(tmpDir, "b.txt"), "dosya_b içeriği\n");
+  const { execute } = require("../tools/fs.js");
+  const out = execute("read_many_files", { paths: [path.join(tmpDir, "a.txt"), path.join(tmpDir, "b.txt")] });
+  assert.ok(out.includes("dosya_a"), `a.txt içeriği: ${out}`);
+  assert.ok(out.includes("dosya_b"), `b.txt içeriği: ${out}`);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});

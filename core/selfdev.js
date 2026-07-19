@@ -37,7 +37,7 @@ function runTests(timeoutMs = 120_000) {
     const cap = c => { out += c; if (out.length > 100_000) out = out.slice(-50_000); };
     child.stdout.on("data", cap);
     child.stderr.on("data", cap);
-    const timer = setTimeout(() => { child.kill(); resolve({ ok: false, code: -1, tail: "zaman aşımı (120s)" }); }, timeoutMs);
+    const timer = setTimeout(() => { child.kill(); resolve({ ok: false, code: -1, tail: "timeout (120s)" }); }, timeoutMs);
     child.on("close", code => {
       clearTimeout(timer);
       const lines = out.trim().split("\n");
@@ -61,7 +61,12 @@ function restart(session) {
     windowsHide: false,
   });
   child.on("spawn", () => process.exit(0));
-  child.on("error", () => {}); // spawn başarısızsa süreç açık kalır, kullanıcı görür
+  child.on("error", (err) => {
+    const { print } = require("../tui/index.js");
+    print.warn(`restart: spawn failed — ${err.message}`);
+    print.warn("Yeniden başlatılamadı. Lütfen manuel olarak çıkıp tekrar başlat.");
+    process.exit(1);
+  });
 }
 
 module.exports = { ROOT, buildSelfDevSuffix, runTests, reloadCommands, restart };

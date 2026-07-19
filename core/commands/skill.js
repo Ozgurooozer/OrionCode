@@ -9,7 +9,7 @@ const BOLD  = "\x1b[1m";
 
 module.exports = [{
   name:    "skill",
-  aliases: ["beceri"],
+  aliases: ["beceri", "skills"],
   group:   "Memory",
   desc:    "Procedural memory: list / read / mine / delete",
   usage:   "/skill [list | read <name> | mine | delete <name>]",

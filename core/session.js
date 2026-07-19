@@ -4,6 +4,16 @@
 //   ollama     → /api/chat native tools (desteksiz modelde ReAct'a düşüş)
 //   diğerleri  → OpenAI-compat native tools (openai, openrouter, hf, özel BYOK)
 "use strict";
+
+/**
+ * Normalized API usage reported back from the Anthropic backend after each turn.
+ * Field names are camelCased — the SDK's own Usage type uses snake_case and is not used here.
+ * @typedef {Object} ApiUsage
+ * @property {number|null} inputTokens      - non-cached input tokens (usage.input_tokens)
+ * @property {number|null} outputTokens     - output tokens (usage.output_tokens)
+ * @property {number}      cacheReadTokens  - total ephemeral cache read tokens across streaming chunks
+ * @property {number}      cacheWriteTokens - total ephemeral cache creation tokens across streaming chunks
+ */
 const fs     = require("fs");
 const path   = require("path");
 const crypto = require("crypto");
@@ -20,15 +30,50 @@ const { C, print, spinner, aiTurnStart, aiTurnContinue } = require("../tui/index
 const i18n = require("./i18n.js");
 
 const ROOT        = path.join(__dirname, "..");
-const MAX_HISTORY = 40;
-const MAX_ITERS   = 12;
+const MAX_HISTORY = 60;
+const MAX_ITERS   = 40;
+
+// Tier1 (Ollama) için temel araç seti — 31 araçtan token bütçesine sığan 12'ye indirir.
+// Kural: salt-okunur + en sık kullanılan yazma araçları; git/vault/web/memory çıkar.
+// Bu sayede 31*~108≈3339 token araç şeması yerine ~1200 token kullanılır.
+const TIER1_TOOLS = new Set([
+  "think", "read_file", "write_file", "edit_file", "multi_edit",
+  "list_files", "glob_files", "search", "file_info", "file_outline",
+  "read_many_files", "run_command",
+]);
+
+// Araçlar aynı round'da paralel çalıştırılabilir — yan etkisiz, birbirine bağımlı değil
+const PARALLEL_SAFE = new Set([
+  "think", "read_file", "file_outline", "read_many_files",
+  "list_files", "glob_files", "search", "file_info",
+  "git_status", "git_diff", "git_log", "git_show", "git_blame",
+  "memory_read", "vault_search", "vault_recent", "vault_read", "web_fetch",
+]);
+
+// Bilinen backend context limitleri (token). autoCompact eşiği için referans.
+// Kullanıcı config.contextLimit (global) veya config.backendContextLimits.<name> ile override edebilir.
+const BACKEND_CTX_DEFAULTS = {
+  anthropic:    200_000,
+  openai:       128_000,
+  openrouter:   128_000,
+  nim:          128_000,
+  huggingface:   32_000,
+  lmstudio:       8_192,  // model bağlı; LM Studio model sayfasından kontrol et
+  ollama:         8_192,  // Ollama yaygın varsayılan; TIER1_TOOLS ile baz ~4200 tokena düşer
+};
 
 // Ctrl+C ile üretimi kes — aktif session instance üzerinde çalışır
 // CLI (orion.js) tek seferde tek session çalıştırır — Ctrl+C o session'ı hedefler.
 // Sunucu (orion-server.js) çoklu eşzamanlı session tutar; onlar kendi
 // this._interrupted alanlarını kullanır, bu modül-seviyesi işaretçiye dokunmaz.
 let _activeSession = null;
-function interrupt() { if (_activeSession) _activeSession._interrupted = true; }
+function interrupt() {
+  if (_activeSession) {
+    _activeSession._interrupted = true;
+    // Signal the active HTTP stream to abort immediately — avoids waiting for the full response
+    try { _activeSession._abortController?.abort(); } catch {}
+  }
+}
 function clearInterrupt() { if (_activeSession) _activeSession._interrupted = false; }
 
 // Tool çıktısındaki hata öneklerini tanı — telemetry ok/error alanı için
@@ -48,19 +93,106 @@ function _cleanResponse(text) {
   return text.trim();
 }
 
-function buildSystem() {
+// Proje kök dosyalarından hafif bağlam çıkar (package.json, go.mod, dizin özeti)
+function _projectContext(workspace) {
+  const hints = [];
+  // package.json — proje adı + kullanılabilir script'ler
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(workspace, "package.json"), "utf8"));
+    const name    = pkg.name ?? null;
+    const version = pkg.version ?? null;
+    const scripts = Object.keys(pkg.scripts ?? {}).slice(0, 8);
+    if (name)           hints.push(`name: ${name}${version ? ` v${version}` : ""}`);
+    if (scripts.length) hints.push(`scripts: ${scripts.join(", ")}`);
+  } catch {}
+  // Diğer build sistemi göstergeleri
+  for (const [file, label] of [["go.mod","Go"],["Cargo.toml","Rust"],["pyproject.toml","Python"],["Makefile","Make"]]) {
+    if (fs.existsSync(path.join(workspace, file))) { hints.push(`build: ${label} (${file})`); break; }
+  }
+  // Kök dizin özeti — model neyin nerede olduğunu bilmeli
+  try {
+    const SKIP = new Set(["node_modules", ".git", "dist", "build", ".next", "coverage", "$Recycle.Bin"]);
+    const entries = fs.readdirSync(workspace, { withFileTypes: true });
+    const top = entries
+      .filter(e => !SKIP.has(e.name))
+      .map(e => e.isDirectory() ? `${e.name}/` : e.name)
+      .slice(0, 40)
+      .join("  ");
+    if (top) hints.push(`tree: ${top}`);
+  } catch {}
+  return hints.length ? `\nProject: ${hints.join(" | ")}` : "";
+}
+
+// tier1=true: Ollama için merak.md bölümleri çıkarılır — ~550 token tasarrufu
+function buildSystem(tier1 = false) {
   const read = f => { try { return fs.readFileSync(path.join(ROOT, f), "utf8"); } catch { return ""; } };
+  const workspace = process.env.ORION_WORKSPACE ?? process.cwd();
+  const projectCtx = _projectContext(workspace);
+  const merak = tier1 ? "" : read("merak.md");
+  // Tam araç rehberi yalnızca cloud backend'de (tier2) gösterilir;
+  // tier1 (Ollama) için TIER1_TOOLS içindeki araçları kapsar.
+  const fullToolRulesEN = tier1 ? "" : `
+- Use git_status/git_diff/git_log to understand repo state before making changes
+- Use git_show <ref> to inspect a specific commit's full diff and metadata
+- Use git_blame to trace who wrote each line (great for understanding why code exists)
+- Use git_add + git_commit (with user approval) to save and commit work
+- For multiple changes in one file: use multi_edit (atomic, single checkpoint) instead of repeated edit_file
+- To apply a standard unified diff/patch: use apply_patch (supports multiple hunks, fuzzy matching)
+- To insert code at a specific line without string matching: use insert_at_line
+- To rename/replace a symbol across multiple files: use replace_in_files (use dry_run:true first to preview)`;
+  const fullToolRulesTR = tier1 ? "" : `
+- Değişiklik yapmadan önce repo durumunu anlamak için git_status/git_diff/git_log kullan
+- Belirli bir commit'in değişikliklerini görmek için git_show <ref> kullan
+- Bir satırın neden yazıldığını bulmak için git_blame kullan
+- Doğrulama sonrası git_add + git_commit (kullanıcı onayıyla) ile işi kaydet
+- Bir dosyada birden fazla değişiklik: art arda edit_file yerine multi_edit kullan (atomik, tek checkpoint)
+- Standart unified diff/patch uygulamak için: apply_patch kullan (çoklu hunk, fuzzy eşleşme destekler)
+- String eşleşmesi olmadan belirli bir satıra eklemek için: insert_at_line kullan
+- Birden fazla dosyada sembol yeniden adlandırma/değiştirme için: replace_in_files kullan (önce dry_run:true ile önizle)`;
+  const fullErrRulesEN = tier1 ? "" : `
+- run_command "command not found": verify with \`which <cmd>\` or \`node -e "require('<pkg>')"\` first.
+- write_file shows ⚠ Teşhis: syntax error detected — fix it immediately, do not proceed.
+- apply_patch fails: use edit_file or read+write approach for that section instead.`;
+  const fullErrRulesTR = tier1 ? "" : `
+- run_command "command not found": önce \`which <cmd>\` veya \`node -e "require('<pkg>')"\` ile doğrula.
+- write_file ⚠ Teşhis: sözdizimi hatası — hemen düzelt, devam etme.
+- apply_patch başarısız olursa: o bölüm için edit_file veya oku+yaz yaklaşımını kullan.`;
+
   return `${read("PERSONA.md")}
 
 ---
 ${i18n.t(
   `## Identity
 Your name is Orion Aethelred. Moltbook: orion_aethelred. Owner: Ozyn.
-You work with Ozyn through this CLI — you are an advanced coding agent.
+You work with Ozyn through this CLI. You are an expert coding agent — like Claude Code or jcode.
 
-## Curiosities
-${read("merak.md")}
+## Workspace
+Current workspace: ${workspace}${projectCtx}
 
+## Coding Agent Rules
+- Use think to reason through complex problems before acting — helps avoid wrong edits
+- Use read_many_files to read multiple files in one call — up to 20 files (saves round-trips)
+- Always read files before editing — never guess content
+- Use file_outline to quickly see a file's structure (functions, classes) before reading the full file
+- Use search to find relevant code before making changes
+- After writing code, verify it's correct: run tests with run_command if available
+- For complex tasks: plan first (read/search), then implement, then verify
+- edit_file requires exact string match — if unsure, read the file section first
+- Prefer edit_file over write_file for existing files (safer, shows diff)
+- When a command fails (exit N), investigate stderr before trying again
+- Never truncate code — write complete implementations
+- Use create_dir before writing files to new directories
+- In trusted workspaces, run_command auto-approves — use it freely for tests, builds, checks
+- For large files: use offset+limit in read_file (e.g. limit:100) — do not read files without bounds
+- Use file_outline first to see structure, then read only the sections you need
+- Call multiple read-only tools in one response when exploring — they run in parallel automatically${fullToolRulesEN}
+
+## Error Recovery (follow these exactly when tools fail)
+- edit_file "old_str not found": DO NOT retry same edit. Read the exact section with read_file, copy verbatim, retry.
+- edit_file "N occurrences": add more surrounding context lines to make old_str unique.
+- run_command exit non-zero: read the full error output, fix root cause before retrying.
+- If you are in a loop (same tool, same args): use think to break out, try a different approach.${fullErrRulesEN}
+${merak ? `\n## Curiosities\n${merak}` : ""}
 ## Rules
 - Data first, commentary second
 - Admit mistakes openly, don't over-apologize
@@ -69,11 +201,35 @@ ${read("merak.md")}
 - Wait for Ozyn's explicit "YES" before posting/commenting`,
   `## Kimlik
 Adın Orion Aethelred. Moltbook: orion_aethelred. Sahip: Ozyn.
-Bu CLI üzerinden Ozyn ile çalışıyorsun — gelişmiş bir kodlama ajanısın.
+Bu CLI üzerinden Ozyn ile çalışıyorsun. Claude Code veya jcode gibi uzman bir kodlama ajanısın.
 
-## Meraklar
-${read("merak.md")}
+## Çalışma Alanı
+Mevcut workspace: ${workspace}${projectCtx}
 
+## Kodlama Ajanı Kuralları
+- Karmaşık sorunlarda önce think ile mantık yürüt — yanlış düzenleme yapmaktan kaçınır
+- Birden fazla dosyayı tek seferde okumak için read_many_files kullan — 20 dosyaya kadar (tur sayısını azaltır)
+- Düzenlemeden önce her zaman dosyayı oku — içeriği asla tahmin etme
+- file_outline ile dosyanın yapısını (fonksiyonlar, sınıflar) tamamını okumadan önce gör
+- Değişiklik yapmadan önce ilgili kodu bulmak için search kullan
+- Kod yazdıktan sonra doğrula: run_command ile testleri çalıştır (mümkünse)
+- Karmaşık görevler için: önce planla (oku/ara), sonra uygula, sonra doğrula
+- edit_file tam string eşleşmesi gerektirir — emin değilsen önce read_file ile doğrula
+- Mevcut dosyalar için write_file yerine edit_file kullan (daha güvenli, diff gösterir)
+- Komut başarısız olduğunda (exit N), yeniden denemeden önce stderr'i incele
+- Kodu asla kırpma — tam implementasyon yaz
+- Yeni dizinlere dosya yazmadan önce create_dir kullan
+- Güvenilir workspace'de run_command otomatik onaylanır — test, build, kontrol için özgürce kullan
+- Büyük dosyalar için: read_file'da offset+limit kullan (ör. limit:100) — sınırsız dosya okuma
+- Önce file_outline ile yapıyı gör, sonra yalnızca gerekli bölümleri oku
+- Keşif yaparken tek yanıtta birden fazla salt-okunur araç çağır (read_file, search, list_files vb.) — otomatik paralel çalışır${fullToolRulesTR}
+
+## Hata Kurtarma (araçlar başarısız olduğunda tam olarak bunları uygula)
+- edit_file "old_str not found": AYNI DÜZENLEMEYİ YENİDEN DENEME. read_file ile tam bölümü oku, kelimesi kelimesine kopyala, tekrar dene.
+- edit_file "N occurrences": old_str'yi tekil kılmak için daha fazla çevre satır ekle.
+- run_command sıfırdan farklı exit: tam hata çıktısını oku, yeniden denemeden önce kök nedeni düzelt.
+- Döngüdeysen (aynı araç, aynı argümanlar): çıkmak için think kullan, farklı bir yaklaşım dene.${fullErrRulesTR}
+${merak ? `\n## Meraklar\n${merak}` : ""}
 ## Kurallar
 - Veri önce, yorum sonra
 - Hataları açıkça kabul et, özür sarma
@@ -90,7 +246,9 @@ const _DIFF_STAT_RE = /\(([+-]\d+[^)]*)\)/;
 // specCache + callTool + telemetry — üç loop'ta ortak, buradan çağrılır.
 // İsabet: model spekülatif önbellekteki bir çağrıyı istedi → sonuç anında döner,
 // speculex_hit yayınlanır. Iska yayını tur sonunda _sweepSpeculexMisses ile yapılır.
-async function _callToolCached(specCache, name, input, sessionId, telemetry) {
+// touchedFiles: Session._touchedFiles — başarılı yazma araçları buraya eklenir (artifact index).
+const _WRITE_TOOLS = new Set(["write_file","edit_file","multi_edit","apply_patch","insert_at_line","replace_in_files","delete_file","move_file","create_dir"]);
+async function _callToolCached(specCache, name, input, sessionId, telemetry, touchedFiles = null) {
   const cached = specCache.get(name, input ?? {}, sessionId);
   const tStart = Date.now();
   const out = cached !== null ? cached : await tools.callTool(name, input, sessionId);
@@ -104,6 +262,13 @@ async function _callToolCached(specCache, name, input, sessionId, telemetry) {
     ...(err            ? { error:   err  } : {}),
     ...(cached !== null ? { specHit: true } : {}),
   });
+  // Artifact index: başarılı yazma araçlarında dokunulan dosyaları kaydet
+  if (touchedFiles && !err && _WRITE_TOOLS.has(name)) {
+    const inp = input ?? {};
+    const raw = inp.paths ?? (inp.path ? [inp.path] : inp.from ? [inp.from, inp.to].filter(Boolean) : []);
+    const arr = Array.isArray(raw) ? raw : [raw];
+    for (const p of arr) { if (p && typeof p === "string") touchedFiles.add(p); }
+  }
   return out;
 }
 
@@ -162,6 +327,7 @@ class Session {
     this.model       = model;
     this.msgs        = [];
     this.system      = buildSystem();
+    this._systemTier1 = buildSystem(true); // Ollama için merak.md'siz kısa versiyon
     this.modes       = new ModeManager("agent");
     this.created     = Date.now();
     this._turnCount  = 0;
@@ -169,15 +335,21 @@ class Session {
     this._interrupted   = false;
     this._manualBackend = false;
     this._manualModel   = false;
+    this._lastUsedBackend = null; // statusInfo() için: son turda gerçekten çağrılan backend
+    this._lastUsedModel   = null;
     this._lastRoute     = null; // Thompson sampling için
     this._usedFallback  = false; // fallback devreye girdiyse başarıyı primary route'a yazma
+    /** @type {ApiUsage | null} */
     this._lastApiUsage  = null; // Anthropic cache usage (cacheReadTokens, cacheWriteTokens)
-    this.budget      = new BudgetTracker(1.0);
+    this.budget      = new BudgetTracker(router.loadConfig().sessionBudgetUSD ?? 1.0);
     this.telemetry   = new SessionLogger(this.id);
     this._lastInputTokens = 0;
     this._specCache  = new (require("./speculex.js").SpeculativeCache)();
     this._turnMemory = new (require("./turnmemory.js").TurnMemory)();
     this._compacted  = false; // _trim geçmişi özete indirdiyse turn belleği devreye girer
+    this._compacting = false; // compact() çalışırken ikinci tetiklenmeyi engelle
+    this._touchedFiles = new Set(); // artifact index: bu oturumda dokunulan yazma araçları
+    this._abortController = null; // AbortController — Ctrl+C için aktif stream'i iptal eder
     this.inbox       = [];    // swarm: diğer oturumlardan gelen mesajlar {from, text, ts}
     _activeSession   = this; // bu session interrupt hedefi olarak kaydet
   }
@@ -196,8 +368,11 @@ class Session {
     return {
       id:      this.id,
       mode:    this.mode.name,
-      backend: this.backend,
-      model:   this.model,
+      // _lastUsedBackend/Model: bu turda gerçekten çağrılan backend — _dispatchLoop
+      // bitince this.backend statik/manuel değere geri döner, statusline o anki
+      // (yanıltıcı) değeri değil son gerçek kullanımı göstermeli.
+      backend: this._lastUsedBackend ?? this.backend,
+      model:   this._lastUsedModel   ?? this.model,
       input:   b.inputTokens,
       output:  b.outputTokens,
       costUSD: b.totalCostUSD,
@@ -210,6 +385,19 @@ class Session {
   async send(text) {
     this.msgs.push({ role: "user", content: text });
     this._trim();
+    // Her tura yeni bir AbortController: interrupt() bunu iptal eder → aktif stream anında durur
+    this._abortController = new AbortController();
+    this._interrupted = false;
+
+    // Bütçe aşıldıysa hata fırlat — sonsuz döngü veya geniş öz-onay senaryolarında koruma
+    if (this.budget.isExceeded()) {
+      throw new Error(i18n.t(
+        `Session budget exceeded ($${this.budget.totalCostUSD.toFixed(4)} / $${this.budget.limitUSD}). ` +
+        `Use /budget to increase the limit, or /reset to start fresh.`,
+        `Oturum bütçesi aşıldı ($${this.budget.totalCostUSD.toFixed(4)} / $${this.budget.limitUSD}). ` +
+        `/budget ile limiti artır ya da /reset ile yeniden başla.`
+      ));
+    }
 
     // Hafıza injection
     const relevant = await memory.query(text);
@@ -271,12 +459,34 @@ class Session {
         notes.map(n => `[${n.from}] ${String(n.text).slice(0, 500)}`).join("\n");
     }
 
-    const origSystem = this.system;
-    const suffixes = memSuffix + vaultSuffix + turnSuffix + skillSuffix + swarmSuffix;
-    if (suffixes) this.system = this.system + suffixes;
+    const origSystem      = this.system;
+    const origSystemTier1 = this._systemTier1;
+    const modeSuffix = this.modes.systemSuffix();
+    const suffixes = modeSuffix + memSuffix + vaultSuffix + turnSuffix + skillSuffix + swarmSuffix;
+    if (suffixes) {
+      this.system       = this.system       + suffixes;
+      this._systemTier1 = this._systemTier1 + suffixes;
+    }
 
     const inputTokens = countMessages(this.msgs, this.system);
     this._lastInputTokens = inputTokens;
+
+    // Auto-compact: backend context limitini aş → konuşmayı özetle
+    if (!this._compacting) {
+      const _acfg = router.loadConfig();
+      if (_acfg.autoCompact) {
+        const _limit = this._resolveContextLimit(_acfg);
+        if (inputTokens > _limit * 0.80) {
+          print.system(i18n.t(
+            `Auto-compact: context ${inputTokens}/${_limit} tokens (>80%) — compacting...`,
+            `Otomatik sıkıştırma: bağlam ${inputTokens}/${_limit} token (>%80) — sıkıştırılıyor...`
+          ));
+          this._compacting = true;
+          await this.compact().catch(err => print.warn(`auto-compact: ${err.message}`));
+          this._compacting = false;
+        }
+      }
+    }
 
     // Router: manual override yoksa tier kararı
     if (!this._manualBackend) {
@@ -302,8 +512,15 @@ class Session {
     // Tier2 seçildiyse: bulut isteğiyle PARALEL, Ollama ile spekülatif salt-okunur
     // önbellek (background). SAFE_TOOLS dışı araçlar speculex içinde zaten elenir.
     // Hata kullanıcıya yansımaz — speculex_miss (reason: error) olarak yayınlanır.
+    // _manualBackend true iken router hiç çalışmaz, this._lastRoute güncellenmez
+    // (önceki turdan kalma ya da hiç set edilmemiş) — bu yüzden manuel modda
+    // prefetch hiç tetiklenmiyordu. Manuel modda "tier2" fiilen "backend ollama
+    // değil" demektir; bu turun gerçek hedefine göre ayrıca hesaplanır.
+    const isTier2Turn = this._manualBackend
+      ? this.backend !== "ollama"
+      : this._lastRoute?.tier === 2;
     let specGen = null, specPrefetch = null;
-    if (this._lastRoute?.tier === 2) {
+    if (isTier2Turn) {
       this._specCache.clear();
       specGen = this._specCache.generation;
       specPrefetch = require("./speculex.js")
@@ -319,11 +536,27 @@ class Session {
     }
 
     const t0 = Date.now();
+    // Heartbeat: 30/60/90s'de "hâlâ çalışıyor" uyarısı — takilma tespiti
+    const _STUCK_INTERVALS = [30, 60, 90];
+    let _stuckIdx = 0;
+    const _heartbeat = setInterval(() => {
+      if (_stuckIdx < _STUCK_INTERVALS.length) {
+        const elapsed = Math.round((Date.now() - t0) / 1000);
+        print.system(i18n.t(
+          `Still working... (${elapsed}s) — Ctrl+C to interrupt`,
+          `Hâlâ çalışıyor... (${elapsed}s) — durdurmak için Ctrl+C`
+        ));
+        _stuckIdx++;
+      }
+    }, 30_000);
+
     let result;
     try {
       result = await this._callWithFallback();
     } finally {
-      this.system = origSystem;
+      clearInterval(_heartbeat);
+      this.system       = origSystem;
+      this._systemTier1 = origSystemTier1;
       this._routedBackend = null;
       this._routedModel   = null;
       if (specGen !== null) {
@@ -337,7 +570,7 @@ class Session {
     const wallMs = Date.now() - t0;
 
     // Anthropic: gerçek token sayısını ve cache kullanımını API yanıtından al
-    const apiUsage = this._lastApiUsage ?? {};
+    const apiUsage = /** @type {ApiUsage} */ (this._lastApiUsage ?? {});
     this._lastApiUsage = null;
     const actualInput  = apiUsage.inputTokens  ?? inputTokens;
     const actualOutput = apiUsage.outputTokens ?? Math.ceil((result || "").length / 4);
@@ -358,8 +591,8 @@ class Session {
 
     if (result) this._turnMemory.add("assistant", result); // arka planda embed edilir
 
-    this._save();
-    events.emit("session_saved", this.id, { sessionId: this.id });
+    const _savedOk = this._save();
+    if (_savedOk) events.emit("session_saved", this.id, { sessionId: this.id });
     this._turnCount++;
 
     if (this._turnCount % memory.EXTRACT_EVERY === 0 && !this._extracting) {
@@ -434,6 +667,12 @@ class Session {
     const origModel   = this.model;
     this.backend = backend;
     this.model   = model;
+    // statusInfo() bu turdan SONRA (finally ile this.backend eski haline dönünce)
+    // okunuyor — aiTurnStart() sırasında doğru olan etiket, tur biterken sessizce
+    // statik/manuel backend'e geri düşüyordu ("agent · openrouter" gösterip gerçek
+    // yanıtın ollama'dan geldiği durum). Statusline için ayrı, restore edilmeyen alan.
+    this._lastUsedBackend = backend;
+    this._lastUsedModel   = model;
     const loop = (() => {
       if (backend === "anthropic") return this._anthropicLoop();
       if (backend === "ollama")    return this._ollamaLoop();
@@ -456,42 +695,114 @@ class Session {
     const chatOpts    = {
       onToken: tok => { process.stdout.write(tok); events.emit("text_delta", this.id, { delta: tok }); },
       thinking: useThinking,
+      signal:   this._abortController?.signal,
     };
-    aiTurnStart(this.mode?.name, this.backend);
+    aiTurnStart(this.mode?.name, this.backend, `[${this._turnCount + 1}]`);
 
     // Cache usage — tüm tur döngüsü boyunca biriktirilir
     let totalCacheRead = 0, totalCacheWrite = 0;
 
-    let resp = await anthropic.chat(this.model, this.msgs, this.system, allowedDefs, chatOpts);
+    let resp;
+    try {
+      resp = await anthropic.chat(this.model, this.msgs, this.system, allowedDefs, chatOpts);
+    } catch (err) {
+      if (this._interrupted || err.name === "AbortError" || err.message?.toLowerCase().includes("abort")) {
+        process.stdout.write("\n");
+        print.system(i18n.t("interrupted", "kesildi"));
+        return "";
+      }
+      throw err;
+    }
     totalCacheRead  += resp.usage?.cache_read_input_tokens    ?? 0;
     totalCacheWrite += resp.usage?.cache_creation_input_tokens ?? 0;
 
+    let _anthropicIters = 0;
+    let _lastAnthropicSig = "";
     while (resp.stop_reason === "tool_use") {
+      if (++_anthropicIters > MAX_ITERS) {
+        print.warn(i18n.t(
+          `Max iterations (${MAX_ITERS}) reached without a final response.`,
+          `Maksimum iterasyon (${MAX_ITERS}) aşıldı, nihai yanıt alınamadı.`
+        ));
+        break;
+      }
+      if (this._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
+
       process.stdout.write("\n");
       // resp.content thinking+tool_use bloklarını signature dahil tutar — bir sonraki isteğe geçer
       this.msgs.push({ role: "assistant", content: resp.content });
       const results = [];
 
-      for (const block of resp.content) {
-        if (block.type !== "tool_use") continue;
-        const perm = this.modes.canUse(block.name);
-        events.emit("approval_resolved", this.id, { tool: block.name, ok: perm.ok, reason: perm.reason ?? null });
-        if (!perm.ok) {
-          events.emit("approval_request", this.id, { tool: block.name, input: block.input, reason: perm.reason });
-          print.warn(perm.reason);
-          results.push({ type: "tool_result", tool_use_id: block.id, content: perm.reason });
-          continue;
+      // Döngü koruması — aynı araç+argüman seti tekrar edilirse modele bildir
+      const _roundSig = resp.content
+        .filter(b => b.type === "tool_use")
+        .map(b => `${b.name}:${JSON.stringify(b.input)}`)
+        .join("|");
+      const _repeated = _roundSig === _lastAnthropicSig;
+      _lastAnthropicSig = _roundSig;
+
+      const _toolBlocks = resp.content.filter(b => b.type === "tool_use");
+
+      // Tüm araçlar yan etkisiz ve izinli → paralel çalıştır, sonuçları sıralı göster
+      const _canParallel = !_repeated && _toolBlocks.length > 1
+        && _toolBlocks.every(b => PARALLEL_SAFE.has(b.name) && this.modes.canUse(b.name).ok);
+
+      if (_canParallel) {
+        this.telemetry.record({ event: "parallel_tools", count: _toolBlocks.length, tools: _toolBlocks.map(b => b.name) });
+        const outs = await Promise.all(
+          _toolBlocks.map(b => _callToolCached(this._specCache, b.name, b.input, this.id, this.telemetry, this._touchedFiles))
+        );
+        for (let _pi = 0; _pi < _toolBlocks.length; _pi++) {
+          const b = _toolBlocks[_pi], out = outs[_pi];
+          events.emit("approval_resolved", this.id, { tool: b.name, ok: true, reason: null });
+          print.tool(b.name, b.input);
+          print.result(out);
+          _emitDiff(b.name, out, this.id);
+          results.push({ type: "tool_result", tool_use_id: b.id, content: String(out) });
         }
-        print.tool(block.name, block.input);
-        const out = await _callToolCached(this._specCache, block.name, block.input, this.id, this.telemetry);
-        _emitDiff(block.name, out, this.id);
-        print.result(out);
-        results.push({ type: "tool_result", tool_use_id: block.id, content: String(out) });
+      } else {
+        for (const block of resp.content) {
+          if (block.type !== "tool_use") continue;
+          const perm = this.modes.canUse(block.name);
+          events.emit("approval_resolved", this.id, { tool: block.name, ok: perm.ok, reason: perm.reason ?? null });
+          if (!perm.ok) {
+            events.emit("approval_request", this.id, { tool: block.name, input: block.input, reason: perm.reason });
+            print.warn(perm.reason);
+            results.push({ type: "tool_result", tool_use_id: block.id, content: perm.reason });
+            continue;
+          }
+          if (_repeated) {
+            results.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: i18n.t(
+                "Same tool called again with the same arguments — result is above. Write your answer.",
+                "Aynı araç aynı argümanlarla tekrar çağrıldı — sonucu yukarıda. Cevabını yaz."
+              ),
+            });
+            continue;
+          }
+          print.tool(block.name, block.input);
+          const out = await _callToolCached(this._specCache, block.name, block.input, this.id, this.telemetry, this._touchedFiles);
+          print.result(out);
+          _emitDiff(block.name, out, this.id);
+          results.push({ type: "tool_result", tool_use_id: block.id, content: String(out) });
+        }
       }
 
+      if (_repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
       this.msgs.push({ role: "user", content: results });
       aiTurnContinue();
-      resp = await anthropic.chat(this.model, this.msgs, this.system, allowedDefs, chatOpts);
+      try {
+        resp = await anthropic.chat(this.model, this.msgs, this.system, allowedDefs, chatOpts);
+      } catch (err) {
+        if (this._interrupted || err.name === "AbortError" || err.message?.toLowerCase().includes("abort")) {
+          process.stdout.write("\n");
+          print.system(i18n.t("interrupted", "kesildi"));
+          return "";
+        }
+        throw err;
+      }
       totalCacheRead  += resp.usage?.cache_read_input_tokens    ?? 0;
       totalCacheWrite += resp.usage?.cache_creation_input_tokens ?? 0;
     }
@@ -511,6 +822,13 @@ class Session {
       }
     }
 
+    if (resp.stop_reason === "max_tokens") {
+      print.warn(i18n.t(
+        "Response truncated (max_tokens). Output may be incomplete.",
+        "Yanıt max_tokens nedeniyle kesildi. Çıktı eksik olabilir."
+      ));
+    }
+
     const finalText = resp.content.filter(b => b.type === "text").map(b => b.text).join("");
     process.stdout.write("\n");
     this.msgs.push({ role: "assistant", content: resp.content });
@@ -526,7 +844,7 @@ class Session {
     let finalText = "";
     let lastCallSig = "";
     this._interrupted = false;
-    aiTurnStart(this.mode?.name, this.backend);
+    aiTurnStart(this.mode?.name, this.backend, `[${this._turnCount + 1}]`);
 
     for (let iter = 0; iter < MAX_ITERS; iter++) {
       if (this._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
@@ -555,29 +873,53 @@ class Session {
       const repeated = sig === lastCallSig;
       lastCallSig = sig;
 
-      for (const call of r.toolCalls) {
-        const perm = this.modes.canUse(call.name);
-        let out;
-        events.emit("approval_resolved", this.id, { tool: call.name, ok: perm.ok, reason: perm.reason ?? null });
-        if (!perm.ok) {
-          events.emit("approval_request", this.id, { tool: call.name, input: call.input, reason: perm.reason });
-          print.warn(perm.reason);
-          out = perm.reason;
-        } else if (repeated) {
-          out = i18n.t(
-            "Same tool called again with the same arguments — result is above. Write your answer.",
-            "Aynı araç aynı argümanlarla tekrar çağrıldı — sonucu yukarıda. Cevabını yaz."
-          );
-        } else {
-          print.tool(call.name, call.input);
-          out = await _callToolCached(this._specCache, call.name, call.input, this.id, this.telemetry);
-          _emitDiff(call.name, out, this.id);
-          print.result(out);
+      const _canParallel2 = !repeated && r.toolCalls.length > 1
+        && r.toolCalls.every(c => PARALLEL_SAFE.has(c.name) && this.modes.canUse(c.name).ok);
+
+      if (_canParallel2) {
+        const outs2 = await Promise.all(
+          r.toolCalls.map(c => _callToolCached(this._specCache, c.name, c.input, this.id, this.telemetry, this._touchedFiles))
+        );
+        for (let _pi2 = 0; _pi2 < r.toolCalls.length; _pi2++) {
+          const c2 = r.toolCalls[_pi2], out2 = outs2[_pi2];
+          events.emit("approval_resolved", this.id, { tool: c2.name, ok: true, reason: null });
+          print.tool(c2.name, c2.input);
+          print.result(out2);
+          _emitDiff(c2.name, out2, this.id);
+          history.push({ role: "tool", tool_call_id: c2.id, content: String(out2) });
         }
-        history.push({ role: "tool", tool_call_id: call.id, content: String(out) });
+      } else {
+        for (const call of r.toolCalls) {
+          const perm = this.modes.canUse(call.name);
+          let out;
+          events.emit("approval_resolved", this.id, { tool: call.name, ok: perm.ok, reason: perm.reason ?? null });
+          if (!perm.ok) {
+            events.emit("approval_request", this.id, { tool: call.name, input: call.input, reason: perm.reason });
+            print.warn(perm.reason);
+            out = perm.reason;
+          } else if (repeated) {
+            out = i18n.t(
+              "Same tool called again with the same arguments — result is above. Write your answer.",
+              "Aynı araç aynı argümanlarla tekrar çağrıldı — sonucu yukarıda. Cevabını yaz."
+            );
+          } else {
+            print.tool(call.name, call.input);
+            out = await _callToolCached(this._specCache, call.name, call.input, this.id, this.telemetry, this._touchedFiles);
+            print.result(out);
+            _emitDiff(call.name, out, this.id);
+          }
+          history.push({ role: "tool", tool_call_id: call.id, content: String(out) });
+        }
       }
       if (repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
       aiTurnContinue();
+    }
+
+    if (!finalText && !this._interrupted) {
+      print.warn(i18n.t(
+        `Max iterations (${MAX_ITERS}) reached without a final response.`,
+        `Maksimum iterasyon (${MAX_ITERS}) aşıldı, nihai yanıt alınamadı.`
+      ));
     }
 
     finalText = _cleanResponse(finalText);
@@ -589,14 +931,15 @@ class Session {
   // ── Ollama: native tools → desteksiz modelde ReAct'a düşüş ───────────────
   async _ollamaLoop() {
     const ollama = require("../backends/ollama.js");
-    const allowedDefs = this.modes.filterDefs(tools.getDefs());
+    // TIER1_TOOLS: 31 araçtan token bütçesine sığan 12'ye indir (~2000 token tasarrufu)
+    const allowedDefs = this.modes.filterDefs(tools.getDefs()).filter(d => TIER1_TOOLS.has(d.name));
     const useTools = this.mode.allowTools && allowedDefs.length > 0;
     const history  = _flattenMsgs(this.msgs);
 
     let finalText = "";
     let lastCallSig = "";
     this._interrupted = false;
-    aiTurnStart(this.mode?.name, this.backend);
+    aiTurnStart(this.mode?.name, this.backend, `[${this._turnCount + 1}]`);
 
     for (let iter = 0; iter < MAX_ITERS; iter++) {
       if (this._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
@@ -604,7 +947,7 @@ class Session {
       let r;
       try {
         r = await ollama.chatRich(this.model, history, {
-          system:  this.system,
+          system:  this._systemTier1,
           tools:   useTools ? allowedDefs : undefined,
           onToken: tok => { process.stdout.write(tok); events.emit("text_delta", this.id, { delta: tok }); },
         });
@@ -623,36 +966,64 @@ class Session {
       history.push({
         role:       "assistant",
         content:    r.text ?? "",
-        tool_calls: r.toolCalls.map(c => ({ function: { name: c.name, arguments: c.input } })),
+        tool_calls: r.toolCalls.map(c => ({
+          id:       c.id,
+          type:     "function",
+          function: { name: c.name, arguments: typeof c.input === "string" ? c.input : JSON.stringify(c.input) },
+        })),
       });
 
       const sig = r.toolCalls.map(c => `${c.name}:${JSON.stringify(c.input)}`).join("|");
       const repeated = sig === lastCallSig;
       lastCallSig = sig;
 
-      for (const call of r.toolCalls) {
-        const perm = this.modes.canUse(call.name);
-        let out;
-        events.emit("approval_resolved", this.id, { tool: call.name, ok: perm.ok, reason: perm.reason ?? null });
-        if (!perm.ok) {
-          events.emit("approval_request", this.id, { tool: call.name, input: call.input, reason: perm.reason });
-          print.warn(perm.reason);
-          out = perm.reason;
-        } else if (repeated) {
-          out = i18n.t(
-            "Same tool called again with the same arguments — result is above. Write your answer.",
-            "Aynı araç aynı argümanlarla tekrar çağrıldı — sonucu yukarıda. Cevabını yaz."
-          );
-        } else {
-          print.tool(call.name, call.input);
-          out = await _callToolCached(this._specCache, call.name, call.input, this.id, this.telemetry);
-          _emitDiff(call.name, out, this.id);
-          print.result(out);
+      const _canParallel3 = !repeated && r.toolCalls.length > 1
+        && r.toolCalls.every(c => PARALLEL_SAFE.has(c.name) && this.modes.canUse(c.name).ok);
+
+      if (_canParallel3) {
+        const outs3 = await Promise.all(
+          r.toolCalls.map(c => _callToolCached(this._specCache, c.name, c.input, this.id, this.telemetry, this._touchedFiles))
+        );
+        for (let _pi3 = 0; _pi3 < r.toolCalls.length; _pi3++) {
+          const c3 = r.toolCalls[_pi3], out3 = outs3[_pi3];
+          events.emit("approval_resolved", this.id, { tool: c3.name, ok: true, reason: null });
+          print.tool(c3.name, c3.input);
+          print.result(out3);
+          _emitDiff(c3.name, out3, this.id);
+          history.push({ role: "tool", tool_call_id: c3.id, content: String(out3) });
         }
-        history.push({ role: "tool", content: String(out) });
+      } else {
+        for (const call of r.toolCalls) {
+          const perm = this.modes.canUse(call.name);
+          let out;
+          events.emit("approval_resolved", this.id, { tool: call.name, ok: perm.ok, reason: perm.reason ?? null });
+          if (!perm.ok) {
+            events.emit("approval_request", this.id, { tool: call.name, input: call.input, reason: perm.reason });
+            print.warn(perm.reason);
+            out = perm.reason;
+          } else if (repeated) {
+            out = i18n.t(
+              "Same tool called again with the same arguments — result is above. Write your answer.",
+              "Aynı araç aynı argümanlarla tekrar çağrıldı — sonucu yukarıda. Cevabını yaz."
+            );
+          } else {
+            print.tool(call.name, call.input);
+            out = await _callToolCached(this._specCache, call.name, call.input, this.id, this.telemetry, this._touchedFiles);
+            print.result(out);
+            _emitDiff(call.name, out, this.id);
+          }
+          history.push({ role: "tool", tool_call_id: call.id, content: String(out) });
+        }
       }
       if (repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
       aiTurnContinue();
+    }
+
+    if (!finalText && !this._interrupted) {
+      print.warn(i18n.t(
+        `Max iterations (${MAX_ITERS}) reached without a final response.`,
+        `Maksimum iterasyon (${MAX_ITERS}) aşıldı, nihai yanıt alınamadı.`
+      ));
     }
 
     finalText = _cleanResponse(finalText);
@@ -664,15 +1035,18 @@ class Session {
   // ── Ollama ReAct (eski format) — tool desteklemeyen yerel modeller ────────
   async _ollamaReactLoop() {
     const ollama = require("../backends/ollama.js");
-    const allowedNames = this.modes.filterDefs(tools.getDefs()).map(d => d.name);
-    const sysWithTools = this.system + (this.mode.allowTools ? tools.buildToolPromptSuffix(allowedNames) : "");
+    // TIER1_TOOLS: ReAct modunda da token bütçesini koru
+    const allowedNames = this.modes.filterDefs(tools.getDefs())
+      .filter(d => TIER1_TOOLS.has(d.name)).map(d => d.name);
+    const sysWithTools = this._systemTier1 + (this.mode.allowTools ? tools.buildToolPromptSuffix(allowedNames) : "");
 
     const history = [{ role: "system", content: sysWithTools }, ..._flattenMsgs(this.msgs)];
     let iters = 0, finalText = "", lastRaw = "", lastCallSig = "";
+    const REACT_MAX_ITERS = MAX_ITERS;
 
-    aiTurnStart(this.mode?.name, this.backend);
+    aiTurnStart(this.mode?.name, this.backend, `[${this._turnCount + 1}]`);
     this._interrupted = false;
-    while (iters < 8) {
+    while (iters < REACT_MAX_ITERS) {
       if (this._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
       iters++;
 
@@ -696,8 +1070,27 @@ class Session {
       }
 
       lastRaw = rawResp;
+
+      // <<<TOOL>>> var ama JSON parse başarısız? Modele hata bildir.
+      if (rawResp.includes("<<<TOOL>>>") && !rawResp.match(/<<<TOOL>>>\s*\{/)) {
+        history.push({ role: "assistant", content: rawResp });
+        history.push({ role: "user", content: "<<<RESULT>>>\nHATA: Araç formatı geçersiz. Sadece JSON kullan:\n<<<TOOL>>>\n{\"name\": \"araç_adı\", \"input\": {}}\n<<<END>>>\n<<<END>>>" });
+        aiTurnContinue();
+        continue;
+      }
+
       const call = tools.parseToolCall(rawResp);
-      if (!call) { finalText = rawResp; break; }
+      if (!call) {
+        // <<<TOOL>>> var ama JSON bozuk — modele bildir
+        if (rawResp.includes("<<<TOOL>>>")) {
+          history.push({ role: "assistant", content: rawResp });
+          history.push({ role: "user", content: "<<<RESULT>>>\nHATA: Araç JSON parse edilemedi. Geçerli JSON kullan:\n<<<TOOL>>>\n{\"name\": \"araç_adı\", \"input\": {}}\n<<<END>>>\n<<<END>>>" });
+          aiTurnContinue();
+          continue;
+        }
+        finalText = rawResp;
+        break;
+      }
 
       process.stdout.write("\n");
       const perm = this.modes.canUse(call.name);
@@ -715,9 +1108,9 @@ class Session {
       lastCallSig = sig;
 
       print.tool(call.name, call.input);
-      const result = await tools.callTool(call.name, call.input ?? {}, this.id);
-      _emitDiff(call.name, result, this.id);
+      const result = await _callToolCached(this._specCache, call.name, call.input ?? {}, this.id, this.telemetry, this._touchedFiles);
       print.result(result);
+      _emitDiff(call.name, result, this.id);
 
       history.push({ role: "assistant", content: rawResp });
       history.push({ role: "user",      content: `<<<RESULT>>>\n${result}\n<<<END>>>` });
@@ -749,7 +1142,7 @@ class Session {
         raw = await provider.chat(this.model, [{ role: "user", content: prompt }], { stream: false });
       }
 
-      if (!raw || raw.trim() === "YOK") return;
+      if (!raw) return;
       const extracted = memory.parseExtractionResponse(raw);
       let added = 0;
       for (const e of extracted) {
@@ -779,8 +1172,9 @@ class Session {
   }
 
   reset() {
-    this.msgs   = [];
-    this.system = buildSystem();
+    this.msgs         = [];
+    this.system       = buildSystem();
+    this._systemTier1 = buildSystem(true);
     this.id     = crypto.randomBytes(4).toString("hex");
     this.parent = null;
     this.label  = "";
@@ -807,17 +1201,132 @@ class Session {
     this.label   = data.label ?? "";
     if (id) this.id = id;
     if (data.mode) this.modes.set(data.mode);
+    if (Array.isArray(data.touchedFiles)) this._touchedFiles = new Set(data.touchedFiles);
+  }
+
+  // Backend context limitini çöz: user override > per-backend override > bilinen varsayılan
+  // cfg: router.loadConfig() sonucu (dışarıdan alınır — gereksiz yeniden yükleme önlenir)
+  _resolveContextLimit(cfg = null) {
+    const c = cfg ?? router.loadConfig();
+    // Genel override (tüm backend'ler)
+    if (c.contextLimit > 0) return c.contextLimit;
+    // Per-backend user override
+    const perBackend = (c.backendContextLimits ?? {})[this.backend];
+    if (perBackend > 0) return perBackend;
+    // Bilinen varsayılan (local modeller düşük, cloud yüksek)
+    return BACKEND_CTX_DEFAULTS[this.backend] ?? 128_000;
+  }
+
+  // Araçsız tek tur backend çağrısı — compact() ve dahili özetler için
+  async _quickChat(prompt) {
+    const msgs = [{ role: "user", content: prompt }];
+    if (this.backend === "anthropic") {
+      const a = require("../backends/anthropic.js");
+      const resp = await a.chat(this.model, msgs, "", [], {});
+      return resp.content.filter(b => b.type === "text").map(b => b.text).join("");
+    }
+    const p = backends.get(this.backend);
+    if (!p?.chat) throw new Error(i18n.t(`Backend has no chat(): ${this.backend}`, `Backend chat() desteklemiyor: ${this.backend}`));
+    const out = await p.chat(this.model, msgs, { stream: false });
+    return typeof out === "string" ? out : String(out ?? "");
+  }
+
+  // Konuşma geçmişini LLM ile özetleyip 2 mesaja indir (/compact ve auto-compact)
+  async compact() {
+    if (this.msgs.length < 4) {
+      print.warn(i18n.t("Need 4+ messages to compact.", "Sıkıştırmak için 4+ mesaj gerekli."));
+      return;
+    }
+    const before = countMessages(this.msgs, this.system);
+    const histText = _flattenMsgs(this.msgs)
+      .map(m => {
+        const c = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+        // Tool result messages: after _flattenMsgs, role is "user" and content starts with "[tool result:"
+        // Give them less space — they're verbose and the model needs the summary, not raw output
+        const isToolResult = m.role === "user" && c.startsWith("[tool result:");
+        return `${m.role.toUpperCase()}: ${c.slice(0, isToolResult ? 400 : 2000)}`;
+      })
+      .join("\n\n")
+      .slice(0, 24_000);
+
+    const _touchedHint = this._touchedFiles.size > 0
+      ? i18n.t(
+        `\n\nFiles already modified in this session (machine-tracked): ${[...this._touchedFiles].join(", ")}`,
+        `\n\nBu oturumda zaten değiştirilen dosyalar (makine takibi): ${[...this._touchedFiles].join(", ")}`
+      ) : "";
+
+    const prompt = i18n.t(
+      `Summarize this coding conversation concisely. You MUST preserve:
+1. Files created/modified (with paths)
+2. Code patterns or key implementations introduced
+3. Bugs fixed and how
+4. Current task status (done/in-progress/blocked)
+5. Any decisions made about architecture or approach
+6. Open issues or next steps
+
+Do NOT summarize tool calls verbosely — just their outcomes.
+Be concise (under 600 tokens):${_touchedHint}\n\n${histText}`,
+      `Bu kodlama konuşmasını özetle. MUTLAKA koru:
+1. Oluşturulan/değiştirilen dosyalar (yollarıyla)
+2. Ortaya konan kod desenleri veya temel implementasyonlar
+3. Düzeltilen hatalar ve nasıl
+4. Mevcut görev durumu (tamamlandı/devam ediyor/engellendi)
+5. Mimari veya yaklaşım hakkında alınan kararlar
+6. Açık sorunlar veya sonraki adımlar
+
+Araç çağrılarını ayrıntılı özetleme — sadece sonuçlarını yaz.
+Kısa tut (600 token altında):${_touchedHint}\n\n${histText}`
+    );
+
+    spinner.start(i18n.t("compacting...", "sıkıştırılıyor..."));
+    let summary;
+    try {
+      summary = await this._quickChat(prompt);
+    } catch (err) {
+      spinner.stop();
+      print.warn(i18n.t(`compact failed: ${err.message}`, `sıkıştırma başarısız: ${err.message}`));
+      return;
+    }
+    spinner.stop();
+
+    const _artifactIndex = this._touchedFiles.size > 0
+      ? i18n.t(
+        `\n\n[Artifact index (machine-tracked, authoritative): ${[...this._touchedFiles].join(", ")}]`,
+        `\n\n[Dosya indeksi (makine takibi, güvenilir): ${[...this._touchedFiles].join(", ")}]`
+      ) : "";
+    this.msgs = [
+      { role: "user",      content: i18n.t(`[Conversation summary:\n${summary}]`, `[Konuşma özeti:\n${summary}]`) + _artifactIndex },
+      { role: "assistant", content: i18n.t("Understood. I have the context from the summary above.", "Anlaşıldı. Özetin bağlamıyla devam ediyorum.") },
+    ];
+    this._compacted = true;
+
+    const after = countMessages(this.msgs, this.system);
+    print.system(i18n.t(
+      `Compacted: ${before} → ${after} tokens (saved ${before - after})`,
+      `Sıkıştırıldı: ${before} → ${after} token (${before - after} tasarruf)`
+    ));
+    this._save();
   }
 
   _trim() {
     if (this.msgs.length <= MAX_HISTORY) return;
-    const keep  = Math.floor(MAX_HISTORY / 2);
-    const old   = this.msgs.slice(0, this.msgs.length - keep);
+    const keep   = Math.floor(MAX_HISTORY / 2);
+    const old    = this.msgs.slice(0, this.msgs.length - keep);
     const recent = this.msgs.slice(this.msgs.length - keep);
-    // _flattenMsgs: Anthropic blok dizileri dahil tüm mesaj türlerini düz metne indirir
-    const summary = _flattenMsgs(old)
-      .map(m => `[${m.role}]: ${m.content.slice(0, 200)}`)
-      .join("\n");
+    // Adaptive truncation: tool results get more space (code context matters),
+    // plain user/assistant messages get standard space.
+    const summary = _flattenMsgs(old).map(m => {
+      const text = m.content;
+      // Tool results: head (first 200) + tail (last 300) to preserve both call context and outcome
+      // Anthropic native: "user" role, content starts with "[tool result:"  (from _flattenMsgs)
+      // ReAct format:     "user" role, content starts with "<<<RESULT>>>"
+      if (m.role === "user" && (text.startsWith("<<<RESULT>>>") || text.startsWith("[tool result:") || text.startsWith("[Tool:"))) {
+        const head = text.slice(0, 200);
+        const tail = text.length > 500 ? `\n...\n${text.slice(-300)}` : text.slice(200);
+        return `[${m.role}]: ${head}${tail}`;
+      }
+      return `[${m.role}]: ${text.slice(0, 400)}`;
+    }).join("\n");
     const compacted = {
       role:    "user",
       content: i18n.t(
@@ -830,21 +1339,24 @@ class Session {
     print.system(i18n.t(`context compacted (${old.length} messages → summary)`, `bağlam sıkıştırıldı (${old.length} mesaj → özet)`));
   }
 
+
+  // Dönüş: true=başarı, false=hata (caller session_saved event'ini buna göre yayınlar)
   _save() {
     try {
       persist.save(this.id, {
-        model:     this.model,
-        backend:   this.backend,
-        mode:      this.mode.name,
-        parent:    this.parent,
-        label:     this.label,
-        messages:  this.msgs,
-        updatedAt: Date.now(),
+        model:        this.model,
+        backend:      this.backend,
+        mode:         this.mode.name,
+        parent:       this.parent,
+        label:        this.label,
+        messages:     this.msgs,
+        touchedFiles: [...this._touchedFiles],
+        updatedAt:    Date.now(),
       });
+      return true;
     } catch (err) {
-      // Oturum diske YAZILAMADI — chat() yine de session_saved yayınlar; bu olay
-      // olmadan disk-dolu/izin hatası tamamen görünmez kalır (sessiz veri kaybı).
       events.emitSilentCatch("session.js:_save", err, this.id);
+      return false;
     }
   }
 }

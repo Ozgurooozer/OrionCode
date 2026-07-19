@@ -2,6 +2,9 @@
 "use strict";
 const { C, print } = require("../../tui/index.js");
 const i18n = require("../i18n.js");
+const { setRuntimeOverride } = require("../router.js");
+
+const AUTO_APPROVE_MODES = new Set(["build", "agent"]);
 
 const MODE_DESCS = {
   chat:  ["Chat without tools", "Araçsız sohbet"],
@@ -12,7 +15,7 @@ const MODE_DESCS = {
 
 module.exports = [{
   name:    "mode",
-  aliases: ["mod"],
+  aliases: ["mod", "modes"],
   group:   "General",
   desc:    "Show or change the working mode",
   usage:   "/mode [chat|plan|build|agent]",
@@ -28,7 +31,8 @@ module.exports = [{
       return;
     }
     try {
-      session.setMode(args[0]);
+      const m = session.setMode(args[0]);
+      setRuntimeOverride("autoApproveCommands", AUTO_APPROVE_MODES.has(m.name));
     } catch (e) {
       print.error(i18n.t(`${e.message}  →  valid: chat, plan, build, agent`, `${e.message}  →  geçerli: chat, plan, build, agent`));
     }

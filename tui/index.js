@@ -173,15 +173,21 @@ function renderMarkdown(text) {
 
 // ── Araç görselleştirme ──────────────────────────────────────────────────────
 const TOOL_ICONS = [
-  [/^read|oku/,        "▤"],
-  [/^write|^edit/,     "✎"],
-  [/search|grep|ara/,  "⌕"],
-  [/command|shell|run/, "❯"],
-  [/^memory|hafiza/,   "◈"],
-  [/vault/,            "⬡"],
-  [/^mcp__/,           "⧉"],
-  [/moltbook|feed/,    "☄"],
-  [/list/,             "≡"],
+  [/^think$/,             "◌"],
+  [/^file_outline/,       "◉"],
+  [/^read/,               "▤"],
+  [/^apply_patch/,              "⊕"],
+  [/^insert_at_line/,           "⊞"],
+  [/^replace_in_files/,         "↺"],
+  [/^write|^edit|multi_edit/,   "✎"],
+  [/search|grep|ara/,     "⌕"],
+  [/command|shell|run/,   "❯"],
+  [/^memory|hafiza/,      "◈"],
+  [/vault/,               "⬡"],
+  [/^mcp__/,              "⧉"],
+  [/moltbook|feed/,       "☄"],
+  [/list|glob/,           "≡"],
+  [/^git_/,               "⎇"],
 ];
 
 function toolIcon(name) {
@@ -193,7 +199,9 @@ function toolIcon(name) {
 function toolArgPreview(input) {
   if (!input || typeof input !== "object") return "";
   const primary = input.path ?? input.file ?? input.pattern ?? input.command
-    ?? input.query ?? input.content?.slice?.(0, 50) ?? null;
+    ?? input.message ?? input.query ?? input.dir ?? input.from
+    ?? (Array.isArray(input.paths) ? input.paths.join(" ") : input.paths)
+    ?? input.content?.slice?.(0, 50) ?? null;
   if (primary != null) return String(primary).slice(0, 60);
   const s = JSON.stringify(input);
   return s === "{}" ? "" : s.slice(0, 60);
@@ -201,8 +209,8 @@ function toolArgPreview(input) {
 
 // ── Sayı biçimleme ───────────────────────────────────────────────────────────
 function fmtTokens(n) {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1000)      return (n / 1000).toFixed(1) + "k";
+  if (n >= 999_950)  return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 999.5)    return (n / 1000).toFixed(1) + "k";
   return String(n);
 }
 
@@ -232,9 +240,11 @@ function makeInputPrompt() {
 }
 
 // session.js backend döngüsü başında — AI yanıtı başlamadan önce
-function aiTurnStart(mode, backend) {
+// turnInfo: isteğe bağlı "[3/40]" formatında tur sayacı
+function aiTurnStart(mode, backend, turnInfo = null) {
   const W    = _boxW();
-  const info = `${mode ?? "chat"} · ${backend ?? ""}`;
+  const turnStr = turnInfo ? ` ${turnInfo}` : "";
+  const info = `${mode ?? "chat"} · ${backend ?? ""}${turnStr}`;
   // "─ orion ✦ ── " + info + dashes (sona kadar uzar)
   const pre  = "─ orion ✦ ── ";
   const dashes = "─".repeat(Math.max(2, W - pre.length - info.length));
@@ -315,7 +325,8 @@ const print = {
     if (!sessions.length) { console.log(C.muted(i18n.t("  (no saved sessions)", "  (kayıtlı oturum yok)"))); return; }
     console.log("");
     for (const s of sessions) {
-      const date = s.updatedAt ? new Date(s.updatedAt).toLocaleString(i18n.locTag()) : "?";
+      const _locTag = i18n.locTag();
+      const date = s.updatedAt ? new Date(s.updatedAt).toLocaleString(_locTag) : "?";
       const msgs = `${s.msgCount ?? 0} msg`;
       console.log(`  ${C.cyan(s.id)}  ${C.muted(s.model)}  ${C.dim(msgs)}  ${C.muted(date)}`);
       if (s.preview) console.log(`       ${C.muted(s.preview)}`);
@@ -362,12 +373,15 @@ function isInputLocked() { return _inputLock; }
 // ANSI kaçış kodlarını sayarak görünür genişliğe kırp (satır sarması = satır
 // sayısı hesabı bozulur — widget'lar her satırı terminal genişliğine sığdırmalı)
 function fitLine(s, width) {
+  // Windows CRLF: \r görünmez karakter değil, satır başı — genişlik hesabını bozar
+  s = s.replace(/\r\n/g, "\n").replace(/\r/g, "");
   let visible = 0, out = "";
   for (let i = 0; i < s.length; i++) {
     if (s[i] === "\x1b") {
       const m = /^\x1b\[[0-9;]*m/.exec(s.slice(i));
       if (m) { out += m[0]; i += m[0].length - 1; continue; }
     }
+    if (s[i] === "\n") break; // çok satırlı girdi: sadece ilk satır
     if (visible >= width) break;
     out += s[i];
     visible++;

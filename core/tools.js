@@ -4,21 +4,50 @@ const events = require("./events.js");
 const fsTools       = require("../tools/fs.js");
 const shellTools    = require("../tools/shell.js");
 const memoryTools   = require("../tools/memory.js");
-const moltbookTools = require("../tools/moltbook.js");
 const vaultTools    = require("../tools/vault.js");
 const webTools      = require("../tools/web.js");
+const gitTools      = require("../tools/git.js");
+// moltbook: skill olarak yüklenir — her oturumda kayıtlı değil
+// registerMoltbook() ile dinamik olarak devreye girer
+
+// ── Yerleşik araçlar (yan etkisiz) ───────────────────────────────────────────
+// BUILTIN_DEFS önce tanımlanmalı — STATIC_DEFS buna bağlı
+const BUILTIN_DEFS = [
+  {
+    name: "think",
+    description: "Bir problemi adım adım düşün. Yan etki yok — sonuç yalnızca düşünce akışın. Karmaşık hata ayıklamada, çıkmaz döngüde veya bir sonraki adımı planlarken kullan.",
+    input_schema: {
+      type: "object",
+      properties: {
+        thought: { type: "string", description: "Açık düşünce akışı. Soruları, tahminleri ve sonraki adım kararını içerebilir." },
+      },
+      required: ["thought"],
+    },
+  },
+];
+
+// Yerleşik araç yürütücüsü — sadece think şimdilik
+function _executeBuiltin(name, input) {
+  if (name === "think") {
+    const t = String(input.thought ?? "").trim();
+    if (!t) return "Düşünce boş.";
+    return `[düşünce kaydedildi]\n${t.slice(0, 2000)}`;
+  }
+  return null; // bilinmeyen
+}
 
 const STATIC_DEFS = [
+  ...BUILTIN_DEFS,
   ...fsTools.DEFS,
   ...shellTools.DEFS,
   ...memoryTools.DEFS,
-  ...moltbookTools.DEFS,
   ...vaultTools.DEFS,
   ...webTools.DEFS,
+  ...gitTools.DEFS,
 ];
 
 const REGISTRY = {};
-for (const mod of [fsTools, shellTools, memoryTools, moltbookTools, vaultTools, webTools]) {
+for (const mod of [fsTools, shellTools, memoryTools, vaultTools, webTools, gitTools]) {
   for (const def of mod.DEFS) REGISTRY[def.name] = mod;
 }
 
@@ -44,6 +73,21 @@ function unregisterDynamic(source) {
   });
 }
 
+// Moltbook araçlarını skill olarak dinamik kaydet / kaldır
+// Ozyn'in açık isteğiyle çağrılır — her oturumda otomatik değil
+let _moltbookRegistered = false;
+function registerMoltbook() {
+  if (_moltbookRegistered) return;
+  const mb = require("../tools/moltbook.js");
+  registerDynamic(mb.DEFS, (name, input) => mb.execute(name, input), "moltbook");
+  _moltbookRegistered = true;
+}
+function unregisterMoltbook() {
+  unregisterDynamic("moltbook");
+  _moltbookRegistered = false;
+}
+function isMoltbookActive() { return _moltbookRegistered; }
+
 // Tüm araç tanımları (statik + dinamik) — model'e gönderilen liste
 function getDefs() {
   return [...STATIC_DEFS, ...DYNAMIC.defs.map(({ _source, ...d }) => d)];
@@ -55,14 +99,31 @@ function getDefs() {
  * @param {object}      input
  * @param {string|null} sessionId  — opsiyonel, geriye dönük uyumlu
  */
+// Araç çıktısını context taşması riskine karşı boyut sınırla.
+// Baş kısım (ilk satırlar genellikle meta/başlık) + kuyruk ağırlıklı kırpma.
+const TOOL_RESULT_CAP = 50_000; // ~50KB karakter
+function _capResult(raw, toolName) {
+  if (typeof raw !== "string" || raw.length <= TOOL_RESULT_CAP) return raw;
+  const head = raw.slice(0, TOOL_RESULT_CAP / 4);
+  const tail = raw.slice(-(TOOL_RESULT_CAP * 3 / 4));
+  return `${head}\n… [${toolName} çıktısı kırpıldı: ${raw.length} karakter → ${TOOL_RESULT_CAP}] …\n${tail}`;
+}
+
 async function callTool(name, input, sessionId = null) {
   events.emit("tool_start", sessionId, { tool: name, input: input ?? {} });
   const t0 = Date.now();
 
+  // Yerleşik araçlar (yan etkisiz, önce kontrol et)
+  const builtinResult = _executeBuiltin(name, input ?? {});
+  if (builtinResult !== null) {
+    events.emit("tool_end", sessionId, { tool: name, latencyMs: Date.now() - t0, ok: true });
+    return builtinResult;
+  }
+
   const dyn = DYNAMIC.executors[name];
   if (dyn) {
     try {
-      const result = await dyn(name, input ?? {});
+      const result = _capResult(await dyn(name, input ?? {}), name);
       events.emit("tool_end", sessionId, { tool: name, latencyMs: Date.now() - t0, ok: true });
       return result;
     } catch (e) {
@@ -77,7 +138,7 @@ async function callTool(name, input, sessionId = null) {
     return `Araç bulunamadı: ${name}`;
   }
   try {
-    const result = await mod.execute(name, input ?? {});
+    const result = _capResult(await mod.execute(name, input ?? {}), name);
     events.emit("tool_end", sessionId, { tool: name, latencyMs: Date.now() - t0, ok: true });
     return result;
   } catch (e) {
@@ -129,6 +190,9 @@ module.exports = {
   getDefs,
   registerDynamic,
   unregisterDynamic,
+  registerMoltbook,
+  unregisterMoltbook,
+  isMoltbookActive,
   callTool,
   buildToolPromptSuffix,
   parseToolCall,

@@ -89,27 +89,27 @@ async function distillSkill(pattern, sessionContext = "") {
   const { loadConfig }    = require("./router.js");
   const model = loadConfig().tier1Model ?? "qwen2.5-coder:7b";
 
-  const prompt = `Sen bir bilgi mühendisisin. Aşağıdaki araç dizisi bir AI ajanın tekrarladığı başarılı bir iş akışını temsil ediyor.
+  const prompt = `You are a knowledge engineer. The following tool sequence represents a successful workflow an AI agent repeated.
 
-Dizi (${pattern.count} kez gözlemlendi):
+Sequence (observed ${pattern.count} times):
 ${pattern.seq}
 
-Bu iş akışı için bir "skill" dosyası yaz. Format:
+Write a "skill" file for this workflow. Format:
 \`\`\`markdown
-## [Kısa açıklayıcı isim]
+## [Short descriptive name]
 
-**Ne zaman kullan:** [1 cümle — tetikleyici koşul]
+**When to use:** [1 sentence — trigger condition]
 
-**Adımlar:**
-1. [araç adı]: [ne yapılır]
-2. [araç adı]: [ne yapılır]
+**Steps:**
+1. [tool name]: [what to do]
+2. [tool name]: [what to do]
 ...
 
-**Dikkat:** [varsa uyarı, yoksa bu satırı dahil etme]
+**Note:** [warning if any, omit this line otherwise]
 \`\`\`
 
-Bağlam: ${sessionContext || "genel geliştirme görevi"}
-Sadece markdown döndür, açıklama yok.`;
+Context: ${sessionContext || "general development task"}
+Return only markdown, no explanations.`;
 
   const raw = await ollamaRequest(model, prompt, { timeout: 30000 });
   return raw?.trim() ?? null;

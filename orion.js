@@ -12,7 +12,7 @@ const { Session, interrupt, clearInterrupt } = require("./core/session.js");
 const { C, print, renderMarkdown, makeInputPrompt, finishUserTurn, refreshInputFill,
         inputBoxTop, renderMenuBelow, clearMenuBelow,
         showInputPlaceholder, clearInputPlaceholder } = require("./tui/index.js");
-const { attachSlashMenu } = require("./tui/slashmenu.js");
+const { attachSlashMenu, MAX_ITEMS: MENU_MAX } = require("./tui/slashmenu.js");
 const vaultCore = require("./core/vault.js");
 const commands  = require("./core/commands/index.js");
 const i18n      = require("./core/i18n.js");
@@ -42,6 +42,9 @@ const resumeId = (() => {
   const i = args.indexOf("--resume");
   return i !== -1 ? args[i + 1] : null;
 })();
+
+// --trust → trust gate'i atla (CI/script ortamı için tek seferlik bypass)
+const isTrustFlag = args.includes("--trust");
 
 // ── Backend + model seç ──────────────────────────────────────────────────────
 async function resolveBackend() {
@@ -88,11 +91,36 @@ async function runHeadless(session) {
   const role = process.env.ORION_ROLE ?? args.find((_, i) => args[i - 1] === "--role");
   if (role) {
     const personas = {
-      researcher: "You are a researcher. Gather information, read files, analyze. Do not write code.",
-      coder:      "You are a coding specialist. Write clean, working code. Keep explanations short.",
-      reviewer:   "You are a code reviewer. Find bugs, suggest improvements. Be direct.",
+      researcher: [
+        "You are a research specialist.",
+        "Your job: read files, search code, gather facts. Do NOT write or modify any files.",
+        "Tools: think (plan first), file_outline (structure), read_many_files (batch), read_file, search, list_files, glob_files, file_info, web_fetch, git_status, git_diff, git_log, git_show, git_blame",
+        "Strategy: (1) think about what to look for, (2) use file_outline to scan structure, (3) read specific sections.",
+        "Output: clear summary with exact file:line references. Be thorough — miss nothing relevant.",
+      ].join("\n"),
+      coder: [
+        "You are a coding specialist. Implement exactly what is asked.",
+        "Tools: think (plan before editing), file_outline, read_many_files, read_file, edit_file, multi_edit, write_file, apply_patch, insert_at_line, replace_in_files, create_dir, run_command, git_status, git_diff",
+        "Workflow: (1) think through the approach, (2) outline/read to understand existing code, (3) edit precisely, (4) run tests.",
+        "Edit rules: always read before editing. If edit_file fails (old_str not found): read_file exact section, retry.",
+        "Efficiency: multi_edit for multiple changes in one file, replace_in_files for project-wide rename.",
+        "Output: what changed, test results (PASS/FAIL). State failures explicitly.",
+      ].join("\n"),
+      reviewer: [
+        "You are a code reviewer.",
+        "Your job: check correctness, find bugs, verify tests pass.",
+        "Tools: think (analyze before judging), file_outline, read_file, search, run_command (tests), git_diff",
+        "Output: verdict PASS/FAIL + issues with file:line + specific fixes. Be direct.",
+      ].join("\n"),
     };
     if (personas[role]) session.system += `\n\n## Role\n${personas[role]}`;
+
+    // Rol bazlı mod zorlama — araç erişimini teknik olarak kısıtlar
+    const roleModes = { researcher: "plan", coder: "build", reviewer: "agent" };
+    const roleMode = roleModes[role];
+    if (roleMode) {
+      try { session.setMode(roleMode); } catch {}
+    }
   }
 
   // Hafıza scope inject
@@ -112,7 +140,11 @@ async function runHeadless(session) {
     input += line + "\n";
   }
   if (!input.trim()) process.exit(0);
-  await session.send(input.trim());
+  const finalText = await session.send(input.trim());
+  // Coordinator'ın çıktıyı güvenilir şekilde yakalaması için işaretleyici
+  if (finalText && finalText.trim()) {
+    process.stdout.write(`\n<<<ORION_FINAL>>>\n${finalText.trim()}\n<<<END_FINAL>>>\n`);
+  }
 }
 // ── Prompt oluştur ───────────────────────────────────────────────────────────
 function makePrompt(_session) {
@@ -142,6 +174,25 @@ async function main() {
     print.info(i18n.t("  • Anthropic: set the ANTHROPIC_API_KEY environment variable", "  • Anthropic: ANTHROPIC_API_KEY ortam değişkenini ayarla"));
     print.info(i18n.t("  • HuggingFace: set the HF_TOKEN environment variable", "  • HuggingFace: HF_TOKEN ortam değişkenini ayarla"));
     process.exit(1);
+  }
+
+  // ── Workspace güven kapısı ───────────────────────────────────────────────
+  if (!isHeadless) {
+    const ws  = require("./core/workspace.js");
+    const cwd = process.cwd();
+    if (isTrustFlag || process.env.ORION_WORKSPACE) {
+      // --trust flag veya ORION_WORKSPACE: kullanıcı bilinçli seçim yaptı → kalıcı güven
+      const targetDir = process.env.ORION_WORKSPACE ? require("path").resolve(process.env.ORION_WORKSPACE) : cwd;
+      if (!ws.isTrusted(targetDir)) {
+        ws.trustDir(targetDir);
+        print.system(i18n.t(`Workspace trusted: ${targetDir}`, `Çalışma alanı güvenilir: ${targetDir}`));
+      }
+    } else if (!ws.isTrusted(cwd)) {
+      const ok = await ws.promptTrust(cwd);
+      if (!ok) { print.info(i18n.t("Exiting.", "Çıkılıyor.")); process.exit(0); }
+      ws.trustDir(cwd);
+      print.system(i18n.t("Workspace trusted. Setting saved.", "Çalışma alanı güvenilir olarak işaretlendi."));
+    }
   }
 
   const model   = pickModel(backend, MODEL_ARG);
@@ -228,6 +279,14 @@ async function main() {
     }
   }
 
+  // Dosya değişikliklerinde renkli diff — edit_file/write_file sonrası CLI'da göster
+  if (!isHeadless) {
+    const orionEvents = require("./core/events.js");
+    orionEvents.emitter.on("diff", ({ payload }) => {
+      if (payload?.diff) print.diff(payload.diff);
+    });
+  }
+
   const rl = readline.createInterface({
     input:     process.stdin,
     output:    process.stdout,
@@ -256,10 +315,31 @@ async function main() {
       if (placeholderShown) { clearInputPlaceholder(); placeholderShown = false; }
     },
     render: (state) => {
-      if (state.open) renderMenuBelow(rl, state);
-      else            clearMenuBelow(rl);
+      if (state.open) {
+        const off = state.offset;
+        renderMenuBelow(rl, { items: state.items.slice(off, off + MENU_MAX), selected: state.selected - off });
+      } else {
+        clearMenuBelow(rl);
+      }
     },
   });
+
+  // Shift+Tab → mod döngüsü (chat → plan → build → agent → chat ...)
+  const MODE_CYCLE = ["agent", "plan", "build", "chat"];
+  if (isTTY) {
+    const _afterMenuWrite = rl._ttyWrite.bind(rl);
+    rl._ttyWrite = (s, key = {}) => {
+      if (key.name === "tab" && key.shift && !slashMenu?.state.open) {
+        const cur = session.mode.name;
+        const idx = MODE_CYCLE.indexOf(cur);
+        const next = MODE_CYCLE[(idx + 1) % MODE_CYCLE.length];
+        try { session.setMode(next); } catch {}
+        redrawInput();
+        return;
+      }
+      _afterMenuWrite(s, key);
+    };
+  }
 
   // Prompt açık mı? Asenkron mesajların (notifyAbove) açık bloğu bölmemesi için.
   let promptOpen = false;
@@ -292,7 +372,10 @@ async function main() {
       origRefresh();
       refreshInputFill(rl);
       placeholderShown = false;
-      if (slashMenu?.state.open) renderMenuBelow(rl, slashMenu.state);
+      if (slashMenu?.state.open) {
+        const off = slashMenu.state.offset;
+        renderMenuBelow(rl, { items: slashMenu.state.items.slice(off, off + MENU_MAX), selected: slashMenu.state.selected - off });
+      }
     };
 
     // Prompt açıkken gelen asenkron mesaj: açık bloğu geri sar, mesajı yaz,
@@ -351,6 +434,7 @@ async function main() {
       await processOne(lineQueue.shift());
     }
     qRunning = false;
+    _interruptSent = false; // interrupt bayrağını sıfırla — sonraki tur için temiz başlangıç
     if (pendingEOF) {
       console.log(C.gray("\nbye."));
       process.exit(0);
@@ -388,17 +472,25 @@ async function main() {
     process.exit(0);
   });
 
-  // Ctrl+C: üretim varsa kes, yoksa çıkış
+  // Ctrl+C: üretim varsa kes; ikinci basışta zorla çık
   let ctrlCCount = 0;
+  let _interruptSent = false;
   process.on("SIGINT", () => {
     if (qRunning) {
+      if (_interruptSent) {
+        // İkinci Ctrl+C — hâlâ çalışıyor → zorla çık
+        process.stdout.write("\x1b[0m");
+        console.log(C.gray(i18n.t("\nForce exit.", "\nZorla çıkılıyor.")));
+        process.exit(0);
+      }
+      _interruptSent = true;
       interrupt();
-      ctrlCCount = 0;
+      print.system(i18n.t("Interrupting... (Ctrl+C again to force exit)", "Kesiliyor... (zorla çıkmak için tekrar Ctrl+C)"));
       return;
     }
+    _interruptSent = false;
     ctrlCCount++;
     if (ctrlCCount === 1) {
-      // Açık bloğu geri sar: cursor satırı (sarılmış girişte >0) + bant + boşluk
       if (isTTY) {
         const rows = (rl.getCursorPos?.().rows ?? 0) + 2;
         process.stdout.write(`\x1b[0m\r\x1b[${rows}A\x1b[J`);
@@ -412,6 +504,7 @@ async function main() {
       process.exit(0);
     }
   });
+
 }
 
 main().catch(e => { print.error(e.message); process.exit(1); });

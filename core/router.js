@@ -12,22 +12,37 @@ const DEFAULTS = {
   budgetMode:               "balanced",
   sessionBudgetUSD:         1.0,
   tier1Model:               "qwen2.5-coder:7b",
+  tier1Backend:             "ollama",
   tier2Backend:             "anthropic",
   tier2Model:               "claude-sonnet-4-6",
   complexityTokenThreshold: 800,
   vaultDir:                 path.join(HOME, ".orion", "vault"),
   language:                 "en",
   memoryEffort:             "low",  // low | balanced | high
+  trustedPaths:             [],     // workspace güven listesi — promptTrust() ile eklenir
+  roleTiers:                {},     // koordinatör rol→tier override: { researcher:1, coder:2, reviewer:1 }
+  autoApproveCommands:      false,  // true → run_command onay sormaz (güvenlik riski — dikkatli)
+  autoCompact:              true,   // false → devre dışı bırak; true → context %80'i geçince otomatik sıkıştır
+  contextLimit:             0,      // 0 = her backend kendi varsayılanını kullanır (akıllı mod)
+                                    // >0 = tüm backendler için genel override
+  backendContextLimits:     {},     // per-backend override: { "ollama": 8192, "lmstudio": 4096 }
 };
 
 // 5sn config cache
 let _cfgCache = { data: null, ts: 0 };
+// Runtime overrides: diske yazılmaz, süreç ömrü boyunca geçerli
+const _runtimeOverrides = {};
+
+function setRuntimeOverride(key, value) {
+  _runtimeOverrides[key] = value;
+  _cfgCache = { data: null, ts: 0 }; // cache'i geçersiz kıl
+}
 
 function loadConfig() {
   if (_cfgCache.data && Date.now() - _cfgCache.ts < 5_000) return _cfgCache.data;
   let disk = {};
   try { disk = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")); } catch {}
-  const cfg = { ...DEFAULTS, ...disk };
+  const cfg = { ...DEFAULTS, ...disk, ..._runtimeOverrides };
   _cfgCache = { data: cfg, ts: Date.now() };
   return cfg;
 }
@@ -43,8 +58,8 @@ function saveConfig(partial) {
 }
 
 // Karmaşıklık puanı: pozitif = cloud gerekir, negatif = yerel yeterli
-const COMPLEX_WORDS = /\b(debug|architect|refactor|implement|fix|bug|test|security|optimize|analyze|design|review|performance|migrate|integrate)\b/gi;
-const SIMPLE_WORDS  = /\b(summarize|extract|list|format|classify|translate|convert|rename|count)\b/gi;
+const COMPLEX_WORDS = /\b(debug|architect|refactor|implement|fix|bug|test|security|optimize|analyze|design|review|performance|migrate|integrate|create|add|write|update|build|generate|feature|function|class|module|component|endpoint|api|schema|algorithm|deploy)\b/gi;
+const SIMPLE_WORDS  = /\b(summarize|extract|list|format|classify|translate|convert|rename|count|show|print|display|echo)\b/gi;
 
 function complexityScore(text) {
   const complex = (text.match(COMPLEX_WORDS) || []).length;
@@ -123,4 +138,4 @@ function getEffectiveMemoryEffort(cfg) {
   return stored;
 }
 
-module.exports = { loadConfig, saveConfig, decide, getEffectiveMemoryEffort, DEFAULTS };
+module.exports = { loadConfig, saveConfig, setRuntimeOverride, decide, getEffectiveMemoryEffort, DEFAULTS };

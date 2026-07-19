@@ -31,7 +31,12 @@ function setLocale(l) {
 
 // t(en, tr) — pick the string for the active locale; tr optional (falls back to en)
 function t(en, tr) {
-  return getLocale() === "tr" ? (tr ?? en) : en;
+  if (getLocale() === "tr") {
+    if (tr === undefined && process.env.ORION_DEV)
+      process.stderr.write(`[i18n] eksik çeviri: "${en}"\n`);
+    return tr ?? en;
+  }
+  return en;
 }
 
 // Locale-aware number/date formatting helper

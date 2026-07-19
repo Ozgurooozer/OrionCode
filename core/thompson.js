@@ -68,18 +68,25 @@ function _load() {
   return _cache;
 }
 
-function _save(state) {
-  _cache = state;
+// Debounced disk write: her update() için sync yazma yerine 5sn bekleme
+// Bellek her zaman güncel; kapanışta exit hook anlık flush yapar.
+let _writeTimer = null;
+function _schedulePersist() {
+  if (_writeTimer) return;
+  _writeTimer = setTimeout(() => { _writeTimer = null; _persist(); }, 5_000);
+  _writeTimer.unref(); // timer süreç çıkışını engellemesin
+}
+function _persist() {
+  if (!_cache) return;
   try {
     const dir = path.dirname(STATE_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+    fs.writeFileSync(STATE_FILE, JSON.stringify(_cache, null, 2));
   } catch (err) {
-    // Bellek-içi öğrenme sürer ama diske yazılamadı — süreç kapanınca gözlemler
-    // kaybolur. Sessiz kalmak kalıcı öğrenme izlenimi verir; olayla görünür kıl.
     require("./events.js").emitSilentCatch("thompson.js:_save", err);
   }
 }
+process.on("exit", _persist);
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -91,7 +98,7 @@ function update(tier, reason, success) {
   if (!state[cls]?.[key]) return;
   if (success) state[cls][key].a++;
   else         state[cls][key].b++;
-  _save(state);
+  _schedulePersist();
 }
 
 // Tavsiye: kural-tabanlı kararın doğru tier mi olduğunu sorgula

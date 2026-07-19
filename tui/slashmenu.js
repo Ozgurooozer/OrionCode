@@ -3,16 +3,23 @@
 // readline'ın _ttyWrite'ı sarmalanır; menü kapalıyken tuşlar aynen geçer.
 "use strict";
 
-const MAX_ITEMS = 6;
+const MAX_ITEMS = 8;
 
 /**
  * Menü durum makinesi.
  * @param {() => Array<{name, aliases?, desc?, usage?}>} getCommands
  */
 function createSlashMenu(getCommands) {
-  const state = { open: false, items: [], selected: 0 };
+  // selected: tam listede mutlak indeks; offset: görünen pencerenin başlangıcı
+  const state = { open: false, items: [], selected: 0, offset: 0 };
   let suppressedFor = null; // Esc ile kapatıldığında hangi satır için bastırıldı
   let lastPartial   = null; // filtre değişince seçim sıfırlanır
+
+  // Görünen pencereyi selected ile senkronize et (kaydırma)
+  function _syncOffset() {
+    if (state.selected < state.offset) state.offset = state.selected;
+    if (state.selected >= state.offset + MAX_ITEMS) state.offset = state.selected - MAX_ITEMS + 1;
+  }
 
   // rl.line'a göre menüyü güncelle — durum değiştiyse true döner
   function update(line) {
@@ -20,7 +27,7 @@ function createSlashMenu(getCommands) {
 
     // "/" ile başlamıyor ya da argüman fazı (boşluk var) → kapat
     if (!line.startsWith("/") || line.includes(" ") || line === suppressedFor) {
-      state.open = false; state.items = []; state.selected = 0;
+      state.open = false; state.items = []; state.selected = 0; state.offset = 0;
       lastPartial = null;
       if (line !== suppressedFor) suppressedFor = null;
       return wasOpen;
@@ -28,8 +35,8 @@ function createSlashMenu(getCommands) {
     suppressedFor = null;
 
     const partial = line.slice(1).toLowerCase();
-    // Filtre değişti → seçim başa döner (eski index yeni listede yanlış öğeyi gösterir)
-    if (partial !== lastPartial) state.selected = 0;
+    // Filtre değişti → seçim ve pencere başa döner
+    if (partial !== lastPartial) { state.selected = 0; state.offset = 0; }
     lastPartial = partial;
     const seen  = new Set();
     const items = [];
@@ -48,8 +55,9 @@ function createSlashMenu(getCommands) {
     }
     items.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
 
-    state.items    = items.slice(0, MAX_ITEMS);
+    state.items    = items; // tam liste — pencere render anında kesilir
     state.selected = Math.min(state.selected, Math.max(0, state.items.length - 1));
+    _syncOffset();
     state.open     = state.items.length > 0;
     return state.open || wasOpen;
   }
@@ -57,11 +65,12 @@ function createSlashMenu(getCommands) {
   function move(delta) {
     if (!state.items.length) return;
     state.selected = (state.selected + delta + state.items.length) % state.items.length;
+    _syncOffset();
   }
 
   // Seçili komutu rl satırına yaz (trailing boşluk → argüman fazına geçer, menü kapanır)
   function completeTo(rl) {
-    const it = state.items[state.selected];
+    const it = state.items[state.selected]; // state.items tam liste, selected mutlak indeks
     if (!it) return;
     const t = `/${it.name} `;
     rl.line   = t;
@@ -120,4 +129,4 @@ function attachSlashMenu(rl, getCommands, { render, isBusy, beforeKey }) {
   return menu;
 }
 
-module.exports = { createSlashMenu, attachSlashMenu };
+module.exports = { createSlashMenu, attachSlashMenu, MAX_ITEMS };

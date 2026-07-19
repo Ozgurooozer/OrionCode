@@ -3,15 +3,17 @@ const fs   = require("fs");
 const path = require("path");
 const os   = require("os");
 
-const HOME         = process.env.ORION_HOME || os.homedir(); // test için geçersiz kılınabilir
-const SESSIONS_DIR = path.join(HOME, ".orion", "sessions");
+// ORION_HOME require anında değil, her çağrıda okunur — test override'ı çalışsın
+function _sessionsDir() {
+  return path.join(process.env.ORION_HOME || os.homedir(), ".orion", "sessions");
+}
 
 function ensureDir() {
-  fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+  fs.mkdirSync(_sessionsDir(), { recursive: true });
 }
 
 function sessionPath(id) {
-  return path.join(SESSIONS_DIR, `${id}.json`);
+  return path.join(_sessionsDir(), `${id}.json`);
 }
 
 function save(sessionId, data) {
@@ -26,12 +28,13 @@ function load(sessionId) {
 
 function list() {
   ensureDir();
-  return fs.readdirSync(SESSIONS_DIR)
+  const dir = _sessionsDir();
+  return fs.readdirSync(dir)
     .filter(f => f.endsWith(".json"))
     .map(f => {
       const id = f.replace(".json", "");
       try {
-        const d = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), "utf8"));
+        const d = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
         return {
           id,
           model:     d.model ?? "?",
@@ -60,4 +63,5 @@ function _preview(messages = []) {
   return txt.slice(0, 60).replace(/\n/g, " ");
 }
 
-module.exports = { save, load, list, del, SESSIONS_DIR };
+// SESSIONS_DIR getter: ORION_HOME runtime değişikliklerini yansıtır
+module.exports = { save, load, list, del, get SESSIONS_DIR() { return _sessionsDir(); } };

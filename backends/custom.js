@@ -1,6 +1,18 @@
 // backends/custom.js — BYOK özel sağlayıcılar (~/.orion/providers.json)
 // Herhangi bir OpenAI-uyumlu servis 5 satır JSON ile eklenir.
 "use strict";
+
+/**
+ * Shape of a provider entry in ~/.orion/providers.json and the PRESETS map.
+ * addProvider() also accepts these fields directly when registering a new provider.
+ * @typedef {Object} ProviderSpec
+ * @property {string}   [baseURL]     - OpenAI-compatible base URL (required at runtime, validated before use)
+ * @property {string}   [keyEnv]      - env variable name holding the API key
+ * @property {string}   [key]         - inline API key (stored in env, never printed)
+ * @property {string}   [defaultModel] - model ID used when none is specified
+ * @property {string[]} [models]      - static model list (used when /models endpoint absent)
+ * @property {Object}   [headers]     - extra HTTP headers forwarded to the provider
+ */
 const fs   = require("fs");
 const path = require("path");
 const os   = require("os");
@@ -77,7 +89,11 @@ function loadProviders() {
   return out;
 }
 
-// Preset ya da baseURL ile sağlayıcı ekle → kaydet
+/**
+ * Preset ya da baseURL ile sağlayıcı ekle → kaydet
+ * @param {string} name
+ * @param {ProviderSpec} [opts]
+ */
 function addProvider(name, { baseURL, key, keyEnv, defaultModel } = {}) {
   const preset = PRESETS[name];
   const spec = {

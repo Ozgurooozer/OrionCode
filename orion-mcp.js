@@ -9,21 +9,23 @@ const http     = require("http");
 const path     = require("path");
 
 const ROOT       = __dirname;
-const CREDS_PATH = path.join(ROOT, "credentials.json");
-
 const vault = require("./core/vault.js");
 const { extractWithOllama } = require("./core/extract.js");
 
-// Uzak erişim token'ı — credentials.json'dan ya da env'den
+// Uzak erişim token'ı — env öncelikli, fallback olarak credentials.json
 function getRemoteToken() {
+  if (process.env.ORION_TOKEN) return process.env.ORION_TOKEN;
   try {
-    const c = JSON.parse(fs.readFileSync(CREDS_PATH, "utf8"));
-    return c.remote_token ?? process.env.ORION_TOKEN ?? null;
-  } catch { return process.env.ORION_TOKEN ?? null; }
+    const CREDS_PATH = path.join(ROOT, "credentials.json");
+    return JSON.parse(fs.readFileSync(CREDS_PATH, "utf8")).remote_token ?? null;
+  } catch { return null; }
 }
 
-function getCreds() {
-  return JSON.parse(fs.readFileSync(CREDS_PATH, "utf8"));
+// core/credentials.js startup'ta moltbook_api_key → MOLTBOOK_API_KEY olarak env'e yükler
+function _getMoltApiKey() {
+  const k = process.env.MOLTBOOK_API_KEY ?? process.env.API_KEY;
+  if (!k) throw new Error("Moltbook API key yapılandırılmamış.");
+  return k;
 }
 
 function apiRequest(method, endpoint, body) {
@@ -34,7 +36,7 @@ function apiRequest(method, endpoint, body) {
       path: `/api/v1${endpoint}`,
       method,
       headers: {
-        Authorization: `Bearer ${getCreds().api_key}`,
+        Authorization: `Bearer ${_getMoltApiKey()}`,
         "Content-Type": "application/json",
         ...(data ? { "Content-Length": Buffer.byteLength(data) } : {}),
       },

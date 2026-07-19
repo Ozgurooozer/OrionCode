@@ -77,3 +77,51 @@ test("sandbox: dış read_file reddedilir", () => {
   assert.ok(out.startsWith("HATA:"), "dış okuma reddedilmeli");
   assert.match(out, /çalışma kökü dışında/, "sınır mesajı içermeli");
 });
+
+// ── 7: create_dir sandbox sınırı ─────────────────────────────────────────────
+test("sandbox: create_dir workspace içinde izinli", () => {
+  const d = path.join(WS, "yeni-dizin");
+  const out = execute("create_dir", { path: d });
+  assert.ok(out.includes("oluşturuldu"), "onay mesajı");
+  assert.ok(fs.existsSync(d), "dizin oluştu");
+});
+
+test("sandbox: create_dir workspace dışında reddedilir", () => {
+  const d = path.join(WS, "..", "dış-dizin");
+  const out = execute("create_dir", { path: d });
+  assert.ok(out.startsWith("HATA:"), "reddedilmeli");
+  assert.ok(!fs.existsSync(path.resolve(d)), "dış dizin oluşmamalı");
+});
+
+// ── 8: delete_file sandbox sınırı ────────────────────────────────────────────
+test("sandbox: delete_file workspace dışında reddedilir", () => {
+  const f = path.join(WS, "..", "silinecek.txt");
+  const out = execute("delete_file", { path: f });
+  assert.ok(out.startsWith("HATA:"), "reddedilmeli");
+});
+
+// ── 9: move_file sandbox sınırı ──────────────────────────────────────────────
+test("sandbox: move_file from/to dışında reddedilir", () => {
+  const src = path.join(WS, "kaynak.txt");
+  fs.writeFileSync(src, "içerik");
+  const dstOutside = path.join(WS, "..", "kaçak.txt");
+  const out = execute("move_file", { from: src, to: dstOutside });
+  assert.ok(out.startsWith("HATA:"), "hedef dışarıdaysa reddedilmeli");
+  assert.ok(fs.existsSync(src), "kaynak silinmemeli");
+});
+
+// ── 10: glob_files sandbox sınırı ────────────────────────────────────────────
+test("sandbox: glob_files workspace içinde çalışır", () => {
+  const subDir = path.join(WS, "glob_sandbox");
+  fs.mkdirSync(subDir, { recursive: true });
+  fs.writeFileSync(path.join(subDir, "app.js"), "");
+  const out = execute("glob_files", { pattern: "**/*.js", dir: subDir });
+  assert.ok(typeof out === "string", "string döner");
+  assert.ok(!out.startsWith("HATA:"), "workspace içi arama izinli");
+});
+
+test("sandbox: glob_files workspace dışında reddedilir", () => {
+  const outsideDir = path.join(WS, "..", "dış-glob");
+  const out = execute("glob_files", { pattern: "**/*.js", dir: outsideDir });
+  assert.ok(out.startsWith("HATA:"), "dışarı arama reddedilmeli");
+});

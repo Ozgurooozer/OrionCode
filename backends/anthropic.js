@@ -1,6 +1,13 @@
 // backends/anthropic.js
 "use strict";
 
+/**
+ * @typedef {Object} AnthropicChatOpts
+ * @property {(token: string) => void} [onToken]       - streaming callback per text delta
+ * @property {boolean}                 [thinking]      - enable extended thinking mode
+ * @property {number}                  [thinkingBudget] - thinking budget in tokens (default 8000)
+ */
+
 async function isAvailable() {
   return !!process.env.ANTHROPIC_API_KEY;
 }
@@ -48,13 +55,20 @@ function _addCacheBreakpoints(messages) {
   });
 }
 
-async function chat(model, messages, system, toolDefs, { onToken, thinking = false, thinkingBudget = 8000 } = {}) {
+/**
+ * @param {string} model
+ * @param {Array<Object>} messages
+ * @param {string} [system]
+ * @param {Array<Object>} [toolDefs]
+ * @param {AnthropicChatOpts} [opts]
+ */
+async function chat(model, messages, system, toolDefs, { onToken, thinking = false, thinkingBudget = 8000, signal } = {}) {
   const Anthropic = require("@anthropic-ai/sdk");
   const client    = new Anthropic.default();
 
   const params = {
     model:      model ?? "claude-sonnet-4-6",
-    max_tokens: thinking ? Math.max(16000, thinkingBudget + 4096) : 8192,
+    max_tokens: thinking ? Math.max(16000, thinkingBudget + 4096) : 16384,
     system:     _systemWithCache(system),
     tools:      toolDefs ?? [],
     messages:   _addCacheBreakpoints(messages),
@@ -69,7 +83,9 @@ async function chat(model, messages, system, toolDefs, { onToken, thinking = fal
     ? "interleaved-thinking-2025-05-14,prompt-caching-2024-07-31"
     : "prompt-caching-2024-07-31";
 
-  const stream = client.messages.stream(params, { headers: { "anthropic-beta": betaHeaders } });
+  const streamOpts = { headers: { "anthropic-beta": betaHeaders } };
+  if (signal) streamOpts.signal = signal;
+  const stream = client.messages.stream(params, streamOpts);
   stream.on("text", text => { if (onToken) onToken(text); });
 
   return await stream.finalMessage();

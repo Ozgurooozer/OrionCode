@@ -7,6 +7,72 @@ const os   = require("os");
 
 const DEFAULT_VAULT = path.join(os.homedir(), ".orion", "vault");
 
+// Graf HTML'i için statik JS — modül seviyesinde tanımlı, rebuildGraph'tan ayrı
+// nodes/edges enjekte edilir; fizik motoru ve etkileşim kodu değişmez.
+function _graphScript(nodes, edges) {
+  return `
+    const NODES = ${JSON.stringify(nodes)};
+    const EDGES = ${JSON.stringify(edges)};
+    const cv = document.getElementById('cv'), ctx = cv.getContext('2d'), tip = document.getElementById('tip');
+    let W, H;
+    function resize(){ W = cv.width = innerWidth; H = cv.height = innerHeight - 44; }
+    resize(); addEventListener('resize', resize);
+
+    const byId = {};
+    NODES.forEach((n,i) => {
+      n.x = W/2 + Math.cos(i*2.399) * (80 + i*4);
+      n.y = H/2 + Math.sin(i*2.399) * (60 + i*3);
+      n.vx = 0; n.vy = 0; byId[n.id] = n;
+    });
+    const E = EDGES.map(([a,b]) => [byId[a], byId[b]]).filter(e => e[0] && e[1]);
+
+    let dragging = null, hover = null;
+    function tick(){
+      for (let i=0;i<NODES.length;i++) for (let j=i+1;j<NODES.length;j++){
+        const a=NODES[i], b=NODES[j];
+        let dx=a.x-b.x, dy=a.y-b.y, d2=dx*dx+dy*dy || 1;
+        if (d2 < 40000){ const f=1200/d2; dx*=f; dy*=f; a.vx+=dx; a.vy+=dy; b.vx-=dx; b.vy-=dy; }
+      }
+      for (const [a,b] of E){
+        const dx=b.x-a.x, dy=b.y-a.y, d=Math.sqrt(dx*dx+dy*dy)||1, f=(d-90)*0.004;
+        a.vx+=dx*f; a.vy+=dy*f; b.vx-=dx*f; b.vy-=dy*f;
+      }
+      for (const n of NODES){
+        n.vx += (W/2-n.x)*0.0008; n.vy += (H/2-n.y)*0.0008;
+        if (n !== dragging){ n.x += n.vx *= 0.85; n.y += n.vy *= 0.85; }
+      }
+      draw();
+      requestAnimationFrame(tick);
+    }
+    function draw(){
+      ctx.clearRect(0,0,W,H);
+      ctx.strokeStyle = 'rgba(120,130,150,0.25)';
+      for (const [a,b] of E){ ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+      for (const n of NODES){
+        const r = n.kind==='tag' ? 6 : 9;
+        ctx.beginPath(); ctx.arc(n.x,n.y,r,0,7);
+        ctx.fillStyle = n===hover ? '#ffe082' : (n.kind==='tag' ? '#a78bfa' : '#60dcff');
+        ctx.fill();
+        if (n.kind==='tag'){ ctx.fillStyle='rgba(200,210,230,0.8)'; ctx.font='11px sans-serif'; ctx.fillText(n.label, n.x+9, n.y+4); }
+      }
+    }
+    function nodeAt(x,y){ return NODES.find(n => (n.x-x)**2 + (n.y-y)**2 < 144); }
+    cv.addEventListener('mousemove', e => {
+      const x=e.clientX, y=e.clientY-44;
+      if (dragging){ dragging.x=x; dragging.y=y; return; }
+      hover = nodeAt(x,y);
+      cv.style.cursor = hover ? 'pointer' : 'grab';
+      if (hover){ tip.style.display='block'; tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY+12)+'px'; tip.textContent=hover.label; }
+      else tip.style.display='none';
+    });
+    cv.addEventListener('mousedown', e => { dragging = nodeAt(e.clientX, e.clientY-44); });
+    addEventListener('mouseup', e => {
+      if (dragging && hover===dragging && dragging.href) location.href = dragging.href;
+      dragging = null;
+    });
+    tick();`;
+}
+
 // index.json için promise-chain mutex — read-modify-write yarış koşulunu önler
 let _indexLock = Promise.resolve();
 function _withIndexLock(fn) {
@@ -430,71 +496,7 @@ function rebuildGraph(vaultDir) {
   <div id="bar"><a href="index.html">← Vault</a> · ${index.length} oturum · ${tagId.size} etiket — düğüme tıkla: oturumu aç</div>
   <div id="tip"></div>
   <canvas id="cv"></canvas>
-  <script>
-    const NODES = ${JSON.stringify(nodes)};
-    const EDGES = ${JSON.stringify(edges)};
-    const cv = document.getElementById('cv'), ctx = cv.getContext('2d'), tip = document.getElementById('tip');
-    let W, H;
-    function resize(){ W = cv.width = innerWidth; H = cv.height = innerHeight - 44; }
-    resize(); addEventListener('resize', resize);
-
-    const byId = {};
-    NODES.forEach((n,i) => {
-      n.x = W/2 + Math.cos(i*2.399) * (80 + i*4);
-      n.y = H/2 + Math.sin(i*2.399) * (60 + i*3);
-      n.vx = 0; n.vy = 0; byId[n.id] = n;
-    });
-    const E = EDGES.map(([a,b]) => [byId[a], byId[b]]).filter(e => e[0] && e[1]);
-
-    let dragging = null, hover = null;
-    function tick(){
-      // itme
-      for (let i=0;i<NODES.length;i++) for (let j=i+1;j<NODES.length;j++){
-        const a=NODES[i], b=NODES[j];
-        let dx=a.x-b.x, dy=a.y-b.y, d2=dx*dx+dy*dy || 1;
-        if (d2 < 40000){ const f=1200/d2; dx*=f; dy*=f; a.vx+=dx; a.vy+=dy; b.vx-=dx; b.vy-=dy; }
-      }
-      // çekme (kenarlar)
-      for (const [a,b] of E){
-        const dx=b.x-a.x, dy=b.y-a.y, d=Math.sqrt(dx*dx+dy*dy)||1, f=(d-90)*0.004;
-        a.vx+=dx*f; a.vy+=dy*f; b.vx-=dx*f; b.vy-=dy*f;
-      }
-      // merkeze hafif çekim + sürtünme
-      for (const n of NODES){
-        n.vx += (W/2-n.x)*0.0008; n.vy += (H/2-n.y)*0.0008;
-        if (n !== dragging){ n.x += n.vx *= 0.85; n.y += n.vy *= 0.85; }
-      }
-      draw();
-      requestAnimationFrame(tick);
-    }
-    function draw(){
-      ctx.clearRect(0,0,W,H);
-      ctx.strokeStyle = 'rgba(120,130,150,0.25)';
-      for (const [a,b] of E){ ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
-      for (const n of NODES){
-        const r = n.kind==='tag' ? 6 : 9;
-        ctx.beginPath(); ctx.arc(n.x,n.y,r,0,7);
-        ctx.fillStyle = n===hover ? '#ffe082' : (n.kind==='tag' ? '#a78bfa' : '#60dcff');
-        ctx.fill();
-        if (n.kind==='tag'){ ctx.fillStyle='rgba(200,210,230,0.8)'; ctx.font='11px sans-serif'; ctx.fillText(n.label, n.x+9, n.y+4); }
-      }
-    }
-    function nodeAt(x,y){ return NODES.find(n => (n.x-x)**2 + (n.y-y)**2 < 144); }
-    cv.addEventListener('mousemove', e => {
-      const x=e.clientX, y=e.clientY-44;
-      if (dragging){ dragging.x=x; dragging.y=y; return; }
-      hover = nodeAt(x,y);
-      cv.style.cursor = hover ? 'pointer' : 'grab';
-      if (hover){ tip.style.display='block'; tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY+12)+'px'; tip.textContent=hover.label; }
-      else tip.style.display='none';
-    });
-    cv.addEventListener('mousedown', e => { dragging = nodeAt(e.clientX, e.clientY-44); });
-    addEventListener('mouseup', e => {
-      if (dragging && hover===dragging && dragging.href) location.href = dragging.href;
-      dragging = null;
-    });
-    tick();
-  </script>
+  <script>${_graphScript(nodes, edges)}</script>
 </body>
 </html>`;
 

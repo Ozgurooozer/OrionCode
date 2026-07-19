@@ -385,7 +385,7 @@ FORMAT: Her araç için:
       }
 
       const date = new Date().toISOString().slice(0, 10);
-      const reportsDir = path.join(os.homedir(), ".orion", "reports");
+      const reportsDir = path.join(process.env.ORION_HOME || os.homedir(), ".orion", "reports");
       if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
 
       const file = path.join(reportsDir, `weakness-${date}.md`);

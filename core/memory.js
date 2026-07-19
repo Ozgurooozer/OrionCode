@@ -20,11 +20,30 @@ function _load() {
   catch { return []; }
 }
 
+// Debounced write: her add() için sync yazma yerine 3sn bekleme
+// _addLock mutex zaten sıralılaştırıyor; exit hook anlık flush yapar.
+let _pendingEntries = null;
+let _memWriteTimer = null;
 function _save(entries) {
-  const dir = path.dirname(MEMORY_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(MEMORY_FILE, JSON.stringify(entries, null, 2));
+  _pendingEntries = entries;
+  if (_memWriteTimer) return;
+  _memWriteTimer = setTimeout(() => {
+    _memWriteTimer = null;
+    _flushMemory();
+  }, 3_000);
+  _memWriteTimer.unref();
 }
+function _flushMemory() {
+  if (!_pendingEntries) return;
+  const entries = _pendingEntries;
+  _pendingEntries = null;
+  try {
+    const dir = path.dirname(MEMORY_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(MEMORY_FILE, JSON.stringify(entries, null, 2));
+  } catch {}
+}
+process.on("exit", _flushMemory);
 
 function _loadVectors() {
   try { return JSON.parse(fs.readFileSync(VECTORS_FILE, "utf8")); }
@@ -117,6 +136,7 @@ async function query(text, limit = 6) {
 
 function buildInjectSuffix(relevant) {
   if (!relevant.length) return "";
+  const i18n = require("./i18n.js");
   const byCategory = {};
   for (const e of relevant) {
     if (!byCategory[e.category]) byCategory[e.category] = [];
@@ -125,7 +145,7 @@ function buildInjectSuffix(relevant) {
   const lines = Object.entries(byCategory)
     .map(([cat, items]) => `${cat.toUpperCase()}\n${items.map(i => `  • ${i}`).join("\n")}`)
     .join("\n");
-  return `\n\n## Hafıza\n${lines}`;
+  return i18n.t(`\n\n## Memory\n${lines}`, `\n\n## Hafıza\n${lines}`);
 }
 
 function buildExtractionPrompt(msgs) {
@@ -135,16 +155,18 @@ function buildExtractionPrompt(msgs) {
     .map(m => `[${m.role}]: ${m.content.slice(0, 300)}`)
     .join("\n");
 
-  return `Aşağıdaki konuşmadan uzun vadede hatırlanması gereken bilgileri çıkar.
-Her satır şu formatta olmalı:
-FACT: [nesnel gerçek]
-PREFERENCE: [kullanıcı tercihi]
-ENTITY: [önemli isim/dosya/proje]
-CORRECTION: [düzeltme]
+  // Bilingual prompt: keywords MUST stay English (parseExtractionResponse uses EN regex).
+  // "NONE" or "YOK" signals no memorable facts.
+  return `Extract facts worth remembering long-term from the conversation below.
+Each line must use one of these prefixes exactly:
+FACT: [objective fact]
+PREFERENCE: [user preference or style]
+ENTITY: [important name / file / project]
+CORRECTION: [something previously wrong, now corrected]
 
-Hatırlamaya değer bir şey yoksa sadece: YOK
+If nothing is worth remembering, respond with exactly: NONE
 
-Konuşma:
+Conversation:
 ${recent}`;
 }
 

@@ -45,8 +45,10 @@ const EVENT_TYPES = Object.freeze({
 
 const emitter = new EventEmitter();
 emitter.setMaxListeners(64); // çok sayıda SSE istemcisi için
-// Node.js "error" event type: listener yoksa throw eder — no-op handler zorunlu
-emitter.on("error", () => {});
+// Node.js "error" event type: listener yoksa throw eder — logla ve yut
+emitter.on("error", (err) => {
+  try { process.stderr.write(`[orion:events] error event: ${err?.message ?? err}\n`); } catch {}
+});
 
 /**
  * Standart bir olay yayınla.
@@ -62,8 +64,8 @@ function emit(type, sessionId, payload = {}) {
     timestamp: Date.now(),
     payload,
   };
-  emitter.emit("event", event);  // evrensel dinleyici (SSE gibi)
-  emitter.emit(type,   event);  // tip bazlı dinleyici
+  emitter.emit("event", event);  // evrensel dinleyici (SSE, test harness)
+  emitter.emit(type,   event);  // tip bazlı dinleyici (on("text_delta") gibi)
   return event;
 }
 

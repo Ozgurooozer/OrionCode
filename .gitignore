@@ -4,6 +4,13 @@ credentials.json
 # Bağımlılıklar
 node_modules/
 
+# Electron derleme çıktıları
+electron/dist/
+electron/release/
+
+# graphify analiz çıktıları
+graphify-out/
+
 # Çalışma zamanı çıktıları
 logs/
 *.log

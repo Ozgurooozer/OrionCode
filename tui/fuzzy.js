@@ -13,7 +13,7 @@ const GAP           = -1;
 const LEADING_GAP    = -3;
 const SUBSTITUTION  = -10;
 const DELETION      = -12;
-const TRANSPOSITION = 2 * MATCH - 22; // 10
+const TRANSPOSITION = 2 * MATCH - 8;  // 24 — her iki karakter de var, sıra yanlış
 
 function isBoundary(c) {
   return c === "/" || c === "-" || c === "_" || c === " " || c === "." || c === ":";
@@ -135,7 +135,21 @@ function fuzzyMatchPositions(needle, haystack) {
 function fuzzyScoreTokens(needle, haystack) {
   const q = needle.trim();
   if (!q) return 0;
-  if (/\s/.test(q)) return fuzzyScore(q, haystack);
+  const terms = q.split(/\s+/);
+  if (terms.length > 1) {
+    // Her terim en az bir token'da eşleşmeli; tüm terim skorları toplanır
+    let total = 0;
+    for (const term of terms) {
+      let best = null;
+      for (const tok of haystack.split(/\s+/)) {
+        const s = fuzzyScore(term, tok);
+        if (s !== null && (best === null || s > best)) best = s;
+      }
+      if (best === null) return null; // bir terim hiç eşleşmedi → sonuç yok
+      total += best;
+    }
+    return total;
+  }
   let best = null;
   for (const token of haystack.split(/\s+/)) {
     const s = fuzzyScore(q, token);

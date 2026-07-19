@@ -30,6 +30,8 @@ class SessionLogger {
     this._flushing = false;   // setImmediate drain aktif mi
     _liveLoggers.add(this);
     _installExitHook();
+    // Yeni oturum başlarken %5 olasılıkla eski log temizliği — non-blocking
+    if (Math.random() < 0.05) setImmediate(pruneOldLogs);
   }
 
   record(data) {
@@ -62,6 +64,21 @@ class SessionLogger {
   }
 }
 
+const MAX_LOG_FILES = 100;
+
+// Eski log dosyalarını temizle — MAX_LOG_FILES üstü olanları sil
+function pruneOldLogs() {
+  try {
+    const files = fs.readdirSync(LOGS_DIR)
+      .filter(f => f.endsWith(".ndjson"))
+      .map(f => ({ file: path.join(LOGS_DIR, f), mtime: fs.statSync(path.join(LOGS_DIR, f)).mtimeMs }))
+      .sort((a, b) => a.mtime - b.mtime); // eskiden yeniye
+    for (const { file } of files.slice(0, Math.max(0, files.length - MAX_LOG_FILES))) {
+      try { fs.unlinkSync(file); } catch {}
+    }
+  } catch {}
+}
+
 // Son N log dosyasını listele
 function listLogs(limit = 20) {
   try {
@@ -89,4 +106,4 @@ function readLog(sessionId) {
   } catch { return []; }
 }
 
-module.exports = { SessionLogger, listLogs, readLog };
+module.exports = { SessionLogger, listLogs, readLog, pruneOldLogs };

@@ -25,6 +25,9 @@ molp\
 ├── credentials.json   ← API anahtarı (asla ekrana yazdırma)
 ├── merak.md           ← Orion ve Ozyn'in merak listeleri
 ├── gozlemler.md       ← platform gözlemleri
+├── roadmap\           ← vizyon/mimari planlama belgeleri (ORION-0*.md)
+├── electron\          ← Electron masaüstü uygulaması (ayrı package.json)
+├── tui\               ← Terminal UI bileşenleri (index.js, fuzzy-picker.js, ...)
 ├── scripts\
 │   ├── check_claim.ps1
 │   ├── read_feed.ps1
@@ -51,22 +54,29 @@ Moltbook'la ilgili bir eylem istendiğinde önce içeriği göster, onay bekle.
 ## Komutlar
 
 ```bash
-# Tüm testler (node:test runner — 185 test)
+# Tüm testler (node:test runner)
 npm test
 
 # Tek test dosyası
 node --test tests/vault.test.js
 
+# Tek test (isim filtresiyle)
+node --test --test-name-pattern="path traversal" tests/vault.test.js
+
+# Tip kontrolü (derleme yapmaz, sadece kontrol)
+npm run typecheck
+
 # CLI başlat
 node orion.js
+node orion.js -p "soru"     # tek atış, headless (CI/pipe için)
 
-# HTTP + SSE sunucu
+# HTTP + SSE sunucu (yalnızca 127.0.0.1 dinler)
 node orion-server.js        # npm run server
 
 # MCP sunucu modu
 node orion-mcp.js
 
-# Benchmark
+# Benchmark (başlangıç süresi / RSS)
 npm run bench
 ```
 
@@ -90,6 +100,11 @@ orion.js (CLI/TUI)         orion-server.js (HTTP+SSE)    orion-mcp.js (MCP sunuc
      openai, openrouter,      + FEP gölge log)
      huggingface, lmstudio,
      custom BYOK)
+
+tui/                       core/coordinator.js
+(terminal bileşenler:       (multi-agent: plan → execute → review;
+ fuzzy-picker, slashmenu,   researcher/coder/reviewer rolleri;
+ select-input, masked-input) subagent.js üzerinden çalışır)
 ```
 
 **İki katmanlı routing:** Her kullanıcı girdisi `router.js:decide()` tarafından
@@ -134,3 +149,33 @@ dile göre oluşturur.
 **Checkpoint / oturum ağacı:** `core/checkpoint.js` + `core/persist.js` —
 konuşmalar `~/.orion/sessions/` altında JSON olarak saklanır; dal/geri yükleme
 `/checkpoint`, `/oturum` komutlarıyla yönetilir.
+
+**Multi-agent koordinatör:** `core/coordinator.js` bir görevi plan → execute → review
+aşamalarına böler. researcher/coder/reviewer rolleri `core/subagent.js` ile ayrı
+bağımsız LLM çağrılarında çalıştırılır; `/swarm` komutuyla tetiklenir.
+
+**Statik analiz:** `core/commands/entropy.js` — `/entropy [dir] [--explain]`
+komutu; AST bağımlılığı olmadan regex+brace-counting ile CC/LOC/nesting/MI
+ölçer. `--explain` bayrağıyla yerel modele özet ürettirir. Raporlar
+`~/.orion/reports/entropy-<tarih>.md` olarak kaydedilir.
+
+**TUI modülü:** `tui/` (eski `core/tui/`'dan taşındı) — `tui/index.js` terminale
+`C` (renk), `print`, `spinner`, `aiTurnStart/Continue` dışa aktarır. Diğer
+bileşenler: `fuzzy-picker.js`, `slashmenu.js`, `select-input.js`, `masked-input.js`.
+
+**Workspace güven kapısı:** `core/workspace.js` — Orion daha önce onaylanmamış
+bir dizinde açıldığında kullanıcıya "trust this folder?" sorar; onay
+`~/.orion/config.json:trustedPaths[]` altına kalıcı yazılır. Reddedilirse
+süreç çıkar.
+
+**Git araçları:** `tools/git.js` — `git_status`/`git_diff`/`git_log` gibi
+salt-okunur komutlar serbestçe çalışır; yazan komutlar (`git_commit` vb.)
+`run_command` onay akışına tabidir. Sonuçlar `spawnSync` ile üretilir, repo
+kökü `cwd` parametresiyle sınırlanır.
+
+**Ek backend:** `backends/nim.js` — NVIDIA NIM uç noktası, `openai-compat`
+fabrikasının dışında ayrı bir backend dosyası olarak eklendi.
+
+**Yeni komutlar:** `core/commands/` altında `compact.js` (bağlam sıkıştırma),
+`entropy.js` (statik analiz), `log.js`, `moltbook.js`, `workflow.js` —
+`core/commands/index.js` üzerinden dispatch edilir.

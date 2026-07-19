@@ -23,9 +23,11 @@ let _enc = null;
 function _getEnc() {
   if (_enc) return _enc;
   try {
-    const { get_encoding } = require("js-tiktoken");
-    _enc = get_encoding("cl100k_base");
-  } catch {}
+    const { getEncoding } = require("js-tiktoken");
+    _enc = getEncoding("cl100k_base");
+  } catch (err) {
+    require("./events.js").emitSilentCatch("budget.js:_getEnc", err, null, "tiktoken-import");
+  }
   return _enc;
 }
 

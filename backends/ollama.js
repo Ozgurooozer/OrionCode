@@ -2,6 +2,20 @@
 "use strict";
 const http = require("http");
 
+/**
+ * @typedef {Object} _RequestOpts
+ * @property {(obj: Object) => void} [onLine] - called for each parsed NDJSON line
+ */
+
+/**
+ * @typedef {Object} OllamaChatOpts
+ * @property {(token: string) => void} [onToken]  - streaming callback per text delta
+ * @property {boolean}                 [stream]   - enable streaming (default true)
+ * @property {number}                  [numCtx]   - context window size (default 8192)
+ * @property {string}                  [system]   - system prompt injected as first message
+ * @property {Array<Object>}           [tools]    - Anthropic-format tool definitions
+ */
+
 const HOST = process.env.OLLAMA_HOST ?? "localhost";
 const PORT = parseInt(process.env.OLLAMA_PORT ?? "11434");
 
@@ -30,6 +44,11 @@ async function isAvailable() {
   return models.length > 0;
 }
 
+/**
+ * @param {string} body
+ * @param {_RequestOpts} [opts]
+ * @returns {Promise<void>}
+ */
 function _request(body, { onLine } = {}) {
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -68,7 +87,12 @@ function _request(body, { onLine } = {}) {
   });
 }
 
-// Eski imza — string döndürür
+/**
+ * Eski imza — string döndürür
+ * @param {string} model
+ * @param {Array<Object>} messages
+ * @param {OllamaChatOpts} [opts]
+ */
 function chat(model, messages, { onToken, stream = true, numCtx = 8192 } = {}) {
   const body = JSON.stringify({ model, messages, stream, options: { num_ctx: numCtx } });
   let full = "";
@@ -97,6 +121,9 @@ function _toTools(defs) {
  * chatRich — native tool calling.
  * → { text, toolCalls: [{id, name, input}] }
  * Model tool desteklemiyorsa Error fırlatır (err.noToolSupport = true).
+ * @param {string} model
+ * @param {Array<Object>} messages
+ * @param {OllamaChatOpts} [opts]
  */
 async function chatRich(model, messages, { system, tools, onToken, numCtx = 8192 } = {}) {
   const allMessages = system

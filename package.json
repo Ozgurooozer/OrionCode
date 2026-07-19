@@ -10,9 +10,17 @@
     "test": "node --test \"tests/**/*.test.js\"",
     "start": "node orion.js",
     "server": "node orion-server.js",
-    "bench": "node scripts/bench.js"
+    "bench": "node scripts/bench.js",
+    "typecheck": "tsc --noEmit"
   },
-  "keywords": ["cli", "coding-agent", "byok", "mcp", "ollama", "anthropic"],
+  "keywords": [
+    "cli",
+    "coding-agent",
+    "byok",
+    "mcp",
+    "ollama",
+    "anthropic"
+  ],
   "author": "Ozyn",
   "license": "MIT",
   "repository": {
@@ -26,5 +34,9 @@
     "chalk": "^4.1.2",
     "commander": "^15.0.0",
     "js-tiktoken": "^1.0.21"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2"
   }
 }

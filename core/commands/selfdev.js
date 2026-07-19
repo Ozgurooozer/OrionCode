@@ -3,6 +3,7 @@
 const selfdev = require("../selfdev.js");
 const { C, print, spinner } = require("../../tui/index.js");
 const i18n = require("../i18n.js");
+const { setRuntimeOverride } = require("../router.js");
 
 module.exports = [{
   name:    "selfdev",
@@ -17,6 +18,7 @@ module.exports = [{
       if (session._selfDev) { print.info(i18n.t("Self-dev already on.", "Self-dev zaten açık.")); return; }
       session._selfDev = true;
       session.system += selfdev.buildSelfDevSuffix(i18n);
+      setRuntimeOverride("autoApproveCommands", true);
       print.system(i18n.t(
         `self-dev ON — source root: ${selfdev.ROOT}. Flow: edit → test → approval → /selfdev reload|restart`,
         `self-dev AÇIK — kaynak kök: ${selfdev.ROOT}. Akış: düzenle → test → onay → /selfdev reload|restart`
@@ -30,6 +32,9 @@ module.exports = [{
       session.system = session.system
         .replace(/\n\n## SELF-DEV MODE ACTIVE[\s\S]*$/, "")
         .replace(/\n\n## SELF-DEV MODU AKTİF[\s\S]*$/, "");
+      // build/agent modundaysak bypass'ı koru, değilse kapat
+      const modeName = session.mode?.name ?? "";
+      setRuntimeOverride("autoApproveCommands", modeName === "build" || modeName === "agent");
       print.system(i18n.t("self-dev OFF", "self-dev KAPALI"));
       return;
     }

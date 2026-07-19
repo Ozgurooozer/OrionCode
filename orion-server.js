@@ -8,6 +8,7 @@
 //   GET  /health            → { ok: true }
 //   GET  /status            → sunucu + aktif oturum özetleri
 //   GET  /sessions          → kayıtlı oturum listesi
+//   GET  /backends          → kullanılabilir backend + model listesi (Electron model seçici için)
 //   POST /chat              → { text, sessionId?, backend?, model? } → { sessionId, text }
 //   POST /message           → { to: <id>|"all", text, from? } — swarm: oturuma mesaj bırak
 //   GET  /events            → SSE canlı olay akışı (?sessionId= filtre)
@@ -70,6 +71,18 @@ function authorized(req) {
 // ── Oturum havuzu — istek başına değil, sessionId başına bir Session ────────
 const SESSIONS = new Map(); // id → { session, busy: Promise }
 const startedAt = Date.now();
+
+// ── Komut çalıştırma mutex — stdout yakalama çakışmasını önler ───────────────
+// Birden fazla istemci eş zamanlı /command gönderirse stdout yakalama
+// birbirini bozar; bu mutex tüm komut çalıştırmalarını sıraya koyar.
+let _cmdLock = Promise.resolve();
+async function withCmdLock(fn) {
+  const prev = _cmdLock;
+  let release;
+  _cmdLock = new Promise(r => { release = r; });
+  await prev;
+  try { return await fn(); } finally { release(); }
+}
 
 // ── Swarm-lite: dosya çakışma tespiti ────────────────────────────────────────
 // Bir oturum dosya yazınca kaydedilir; başka bir oturum 10 dk içinde aynı
@@ -155,6 +168,14 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, persist.list());
     }
 
+    // ── GET /backends — kullanılabilir backend + model listesi ─────────────
+    // Electron/masaüstü istemcinin model seçici dropdown'u için — orion.js'in
+    // startup'ta backends.detect() ile yaptığı taramanın HTTP karşılığı.
+    if (req.method === "GET" && url.pathname === "/backends") {
+      const found = await backends.detect();
+      return json(res, 200, { backends: found });
+    }
+
     // ── GET /events — SSE canlı olay akışı ─────────────────────────────────
     // Kullanım: GET /events?sessionId=<id>   (sessionId opsiyonel: yoksa tüm olaylar gelir)
     // SSE format: "data: <JSON>\n\n" — her olay bir NDJSON satırı
@@ -224,6 +245,130 @@ const server = http.createServer(async (req, res) => {
         text,
         status: entry.session.statusInfo(),
       });
+    }
+
+    // ── GET /commands — komut listesi (Electron komut paleti için) ──────────
+    if (req.method === "GET" && url.pathname === "/commands") {
+      const commands = require("./core/commands/index.js");
+      const list = commands.all().map(cmd => ({
+        name:    cmd.name,
+        aliases: cmd.aliases ?? [],
+        desc:    cmd.desc    ?? "",
+        usage:   cmd.usage   ?? `/${cmd.name}`,
+        group:   cmd.group   ?? "",
+      }));
+      return json(res, 200, { commands: list });
+    }
+
+    // ── POST /command — komut çalıştır, stdout yakala ────────────────────────
+    // { name, args?, sessionId? } → { sessionId, output: string[], status }
+    //
+    // stdout + stderr yakalanır, ANSI kaçış kodları soyulur ve satır dizisi
+    // döndürülür. Eş zamanlı istekler mutex ile sıraya alınır (yakalama
+    // çakışmasını önler).
+    if (req.method === "POST" && url.pathname === "/command") {
+      const body = JSON.parse(await readBody(req) || "{}");
+      const { name, args = [], sessionId } = body;
+      if (!name || typeof name !== "string")
+        return json(res, 400, { error: "'name' alanı gerekli" });
+
+      const entry = await getSession(sessionId);
+
+      const ANSI_RE = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\x07]*\x07)/g;
+
+      const output = await withCmdLock(async () => {
+        const lines = [];
+
+        const capture = (chunk) => {
+          const raw  = typeof chunk === "string" ? chunk : chunk.toString("utf8");
+          // ANSI kodlarını ve iç stash işaretlerini (highlightCode) soy
+          const text = raw.replace(ANSI_RE, "").replace(/\x00\d+\x00/g, "");
+          for (const part of text.split("\n")) {
+            const t = part.replace(/\r/g, "").trimEnd();
+            if (t.trim()) lines.push(t);
+          }
+          return true; // "başarıyla yazıldı" sinyali
+        };
+
+        const origOut = process.stdout.write.bind(process.stdout);
+        const origErr = process.stderr.write.bind(process.stderr);
+        process.stdout.write = capture;
+        process.stderr.write = capture;
+
+        // Readline arayüzü gerektiren komutlar (fuzzyPicker, soru soran)
+        // için sessiz mock — TUI bileşeni Electron'da çalışmaz.
+        const mockRl = {
+          question: (_, cb)   => cb(""),
+          pause:    ()        => {},
+          resume:   ()        => {},
+          write:    ()        => {},
+          close:    ()        => {},
+        };
+
+        try {
+          const commands = require("./core/commands/index.js");
+          await commands.dispatch(name, Array.isArray(args) ? args : String(args).split(/\s+/), {
+            session: entry.session,
+            rl:      mockRl,
+          });
+        } catch (e) {
+          lines.push(`✗ ${e.message}`);
+        } finally {
+          process.stdout.write = origOut;
+          process.stderr.write = origErr;
+        }
+
+        return lines;
+      });
+
+      return json(res, 200, {
+        sessionId: entry.session.id,
+        output,
+        status: entry.session.statusInfo(),
+      });
+    }
+
+    // ── GET /sessions/:id — oturum detayı (mesajlar dahil) ──────────────────
+    {
+      const m = url.pathname.match(/^\/sessions\/([a-f0-9]{1,16})$/);
+      if (req.method === "GET" && m) {
+        const id   = m[1];
+        const data = persist.load(id);
+        if (!data) return json(res, 404, { error: `oturum bulunamadı: ${id}` });
+
+        const messages = (data.messages ?? [])
+          .filter(msg => msg.role !== "system")
+          .map(msg => {
+            const text = typeof msg.content === "string"
+              ? msg.content
+              : Array.isArray(msg.content)
+                ? msg.content.filter(b => b.type === "text").map(b => b.text).join("")
+                : "";
+            return { role: msg.role, text };
+          })
+          .filter(msg => msg.text.trim());
+
+        return json(res, 200, {
+          id:        data.id ?? id,
+          backend:   data.backend,
+          model:     data.model,
+          mode:      data.mode,
+          updatedAt: data.updatedAt,
+          msgCount:  data.messages?.length ?? 0,
+          messages,
+        });
+      }
+    }
+
+    // ── GET /config — ~/.orion/config.json ──────────────────────────────────
+    if (req.method === "GET" && url.pathname === "/config") {
+      try {
+        const cfgPath = path.join(os.homedir(), ".orion", "config.json");
+        const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8"));
+        return json(res, 200, { config: cfg });
+      } catch {
+        return json(res, 200, { config: {} });
+      }
     }
 
     return json(res, 404, { error: "bilinmeyen uç: " + url.pathname });
