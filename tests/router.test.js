@@ -7,7 +7,7 @@ process.env.ORION_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "orion-test-"));
 
 const { test } = require("node:test");
 const assert = require("node:assert");
-const router = require("../core/router.js");
+const router = require("../core/router.ts");
 
 test("loadConfig: dosya yokken varsayılanlar döner", () => {
   const cfg = router.loadConfig();

@@ -1,8 +1,8 @@
-// core/commands/ayar.js — Persistent config settings
+// core/commands/settings.js — Persistent config settings
 "use strict";
 const { C }     = require("../../tui/colors.ts");
 const { print } = require("../../tui/output.ts");
-const router = require("../router.js");
+const router = require("../router.ts");
 const i18n = require("../i18n.js");
 
 module.exports = [{
@@ -59,7 +59,7 @@ module.exports = [{
       const host = args[1];
       if (!host) { print.error(i18n.t("Usage: /settings ollama <http://localhost:11434>", "Kullanım: /ayar ollama <http://localhost:11434>")); return; }
       router.saveConfig({ ollamaHost: host });
-      // Mevcut süreç için de hemen aktif et (backends/ollama.js ve embed.js lazy okur)
+      // Mevcut süreç için de hemen aktif et (backends/ollama.ts ve embed.js lazy okur)
       try {
         const u = new URL(host.startsWith("http") ? host : "http://" + host);
         process.env.OLLAMA_HOST = u.hostname;

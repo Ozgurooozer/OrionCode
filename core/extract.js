@@ -2,7 +2,7 @@
 "use strict";
 
 function _loadConfig() {
-  try { return require("./router.js").loadConfig(); }
+  try { return require("./router.ts").loadConfig(); }
   catch { return {}; }
 }
 
@@ -165,7 +165,7 @@ async function extractWithOllama(conversationText) {
 
   // Görünürlük: manuel yedeğe düşüş "başarı" değil — nedeni olay kanalına yaz.
   // Dönen objedeki "manuel" etiketi ayrımı korur; olay hata sebebini taşır.
-  require("./events.js").emitSilentCatch(
+  require("./events.ts").emitSilentCatch(
     "extract.js:extractWithOllama",
     lastErr ?? "3 denemede geçerli JSON/summary alınamadı",
     null,

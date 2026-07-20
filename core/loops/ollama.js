@@ -29,7 +29,7 @@ function _toCompatHistory(history) {
 }
 
 module.exports = async function ollamaLoop(session) {
-  const ollama = require("../../backends/ollama.js");
+  const ollama = require("../../backends/ollama.ts");
   const allowedDefs = session.modes.filterDefs(tools.getDefs()).filter(d => TIER1_TOOLS.has(d.name));
   const useTools = session.mode.allowTools && allowedDefs.length > 0;
   const history  = _flattenMsgs(session.msgs);

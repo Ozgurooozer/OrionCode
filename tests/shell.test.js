@@ -38,7 +38,7 @@ test("run_command: headless + autoApprove olmadan reddedilir", async () => {
 
 test("run_command: autoApproveCommands ile çalışır", async () => {
   // Config mock: autoApproveCommands:true
-  const routerMod = require("../core/router.js");
+  const routerMod = require("../core/router.ts");
   const origLoad = routerMod.loadConfig;
   routerMod.loadConfig = () => ({ autoApproveCommands: true });
 
@@ -53,7 +53,7 @@ test("run_command: autoApproveCommands ile çalışır", async () => {
 });
 
 test("run_command: exit kodu ≠ 0 ise [exit N] prefix", async () => {
-  const routerMod = require("../core/router.js");
+  const routerMod = require("../core/router.ts");
   const origLoad = routerMod.loadConfig;
   routerMod.loadConfig = () => ({ autoApproveCommands: true });
 
@@ -68,7 +68,7 @@ test("run_command: exit kodu ≠ 0 ise [exit N] prefix", async () => {
 });
 
 test("run_command: env parametresi ortam değişkeni geçirir", async () => {
-  const routerMod = require("../core/router.js");
+  const routerMod = require("../core/router.ts");
   const origLoad = routerMod.loadConfig;
   routerMod.loadConfig = () => ({ autoApproveCommands: true });
 

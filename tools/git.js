@@ -113,7 +113,7 @@ function _run(args, cwd) {
 
 async function _askApproval(label) {
   if (process.argv.includes("--headless")) return false;
-  const cfg = require("../core/router.js").loadConfig();
+  const cfg = require("../core/router.ts").loadConfig();
   if (cfg.autoApproveCommands) return true;
   if (process.stdin.isTTY && process.stdout.isTTY) {
     const { selectInput } = require("../tui/select-input.js");

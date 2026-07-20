@@ -178,7 +178,7 @@ if (isMainThread) {
 
     // Ortak extract modülünü kullan — tool_use/result episodic köprü; thinking high modda
     const { extractWithOllama, flattenMessages } = require("./extract.js");
-    const { getEffectiveMemoryEffort }           = require("./router.js");
+    const { getEffectiveMemoryEffort }           = require("./router.ts");
     const includeThinking = getEffectiveMemoryEffort() === "high";
     const msgs = flattenMessages(data.messages, { includeTool: true, includeThinking });
     const conversationText = `Oturum ${sessionId}:\n${msgs}`;
@@ -275,7 +275,7 @@ if (isMainThread) {
       if (entries.length < 3) return; // yeterli veri yok
 
       const { ollamaRequest } = require("./extract.js");
-      const { loadConfig } = require("./router.js");
+      const { loadConfig } = require("./router.ts");
       const model = loadConfig().tier1Model;
 
       const sessionLines = entries.map(e =>
@@ -352,7 +352,7 @@ ${sessionLines}`;
       if (!idle) return;
 
       const { ollamaRequest } = require("./extract.js");
-      const { loadConfig } = require("./router.js");
+      const { loadConfig } = require("./router.ts");
       const _mineModel = loadConfig().tier1Model;
 
       const toolSection = candidates.map(g =>

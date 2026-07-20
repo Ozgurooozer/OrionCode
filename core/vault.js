@@ -83,7 +83,7 @@ function _withIndexLock(fn) {
 
 function getVaultDir() {
   try {
-    return require("./router.js").loadConfig().vaultDir ?? DEFAULT_VAULT;
+    return require("./router.ts").loadConfig().vaultDir ?? DEFAULT_VAULT;
   } catch { return DEFAULT_VAULT; }
 }
 
@@ -258,7 +258,7 @@ async function writeSession(sessionId, data, knowledge) {
     // Vektör yazılamadı → oturum vault'a girer ama semantik aramada görünmez olur.
     const { print } = require("../tui/output.ts");
     print.warn(`vault: vector write failed (semantic search degraded): ${err.message}`);
-    require("./events.js").emitSilentCatch("vault.js:writeSession", err, sessionId, "vectors");
+    require("./events.ts").emitSilentCatch("vault.js:writeSession", err, sessionId, "vectors");
   }
 
   // index.html + graph.html yeniden oluştur
@@ -266,7 +266,7 @@ async function writeSession(sessionId, data, knowledge) {
   try { rebuildGraph(vaultDir); }
   catch (err) {
     // graph.html sessizce bayat kalır — kullanıcıya sunulan bir görünüm; olayla bildir.
-    require("./events.js").emitSilentCatch("vault.js:writeSession", err, sessionId, "rebuildGraph");
+    require("./events.ts").emitSilentCatch("vault.js:writeSession", err, sessionId, "rebuildGraph");
   }
 
   return { file: fname, id: sessionId };
@@ -314,7 +314,7 @@ async function searchVault(queryText, limit = 5) {
   } catch (err) {
     // Embedding araması hatayla düştü — anahtar-kelime yedeği sonuç döndürse de
     // semantik yolun kaybını gizler; olayla ayırt edilir kıl, sonra yedeğe in.
-    require("./events.js").emitSilentCatch("vault.js:searchVault", err, null, "keyword-fallback");
+    require("./events.ts").emitSilentCatch("vault.js:searchVault", err, null, "keyword-fallback");
     return _keywordSearch(index, queryText, limit);
   }
 }

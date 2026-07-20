@@ -22,7 +22,7 @@ const DEFS = [
 ];
 
 async function _askApproval(command) {
-  const cfg = require("../core/router.js").loadConfig();
+  const cfg = require("../core/router.ts").loadConfig();
   if (cfg.autoApproveCommands) return true;
   // Güvenilir workspace'de komutlar otomatik onaylanır (etkileşimli modda gösterilir)
   const ws = require("../core/workspace.js");
@@ -105,7 +105,7 @@ function _runStreaming(command, cwd, timeoutMs, extraEnv) {
 async function execute(name, input) {
   if (name !== "run_command") return `Bilinmeyen araç: ${name}`;
 
-  const cfg       = require("../core/router.js").loadConfig();
+  const cfg       = require("../core/router.ts").loadConfig();
   const isHeadless = process.argv.includes("--headless");
   // ORION_ALLOW_COMMANDS: coordinator subagent'ları içten güvenilirdir — onay atlı
   const innerAgent = process.env.ORION_ALLOW_COMMANDS === "1";

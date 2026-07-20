@@ -1,4 +1,4 @@
-// core/commands/hafiza.js — Memory: list / search / add / delete
+// core/commands/memory.js — Memory: list / search / add / delete
 "use strict";
 const { C }     = require("../../tui/colors.ts");
 const { print } = require("../../tui/output.ts");

@@ -7,7 +7,7 @@ const { test } = require("node:test");
 const assert   = require("node:assert");
 
 const { SpeculativeCache, startPrefetch } = require("../core/speculex.js");
-const { emitter } = require("../core/events.js");
+const { emitter } = require("../core/events.ts");
 
 // Olay toplayıcı — dinleyiciyi eklerken kaldırma fonksiyonunu döndürür
 function collectEvents(types) {
@@ -63,7 +63,7 @@ test("KATI SINIR: write_file/edit_file/run_command spekülatif tetiklenemez", as
 
 // ── Test 2: isabet — _callToolCached önbellekten döner ve speculex_hit yayınlar ─
 test("_callToolCached: isabet → önbellekten anında dönüş + speculex_hit olayı", async () => {
-  const { _callToolCached } = require("../core/session.js");
+  const { _callToolCached } = require("../core/session.ts");
   const tools = require("../core/tools.js");
   const origCall = tools.callTool;
 
@@ -99,7 +99,7 @@ test("_callToolCached: isabet → önbellekten anında dönüş + speculex_hit o
 // set() çitini bypass edip _cache'e doğrudan write_file girdisi yazılsa dahi
 // get() tarafındaki SAFE_TOOLS çiti önbellekten dönüşü engeller: gerçek araç çalışır.
 test("_callToolCached: zorla enjekte edilmiş write_file girdisi asla isabet almaz", async () => {
-  const { _callToolCached } = require("../core/session.js");
+  const { _callToolCached } = require("../core/session.ts");
   const tools = require("../core/tools.js");
   const origCall = tools.callTool;
 
@@ -125,7 +125,7 @@ test("_callToolCached: zorla enjekte edilmiş write_file girdisi asla isabet alm
 
 // ── Test 4: ıska süpürmesi — tüketilmeyen tahminler speculex_miss olarak yayınlanır ─
 test("_sweepSpeculexMisses: kullanılmayan tahmin ıska, tüketilen değil; generation çiti", () => {
-  const { _sweepSpeculexMisses } = require("../core/session.js");
+  const { _sweepSpeculexMisses } = require("../core/session.ts");
 
   const cache = new SpeculativeCache();
   cache.set("read_file", { path: "/a" }, "içerik a");

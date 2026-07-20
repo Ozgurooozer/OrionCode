@@ -8,7 +8,7 @@ require("./core/accounts.js").applyActive(); // aktif hesap profili credentials 
 
 const readline = require("readline");
 const backends = require("./backends/index.js");
-const { Session, interrupt, clearInterrupt } = require("./core/session.js");
+const { Session, interrupt, clearInterrupt } = require("./core/session.ts");
 const { C, print, renderMarkdown, makeInputPrompt, finishUserTurn, refreshInputFill,
         inputBoxTop, renderMenuBelow, clearMenuBelow,
         showInputPlaceholder, clearInputPlaceholder } = require("./tui/index.js");
@@ -291,7 +291,7 @@ async function main() {
 
   // Dosya değişikliklerinde renkli diff — edit_file/write_file sonrası CLI'da göster
   if (!isHeadless) {
-    const orionEvents = require("./core/events.js");
+    const orionEvents = require("./core/events.ts");
     orionEvents.emitter.on("diff", ({ payload }) => {
       if (payload?.diff) print.diff(payload.diff);
     });

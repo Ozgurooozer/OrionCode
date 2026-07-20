@@ -1,26 +1,19 @@
-// backends/ollama.js — yerel modeller, native tool calling destekli
+// backends/ollama.ts — yerel modeller, native tool calling destekli
 "use strict";
-const http = require("http");
+import type * as HttpType from "http";
+import type { ToolDef, ToolCall, ChatRichResult, ChatMessage, ChatRichOpts, ChatOpts, BackendError } from "./types.ts";
 
-/**
- * @typedef {Object} _RequestOpts
- * @property {(obj: Object) => void} [onLine] - called for each parsed NDJSON line
- */
+const http = require("http") as typeof HttpType;
 
-/**
- * @typedef {Object} OllamaChatOpts
- * @property {(token: string) => void} [onToken]  - streaming callback per text delta
- * @property {boolean}                 [stream]   - enable streaming (default true)
- * @property {number}                  [numCtx]   - context window size (default 8192)
- * @property {string}                  [system]   - system prompt injected as first message
- * @property {Array<Object>}           [tools]    - Anthropic-format tool definitions
- */
+interface _RequestOpts {
+  onLine?: (obj: any) => void;  // called for each parsed NDJSON line
+}
 
 // Lazy: /settings ollama runtime'da OLLAMA_HOST/PORT env'i günceller → anında aktif
-const _host = () => process.env.OLLAMA_HOST ?? "localhost";
-const _port = () => parseInt(process.env.OLLAMA_PORT ?? "11434");
+const _host = (): string => process.env.OLLAMA_HOST ?? "localhost";
+const _port = (): number => parseInt(process.env.OLLAMA_PORT ?? "11434");
 
-async function listModels() {
+async function listModels(): Promise<string[]> {
   return new Promise(resolve => {
     const req = http.request(
       { hostname: _host(), port: _port(), path: "/api/tags", method: "GET" },
@@ -29,7 +22,7 @@ async function listModels() {
         res.on("data", c => (d += c));
         res.on("end", () => {
           try {
-            resolve(JSON.parse(d).models?.map(m => m.name) ?? []);
+            resolve(JSON.parse(d).models?.map((m: any) => m.name) ?? []);
           } catch { resolve([]); }
         });
       }
@@ -40,17 +33,12 @@ async function listModels() {
   });
 }
 
-async function isAvailable() {
+async function isAvailable(): Promise<boolean> {
   const models = await listModels();
   return models.length > 0;
 }
 
-/**
- * @param {string} body
- * @param {_RequestOpts} [opts]
- * @returns {Promise<void>}
- */
-function _request(body, { onLine } = {}) {
+function _request(body: string, { onLine }: _RequestOpts = {}): Promise<void> {
   return new Promise((resolve, reject) => {
     const req = http.request(
       {
@@ -88,13 +76,8 @@ function _request(body, { onLine } = {}) {
   });
 }
 
-/**
- * Eski imza — string döndürür
- * @param {string} model
- * @param {Array<Object>} messages
- * @param {OllamaChatOpts} [opts]
- */
-function chat(model, messages, { onToken, stream = true, numCtx = 8192 } = {}) {
+/** Eski imza — string döndürür */
+function chat(model: string, messages: ChatMessage[], { onToken, stream = true, numCtx = 8192 }: ChatOpts = {}): Promise<string> {
   const body = JSON.stringify({ model, messages, stream, options: { num_ctx: numCtx } });
   let full = "";
   return _request(body, {
@@ -107,7 +90,7 @@ function chat(model, messages, { onToken, stream = true, numCtx = 8192 } = {}) {
 }
 
 // Anthropic-tarzı def → Ollama/OpenAI tool formatı
-function _toTools(defs) {
+function _toTools(defs: ToolDef[] | undefined) {
   return (defs ?? []).map(d => ({
     type: "function",
     function: {
@@ -122,16 +105,13 @@ function _toTools(defs) {
  * chatRich — native tool calling.
  * → { text, toolCalls: [{id, name, input}] }
  * Model tool desteklemiyorsa Error fırlatır (err.noToolSupport = true).
- * @param {string} model
- * @param {Array<Object>} messages
- * @param {OllamaChatOpts} [opts]
  */
-async function chatRich(model, messages, { system, tools, onToken, numCtx = 8192 } = {}) {
+async function chatRich(model: string, messages: ChatMessage[], { system, tools, onToken, numCtx = 8192 }: ChatRichOpts = {}): Promise<ChatRichResult> {
   const allMessages = system
     ? [{ role: "system", content: system }, ...messages]
     : messages;
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     model,
     messages: allMessages,
     stream:   true,
@@ -140,7 +120,7 @@ async function chatRich(model, messages, { system, tools, onToken, numCtx = 8192
   if (tools?.length) payload.tools = _toTools(tools);
 
   let text = "";
-  const toolCalls = [];
+  const toolCalls: ToolCall[] = [];
   try {
     await _request(JSON.stringify(payload), {
       onLine: obj => {
@@ -158,11 +138,12 @@ async function chatRich(model, messages, { system, tools, onToken, numCtx = 8192
         }
       },
     });
-  } catch (err) {
-    if (/does not support tools/i.test(err.message)) err.noToolSupport = true;
+  } catch (err: any) {
+    const e = err as BackendError;
+    if (/does not support tools/i.test(e.message)) e.noToolSupport = true;
     // qwen2.5 ve bazı modellerin Jinja şablonu role:"tool" mesajlarını işleyemiyor
-    if (/Jinja|No user query found/i.test(err.message)) err.ollamaJinjaError = true;
-    throw err;
+    if (/Jinja|No user query found/i.test(e.message)) e.ollamaJinjaError = true;
+    throw e;
   }
   return { text, toolCalls: toolCalls.filter(c => c.name) };
 }

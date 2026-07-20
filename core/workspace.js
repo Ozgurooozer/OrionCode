@@ -6,14 +6,14 @@ const path    = require("path");
 const readline = require("readline");
 
 function isTrusted(dir) {
-  const { loadConfig } = require("./router.js");
+  const { loadConfig } = require("./router.ts");
   const trusted = loadConfig().trustedPaths ?? [];
   const resolved = path.resolve(dir);
   return trusted.some(p => path.resolve(p) === resolved);
 }
 
 function trustDir(dir) {
-  const { loadConfig, saveConfig } = require("./router.js");
+  const { loadConfig, saveConfig } = require("./router.ts");
   const resolved = path.resolve(dir);
   const trusted  = (loadConfig().trustedPaths ?? []).filter(p => p !== resolved);
   trusted.push(resolved);

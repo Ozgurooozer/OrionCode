@@ -5,7 +5,7 @@ const { C }       = require("../../tui/colors.ts");
 const { print }   = require("../../tui/output.ts");
 const { spinner } = require("../../tui/index.js");
 const i18n = require("../i18n.js");
-const { setRuntimeOverride } = require("../router.js");
+const { setRuntimeOverride } = require("../router.ts");
 
 module.exports = [{
   name:    "selfdev",

@@ -19,7 +19,7 @@
  */
 
 const tools  = require("./tools.js");
-const events = require("./events.js");
+const events = require("./events.ts");
 
 // events.emit hiçbir koşulda speculex akışını kırmasın — spekülasyon hatası
 // kullanıcıya asla yansımaz ama olay kanalından izlenebilir kalır.

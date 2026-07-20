@@ -1,9 +1,9 @@
-// core/commands/mod.js — Working mode
+// core/commands/mode.js — Working mode
 "use strict";
 const { C }     = require("../../tui/colors.ts");
 const { print } = require("../../tui/output.ts");
 const i18n = require("../i18n.js");
-const { setRuntimeOverride } = require("../router.js");
+const { setRuntimeOverride } = require("../router.ts");
 
 const AUTO_APPROVE_MODES = new Set(["build", "agent"]);
 

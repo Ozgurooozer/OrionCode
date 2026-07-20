@@ -1,4 +1,4 @@
-// core/commands/yardim.js — Command list
+// core/commands/help.js — Command list
 "use strict";
 const { C } = require("../../tui/colors.ts");
 const i18n = require("../i18n.js");

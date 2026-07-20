@@ -21,7 +21,7 @@ const VAULT_DIR = path.join(HOME_BASE, ".orion", "vault", "sessions");
 fs.mkdirSync(VAULT_DIR, { recursive: true });
 
 const { execute } = require("../tools/fs.js");
-const { emitter } = require("../core/events.js");
+const { emitter } = require("../core/events.ts");
 
 // ── 1: Çalışma alanı içine yazma çalışır ─────────────────────────────────────
 test("sandbox: workspace içine write_file izinli", () => {

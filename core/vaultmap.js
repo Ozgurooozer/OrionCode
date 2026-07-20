@@ -164,7 +164,7 @@ async function buildMap(vaultDir) {
 
   if (vecs.length < 3) return null; // yeterli veri yok
 
-  const { loadConfig } = require("./router.js");
+  const { loadConfig } = require("./router.ts");
   const model = loadConfig().tier1Model ?? "qwen2.5-coder:7b";
 
   // Ortak oturum bilgilerini birleştir

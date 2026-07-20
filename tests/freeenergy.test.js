@@ -97,20 +97,20 @@ test("FEP: isEnabled/setEnabled config'de freeEnergyMode yazar", () => {
   const cfgPath = path.join(HOME, ".orion", "config.json");
   fs.writeFileSync(cfgPath, JSON.stringify({ freeEnergyMode: false }));
 
-  delete require.cache[require.resolve("../core/router.js")];
+  delete require.cache[require.resolve("../core/router.ts")];
   delete require.cache[require.resolve("../core/freeenergy.js")];
   const { isEnabled: ie, setEnabled: se } = require("../core/freeenergy.js");
 
   assert.strictEqual(ie(), false, "başlangıçta kapalı olmalı");
   se(true);
-  delete require.cache[require.resolve("../core/router.js")];
+  delete require.cache[require.resolve("../core/router.ts")];
   delete require.cache[require.resolve("../core/freeenergy.js")];
   const { isEnabled: ie2 } = require("../core/freeenergy.js");
   assert.strictEqual(ie2(), true, "setEnabled(true) sonrası açık olmalı");
 
   // Temizle
   try { fs.unlinkSync(cfgPath); } catch {}
-  delete require.cache[require.resolve("../core/router.js")];
+  delete require.cache[require.resolve("../core/router.ts")];
   delete require.cache[require.resolve("../core/freeenergy.js")];
 });
 
@@ -118,7 +118,7 @@ test("FEP: isEnabled/setEnabled config'de freeEnergyMode yazar", () => {
 test("/router freeenergy: subcommand tanınır, hata vermez", async () => {
   delete require.cache[require.resolve("../core/commands/router.js")];
   delete require.cache[require.resolve("../core/freeenergy.js")];
-  delete require.cache[require.resolve("../core/router.js")];
+  delete require.cache[require.resolve("../core/router.ts")];
   const cmd = require("../core/commands/router.js")[0];
   await assert.doesNotReject(() => cmd.exec({ args: ["freeenergy"] }), "status sorgusu hata vermemeli");
   await assert.doesNotReject(() => cmd.exec({ args: ["freeenergy", "on"] }), "freeenergy on hata vermemeli");

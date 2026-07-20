@@ -6,8 +6,8 @@ const assert   = require("node:assert");
 
 // ── Test 1: emit() standart şema üretir ───────────────────────────────────────
 test("emit: {type, sessionId, timestamp, payload} şeması", () => {
-  delete require.cache[require.resolve("../core/events.js")];
-  const { emit, emitter } = require("../core/events.js");
+  delete require.cache[require.resolve("../core/events.ts")];
+  const { emit, emitter } = require("../core/events.ts");
 
   const seen = [];
   emitter.once("event", e => seen.push(e));
@@ -24,7 +24,7 @@ test("emit: {type, sessionId, timestamp, payload} şeması", () => {
 
 // ── Test 2: toNDJSON satır sonu ile NDJSON üretir ─────────────────────────────
 test("toNDJSON: JSON + satır sonu", () => {
-  const { emit, toNDJSON } = require("../core/events.js");
+  const { emit, toNDJSON } = require("../core/events.ts");
   const ev   = emit("session_saved", "s1", { sessionId: "s1" });
   const line = toNDJSON(ev);
   assert.ok(line.endsWith("\n"), "satır sonu olmalı");
@@ -35,7 +35,7 @@ test("toNDJSON: JSON + satır sonu", () => {
 
 // ── Test 3: sessionId null olabilir ──────────────────────────────────────────
 test("emit: sessionId null → payload'a geçer", () => {
-  const { emit } = require("../core/events.js");
+  const { emit } = require("../core/events.ts");
   const ev = emit("error", null, { message: "test hatası" });
   assert.strictEqual(ev.sessionId, null);
   assert.strictEqual(ev.payload.message, "test hatası");
@@ -43,7 +43,7 @@ test("emit: sessionId null → payload'a geçer", () => {
 
 // ── Test 4: callTool → tool_start + tool_end yayınlanır ──────────────────────
 test("callTool: tool_start ve tool_end olayları yayınlanır", async () => {
-  const { emitter } = require("../core/events.js");
+  const { emitter } = require("../core/events.ts");
 
   // tools.js modülünü temizle (önceki require cache'i temizle)
   const toolsPath = require.resolve("../core/tools.js");
@@ -73,7 +73,7 @@ test("callTool: tool_start ve tool_end olayları yayınlanır", async () => {
 
 // ── Test 5: type bazlı listener çalışır ──────────────────────────────────────
 test("emitter: type bazlı event dinleyici", () => {
-  const { emit, emitter } = require("../core/events.js");
+  const { emit, emitter } = require("../core/events.ts");
   let count = 0;
   emitter.once("text_delta", () => count++);
   emit("text_delta", "s2", { delta: "merhaba " });
@@ -91,7 +91,7 @@ test("callTool: sessionId olmadan çağrılabilir (geriye uyumluluk)", async () 
 
 // ── Test 7: EVENT_TYPES tüm beklenen tipler ────────────────────────────────────
 test("EVENT_TYPES: 9 standart tip mevcut", () => {
-  const { EVENT_TYPES } = require("../core/events.js");
+  const { EVENT_TYPES } = require("../core/events.ts");
   const expected = [
     "tool_start", "tool_end", "diff", "thinking_delta", "text_delta",
     "approval_request", "approval_resolved", "error", "session_saved",
@@ -106,7 +106,7 @@ test("EVENT_TYPES: 9 standart tip mevcut", () => {
 // Gerçek HTTP sunucusu başlatmadan, aynı singleton emitter üzerinde doğrulanır.
 test("SSE: bağlantı kapanınca listener kaldırılır, listenerCount başlangıca döner", () => {
   // Tek bir referans — test dosyası boyunca aynı singleton
-  const { emitter } = require("../core/events.js");
+  const { emitter } = require("../core/events.ts");
   const { EventEmitter } = require("events");
 
   const before = emitter.listenerCount("event");

@@ -140,7 +140,7 @@ async function plan(task, session) {
       `coordinator: plan LLM call failed (${err.message}) — using single-task fallback`,
       `koordinatör: plan LLM çağrısı başarısız (${err.message}) — tek görev yedeğine düşülüyor`
     ));
-    require("./events.js").emit("coordinator_error", session?.id ?? null, { phase: "plan", error: err.message });
+    require("./events.ts").emit("coordinator_error", session?.id ?? null, { phase: "plan", error: err.message });
     return {
       subtasks:   [{ id: "1", role: "coder", task }],
       sequential: true,
@@ -168,7 +168,7 @@ async function plan(task, session) {
       `coordinator: plan JSON parse failed — using single-task fallback`,
       `koordinatör: plan JSON ayrıştırılamadı — tek görev yedeğine düşülüyor`
     ));
-    require("./events.js").emit("coordinator_error", session?.id ?? null, { phase: "plan-parse", raw: raw.slice(0, 200) });
+    require("./events.ts").emit("coordinator_error", session?.id ?? null, { phase: "plan-parse", raw: raw.slice(0, 200) });
   }
 
   return {
@@ -179,7 +179,7 @@ async function plan(task, session) {
 }
 
 async function execute(subtasks, parentSession, sequential = true, blackboard = {}) {
-  const cfg = require("./router.js").loadConfig();
+  const cfg = require("./router.ts").loadConfig();
   const roleTiers = { ...ROLE_TIER_DEFAULT, ...(cfg.roleTiers ?? {}) };
 
   // Per-role memory injection: different query per role for richer context
@@ -242,7 +242,7 @@ async function execute(subtasks, parentSession, sequential = true, blackboard = 
   if (sequential) {
     results = [];
     for (const s of subtasks) {
-      const cfg2     = require("./router.js").loadConfig();
+      const cfg2     = require("./router.ts").loadConfig();
       const roleTiers2 = { ...ROLE_TIER_DEFAULT, ...(cfg2.roleTiers ?? {}) };
       const tier     = roleTiers2[s.role] ?? 1;
       print.info(i18n.t(
@@ -277,7 +277,7 @@ async function execute(subtasks, parentSession, sequential = true, blackboard = 
           break;
         } catch (err) {
           print.warn(i18n.t(`[${s.role}] error: ${err.message}`, `[${s.role}] hata: ${err.message}`));
-          require("./events.js").emit("coordinator_error", parentSession?.id ?? null, {
+          require("./events.ts").emit("coordinator_error", parentSession?.id ?? null, {
             phase: "execute", role: s.role, error: err.message, attempt,
           });
           if (attempt === 0) continue;
@@ -310,7 +310,7 @@ async function execute(subtasks, parentSession, sequential = true, blackboard = 
           `[${subtasks[i].role}] parallel error: ${settled[i].reason?.message}`,
           `[${subtasks[i].role}] paralel hata: ${settled[i].reason?.message}`
         ));
-        require("./events.js").emit("coordinator_error", parentSession?.id ?? null, {
+        require("./events.ts").emit("coordinator_error", parentSession?.id ?? null, {
           phase: "execute-parallel", role: subtasks[i].role, error: settled[i].reason?.message,
         });
       }
@@ -343,7 +343,7 @@ async function review(task, results, session) {
       `coordinator: review failed (${err.message}) — using last subtask output`,
       `koordinatör: sentez başarısız (${err.message}) — son görev çıktısı kullanılıyor`
     ));
-    require("./events.js").emit("coordinator_error", session?.id ?? null, { phase: "review", error: err.message });
+    require("./events.ts").emit("coordinator_error", session?.id ?? null, { phase: "review", error: err.message });
     return results.at(-1)?.output ?? "";
   }
 }

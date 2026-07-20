@@ -6,7 +6,7 @@ const { execSync, spawnSync } = require("child_process");
 const checkpoint  = require("../core/checkpoint.js");
 const diagnostics = require("../core/diagnostics.js");
 const diff        = require("../core/diff.js");
-const events      = require("../core/events.js");
+const events      = require("../core/events.ts");
 const { print }   = require("../tui/output.ts");
 
 // ── Workspace sandbox ────────────────────────────────────────────────────────

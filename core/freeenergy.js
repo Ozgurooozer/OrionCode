@@ -57,7 +57,7 @@ async function computeSurprise(text) {
     const embed = require("./embed.js");
     if (!(await embed.isAvailable())) return 0.5;
 
-    const { loadConfig } = require("./router.js");
+    const { loadConfig } = require("./router.ts");
     const cfg      = loadConfig();
     const vaultDir = cfg.vaultDir ?? path.join(os.homedir(), ".orion", "vault");
     const vPath    = path.join(String(vaultDir), "vectors.json");
@@ -84,14 +84,14 @@ async function computeSurprise(text) {
 /** FEP gölge modunun etkin olup olmadığını config'den oku */
 function isEnabled() {
   try {
-    const cfg = require("./router.js").loadConfig();
+    const cfg = require("./router.ts").loadConfig();
     return cfg.freeEnergyMode === true;
   } catch { return false; }
 }
 
 /** FEP gölge modunu aç/kapa */
 function setEnabled(on) {
-  require("./router.js").saveConfig({ freeEnergyMode: Boolean(on) });
+  require("./router.ts").saveConfig({ freeEnergyMode: Boolean(on) });
 }
 
 // ── Gölge değerlendirme (tek hesap noktası) ──────────────────────────────────
@@ -110,7 +110,7 @@ async function evaluateShadow(text) {
     return _evalMemo.promise;
   }
   const promise = (async () => {
-    const cfg      = require("./router.js").loadConfig();
+    const cfg      = require("./router.ts").loadConfig();
     const lambda   = cfg.freeEnergyLambda ?? 0.5;
     const surprise = await computeSurprise(text);
     return {
@@ -206,7 +206,7 @@ function recordShadow(realDecision, shadow, context = {}) {
 
   // Evrensel olay kanalı — EVENT_TYPES.router_shadow_decision (events.js'de kayıtlı)
   try {
-    const events = require("./events.js");
+    const events = require("./events.ts");
     events.emit(events.EVENT_TYPES.router_shadow_decision, context.sessionId ?? null, sample);
   } catch {}
 
@@ -290,7 +290,7 @@ function aggregateShadowReport(days = 30) {
   } catch (err) {
     // Telemetry okuma hatası raporu sıfıra indirir — "veri yok" ile "okuma hatası"
     // aynı görünür; olayla ayırt edilir kıl.
-    require("./events.js").emitSilentCatch("freeenergy.js:aggregateShadowReport", err);
+    require("./events.ts").emitSilentCatch("freeenergy.js:aggregateShadowReport", err);
   }
   return out;
 }

@@ -28,7 +28,7 @@ test("/provider key: anahtarı providers.json'a yazar, ekrana basmaz", async () 
   console.log = (...a) => printed.push(a.join(" "));
 
   // Komutu doğrudan çalıştır (non-interactive path: args[0]="key")
-  const cmd = require("../core/commands/saglayici.js")[0];
+  const cmd = require("../core/commands/provider.js")[0];
   await cmd.exec({ args: ["key", "groq", "sk-test-secret-key-1234567890"] });
 
   console.log = origLog;
@@ -63,7 +63,7 @@ test("maskedInput: non-TTY ortamında boş string döner (pipe/test güvenliği)
 test("/provider add: preset sağlayıcı providers.json'a eklenir", async () => {
   delete require.cache[require.resolve("../backends/custom.js")];
   const custom = require("../backends/custom.js");
-  const cmd    = require("../core/commands/saglayici.js")[0];
+  const cmd    = require("../core/commands/provider.js")[0];
 
   const printed = [];
   const origLog = console.log;
@@ -85,7 +85,7 @@ test("/provider add: preset sağlayıcı providers.json'a eklenir", async () => 
 test("/provider remove: provider silinir", async () => {
   delete require.cache[require.resolve("../backends/custom.js")];
   const custom = require("../backends/custom.js");
-  const cmd    = require("../core/commands/saglayici.js")[0];
+  const cmd    = require("../core/commands/provider.js")[0];
 
   custom.addProvider("mistral", {});
 
@@ -109,7 +109,7 @@ test("_withRlPause: rl.pause() çağrılır, fn çalışır, rl.resume() ile tem
     resume: () => calls.push("resume"),
   };
 
-  const cmd = require("../core/commands/saglayici.js")[0];
+  const cmd = require("../core/commands/provider.js")[0];
   // 'presets' subcommand non-TTY'de metin çıktısı verir; pause/resume test için yeterli
   await cmd.exec({ args: ["presets"], rl: mockRl });
 
@@ -121,18 +121,18 @@ test("_withRlPause: rl.pause() çağrılır, fn çalışır, rl.resume() ile tem
 // ── Test 6: çift render yok — non-TTY çıktısında aynı satır iki kez gözükmez ──
 test("non-TTY /provider çıktısında mesaj tekrarı yok", async () => {
   delete require.cache[require.resolve("../backends/custom.js")];
-  delete require.cache[require.resolve("../core/commands/saglayici.js")];
+  delete require.cache[require.resolve("../core/commands/provider.js")];
 
   const lines = [];
   const origWrite = process.stdout.write.bind(process.stdout);
   process.stdout.write = (s, ...rest) => { lines.push(String(s)); return origWrite(s, ...rest); };
 
-  const cmd = require("../core/commands/saglayici.js")[0];
+  const cmd = require("../core/commands/provider.js")[0];
   // Non-TTY'de metin fallback çalışır, clack devreye girmez
   await cmd.exec({ args: [] });
 
   process.stdout.write = origWrite;
-  delete require.cache[require.resolve("../core/commands/saglayici.js")];
+  delete require.cache[require.resolve("../core/commands/provider.js")];
 
   const full = lines.join("");
   // ANSI kodlarını soy, düz metni karşılaştır

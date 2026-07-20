@@ -14,9 +14,9 @@ fs.mkdirSync(path.join(HOME, ".orion"), { recursive: true });
 const { test } = require("node:test");
 const assert   = require("node:assert");
 
-const router     = require("../core/router.js");
+const router     = require("../core/router.ts");
 const freeenergy = require("../core/freeenergy.js");
-const events     = require("../core/events.js");
+const events     = require("../core/events.ts");
 
 // Not: temp vault'ta vectors.json yok → computeSurprise deterministik 0.5 döner
 // (Ollama açık olsa bile). lambda config'de yok → 0.5. Bu ikiliyle gölge karar

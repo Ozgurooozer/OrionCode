@@ -2,7 +2,7 @@
 // Yerleşik: anthropic, ollama, openrouter, openai, huggingface
 // Özel (BYOK): ~/.orion/providers.json → herhangi bir OpenAI-uyumlu servis
 "use strict";
-const ollama      = require("./ollama.js");
+const ollama      = require("./ollama.ts");
 const anthropic   = require("./anthropic.js");
 const huggingface = require("./huggingface.js");
 const openai      = require("./openai.js");

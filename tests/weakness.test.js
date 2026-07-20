@@ -143,8 +143,8 @@ test("/weakness default: en son rapor içeriğini gösterir", async () => {
 
 // ── Test 6: EVENT_TYPES'a weakness_mined eklendi ─────────────────────────────
 test("EVENT_TYPES: weakness_mined tipi mevcut", () => {
-  delete require.cache[require.resolve("../core/events.js")];
-  const { EVENT_TYPES } = require("../core/events.js");
+  delete require.cache[require.resolve("../core/events.ts")];
+  const { EVENT_TYPES } = require("../core/events.ts");
   assert.strictEqual(EVENT_TYPES.weakness_mined, "weakness_mined", "weakness_mined EVENT_TYPES'da olmalı");
 });
 

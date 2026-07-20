@@ -1,4 +1,4 @@
-// core/commands/saglayici.js — BYOK provider management
+// core/commands/provider.js — BYOK provider management
 // Keys are never printed to screen — only presence/absence is shown.
 // Interactive mode uses select-input + masked-input (clack dependency removed).
 "use strict";
@@ -57,7 +57,7 @@ function _keyHint(p, ok) {
 // Liste alınamazsa NEDENİYLE söyler (anahtar geçersiz / servis yanıt vermiyor).
 async function _pickModelFor(providerName, session) {
   const backends = require("../../backends/index.js");
-  const router   = require("../router.js");
+  const router   = require("../router.ts");
 
   spinner.start(i18n.t(`fetching ${providerName} models`, `${providerName} modelleri alınıyor`));
   let entry = null;
@@ -106,7 +106,7 @@ async function _pickModelFor(providerName, session) {
 async function listProvidersInteractive(session) {
   const backends = require("../../backends/index.js");
   const custom   = backends.custom;
-  const router   = require("../router.js");
+  const router   = require("../router.ts");
   const cfg      = router.loadConfig();
   const activeName = cfg.tier2Backend ?? "";
 

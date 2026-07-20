@@ -23,7 +23,7 @@ const THRESHOLD_DEFAULTS = {
 
 function getThresholds() {
   try {
-    const cfg = require("../router.js").loadConfig();
+    const cfg = require("../router.ts").loadConfig();
     return {
       ccWarn:   cfg.entropy?.ccWarn   ?? THRESHOLD_DEFAULTS.ccWarn,
       locWarn:  cfg.entropy?.locWarn  ?? THRESHOLD_DEFAULTS.locWarn,

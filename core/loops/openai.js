@@ -8,7 +8,7 @@ const {
 } = require("./shared.js");
 
 module.exports = async function openaiFamilyLoop(session, provider) {
-  const router = require("../router.js");
+  const router = require("../router.ts");
   const allowedDefs = session.modes.filterDefs(tools.getDefs());
   const useTools = session.mode.allowTools && allowedDefs.length > 0;
   const history  = _flattenMsgs(session.msgs);

@@ -126,8 +126,8 @@ describe("ollama.js Jinja uyumluluğu", () => {
     assert.equal(compat[1].role, "assistant");
   });
 
-  test("backends/ollama.js Jinja hatasına ollamaJinjaError flag'i ekler", async () => {
-    const ollama = require("../backends/ollama.js");
+  test("backends/ollama.ts Jinja hatasına ollamaJinjaError flag'i ekler", async () => {
+    const ollama = require("../backends/ollama.ts");
     // chatRich'i Jinja hatasını simüle edecek şekilde geçici sarıyoruz
     const orig = ollama.chatRich;
     ollama.chatRich = async () => {
@@ -137,7 +137,7 @@ describe("ollama.js Jinja uyumluluğu", () => {
     try {
       await ollama.chatRich("test-model", [{ role: "user", content: "hi" }], {});
     } catch (e) {
-      // ollamaJinjaError flag'i backends/ollama.js'nin catch bloğunda ekleniyor
+      // ollamaJinjaError flag'i backends/ollama.ts'nin catch bloğunda ekleniyor
       // ama burada chatRich'i tamamen replace ettik — flag ekleme kodu da değiştirildi
       // Bu test sadece flag ekleme mantığını doğrular:
       const err2 = new Error("Jinja Exception: No user query found in messages.");
@@ -177,13 +177,13 @@ describe("loop modülleri", () => {
 // ── session.js entegrasyonu ────────────────────────────────────────────────
 describe("session.js ↔ loops entegrasyonu", () => {
   test("session.js hâlâ _callToolCached ve _sweepSpeculexMisses export eder (testler için)", () => {
-    const { _callToolCached, _sweepSpeculexMisses } = require("../core/session.js");
+    const { _callToolCached, _sweepSpeculexMisses } = require("../core/session.ts");
     assert.equal(typeof _callToolCached, "function");
     assert.equal(typeof _sweepSpeculexMisses, "function");
   });
 
   test("Session örneği 4 loop metodunu fonksiyon olarak açar", () => {
-    const { Session } = require("../core/session.js");
+    const { Session } = require("../core/session.ts");
     const s = new Session({ backend: "anthropic", model: "test" });
     assert.equal(typeof s._anthropicLoop, "function");
     assert.equal(typeof s._openaiFamilyLoop, "function");
@@ -192,7 +192,7 @@ describe("session.js ↔ loops entegrasyonu", () => {
   });
 
   test("shared.js'den ihraç edilen _callToolCached session.js'deki ile aynı referans", () => {
-    const { _callToolCached: fromSession } = require("../core/session.js");
+    const { _callToolCached: fromSession } = require("../core/session.ts");
     const { _callToolCached: fromShared }  = require("../core/loops/shared.js");
     assert.strictEqual(fromSession, fromShared, "aynı fonksiyon referansı olmalı");
   });

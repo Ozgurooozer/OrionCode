@@ -1,4 +1,4 @@
-// core/commands/oturum.js — Session management
+// core/commands/session.js — Session management
 "use strict";
 const { C, T }  = require("../../tui/colors.ts");
 const { print } = require("../../tui/output.ts");

@@ -1,6 +1,6 @@
 // core/tools.js — Araç kaydı, yönlendirme, dinamik (MCP) araçlar, ReAct format
 "use strict";
-const events = require("./events.js");
+const events = require("./events.ts");
 const fsTools       = require("../tools/fs.js");
 const shellTools    = require("../tools/shell.js");
 const memoryTools   = require("../tools/memory.js");

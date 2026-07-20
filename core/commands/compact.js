@@ -23,7 +23,7 @@ module.exports = [{
   usage:   "/context",
   exec: ({ session }) => {
     const { countMessages } = require("../budget.js");
-    const { loadConfig }    = require("../router.js");
+    const { loadConfig }    = require("../router.ts");
     const tokens = countMessages(session.msgs, session.system);
     const cfg    = loadConfig();
     const limit  = session._resolveContextLimit(cfg);

@@ -2,7 +2,7 @@
 "use strict";
 
 const tools  = require("../tools.js");
-const events = require("../events.js");
+const events = require("../events.ts");
 const i18n   = require("../i18n.js");
 const { print }   = require("../../tui/output.ts");
 const { aiTurnStart, aiTurnContinue } = require("../../tui/index.js");

@@ -1,14 +1,51 @@
-// core/router.js — Tier routing: yerel (Ollama) vs cloud (Anthropic/OpenRouter)
+// core/router.ts — Tier routing: yerel (Ollama) vs cloud (Anthropic/OpenRouter)
 "use strict";
+import type * as FsType from "fs";
+import type * as PathType from "path";
+import type * as OsType from "os";
 
-const fs   = require("fs");
-const path = require("path");
-const os   = require("os");
+const fs   = require("fs") as typeof FsType;
+const path = require("path") as typeof PathType;
+const os   = require("os") as typeof OsType;
 
 const HOME        = process.env.ORION_HOME || os.homedir(); // test için geçersiz kılınabilir
 const CONFIG_FILE = path.join(HOME, ".orion", "config.json");
 
-const DEFAULTS = {
+export interface OrionConfig {
+  budgetMode: string;
+  sessionBudgetUSD: number;
+  tier1Model: string;
+  tier1Backend: string;
+  tier2Backend: string;
+  tier2Model: string;
+  complexityTokenThreshold: number;
+  vaultDir: string;
+  language: string;
+  memoryEffort: string;
+  trustedPaths: string[];
+  roleTiers: Record<string, number>;
+  autoApproveCommands: boolean;
+  autoCompact: boolean;
+  contextLimit: number;
+  backendContextLimits: Record<string, number>;
+  maxOutputTokens: number;
+  [key: string]: unknown;
+}
+
+export interface RouteDecision {
+  backend: string;
+  model: string;
+  tier: number;
+  reason?: string;
+}
+
+export interface DecideOpts {
+  tokenCount?: number;
+  mode?: string;
+  budgetTracker?: { isExceeded?: () => boolean } | null;
+}
+
+const DEFAULTS: OrionConfig = {
   budgetMode:               "balanced",
   sessionBudgetUSD:         1.0,
   tier1Model:               "qwen2.5-coder:7b",
@@ -31,28 +68,28 @@ const DEFAULTS = {
 };
 
 // 5sn config cache
-let _cfgCache = { data: null, ts: 0 };
+let _cfgCache: { data: OrionConfig | null; ts: number } = { data: null, ts: 0 };
 // Runtime overrides: diske yazılmaz, süreç ömrü boyunca geçerli
-const _runtimeOverrides = {};
+const _runtimeOverrides: Record<string, unknown> = {};
 
-function setRuntimeOverride(key, value) {
+function setRuntimeOverride(key: string, value: unknown): void {
   _runtimeOverrides[key] = value;
   _cfgCache = { data: null, ts: 0 }; // cache'i geçersiz kıl
 }
 
-function loadConfig() {
+function loadConfig(): OrionConfig {
   if (_cfgCache.data && Date.now() - _cfgCache.ts < 5_000) return _cfgCache.data;
-  let disk = {};
+  let disk: Partial<OrionConfig> = {};
   try { disk = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")); } catch {}
-  const cfg = { ...DEFAULTS, ...disk, ..._runtimeOverrides };
+  const cfg: OrionConfig = { ...DEFAULTS, ...disk, ..._runtimeOverrides };
   _cfgCache = { data: cfg, ts: Date.now() };
   return cfg;
 }
 
-function saveConfig(partial) {
+function saveConfig(partial: Record<string, unknown>): void {
   const dir = path.dirname(CONFIG_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  let existing = {};
+  let existing: Record<string, unknown> = {};
   try { existing = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")); } catch {}
   const merged = { ...existing, ...partial };
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2));
@@ -63,7 +100,7 @@ function saveConfig(partial) {
 const COMPLEX_WORDS = /\b(debug|architect|refactor|implement|fix|bug|test|security|optimize|analyze|design|review|performance|migrate|integrate|create|add|write|update|build|generate|feature|function|class|module|component|endpoint|api|schema|algorithm|deploy)\b/gi;
 const SIMPLE_WORDS  = /\b(summarize|extract|list|format|classify|translate|convert|rename|count|show|print|display|echo)\b/gi;
 
-function complexityScore(text) {
+function complexityScore(text: string): number {
   const complex = (text.match(COMPLEX_WORDS) || []).length;
   const simple  = (text.match(SIMPLE_WORDS)  || []).length;
   return complex - simple;
@@ -74,7 +111,7 @@ function complexityScore(text) {
 // scoreOption() gölge kararı da hesaplanır ve router_shadow_decision olayıyla
 // loglanır. Fire-and-forget: gölge hesabı hata verse bile gerçek karar
 // DEĞİŞMEZ, akış etkilenmez.
-function decide(text, opts = {}) {
+function decide(text: string, opts: DecideOpts = {}): RouteDecision {
   const decision = _decideCore(text, opts);
   // shadowHook kendi iç try/catch ile guard'lı — dış catch gereksiz.
   require("./freeenergy.js").shadowHook(decision, text, {
@@ -84,11 +121,11 @@ function decide(text, opts = {}) {
   return decision;
 }
 
-function _decideCore(text, { tokenCount = 0, mode = "agent", budgetTracker = null } = {}) {
+function _decideCore(text: string, { tokenCount = 0, mode = "agent", budgetTracker = null }: DecideOpts = {}): RouteDecision {
   const cfg = loadConfig();
 
-  const tier1 = { backend: "ollama",        model: cfg.tier1Model,   tier: 1 };
-  const tier2 = { backend: cfg.tier2Backend, model: cfg.tier2Model,  tier: 2 };
+  const tier1: RouteDecision = { backend: "ollama",         model: cfg.tier1Model, tier: 1 };
+  const tier2: RouteDecision = { backend: cfg.tier2Backend, model: cfg.tier2Model, tier: 2 };
 
   // Quality: budget dolmadıysa tier2, dolduysa tier1
   if (cfg.budgetMode === "quality") {
@@ -124,7 +161,7 @@ function _decideCore(text, { tokenCount = 0, mode = "agent", budgetTracker = nul
   return _applyThompson({ ...tier1, reason: "balanced default" });
 }
 
-function _applyThompson(decision) {
+function _applyThompson(decision: RouteDecision): RouteDecision {
   try {
     const thompson = require("./thompson.js");
     return thompson.recommend(decision);
@@ -132,7 +169,7 @@ function _applyThompson(decision) {
 }
 
 // Efektif memoryEffort: budgetMode=quality → en az "balanced" (high kalıcı, hiç otomatik düşmez)
-function getEffectiveMemoryEffort(cfg) {
+function getEffectiveMemoryEffort(cfg?: OrionConfig | null): string {
   const c      = cfg ?? loadConfig();
   const stored = c.memoryEffort ?? "low";
   if (stored === "high") return "high";

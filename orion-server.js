@@ -33,8 +33,8 @@ const os     = require("os");
 const crypto = require("crypto");
 const backends = require("./backends/index.js");
 const persist  = require("./core/persist.js");
-const { Session } = require("./core/session.js");
-const { emitter: orionEvents, toNDJSON } = require("./core/events.js");
+const { Session } = require("./core/session.ts");
+const { emitter: orionEvents, toNDJSON } = require("./core/events.ts");
 
 const PORT = (() => {
   const i = process.argv.indexOf("--port");

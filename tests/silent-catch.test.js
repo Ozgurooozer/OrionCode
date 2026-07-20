@@ -12,7 +12,7 @@ const { test, after } = require("node:test");
 const assert = require("node:assert");
 const fs = require("fs");
 
-const events = require("../core/events.js");
+const events = require("../core/events.ts");
 
 after(() => {
   try { fs.rmSync(process.env.ORION_HOME, { recursive: true, force: true }); } catch {}
@@ -92,7 +92,7 @@ test("extractWithOllama: manuel yedeğe düşüş silent_catch_hit yayınlar", a
 // saveConfig fırlatırsa dil bellekte değişir (dönüş aynı) ama kalıcılaşmadığı
 // artık olay kanalından görülür.
 test("setLocale: saveConfig hatası silent_catch_hit yayınlar, dönüş bozulmaz", () => {
-  const router = require("../core/router.js");
+  const router = require("../core/router.ts");
   const i18n   = require("../core/i18n.js");
 
   const origSave = router.saveConfig;

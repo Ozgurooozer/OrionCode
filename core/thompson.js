@@ -83,7 +83,7 @@ function _persist() {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(STATE_FILE, JSON.stringify(_cache, null, 2));
   } catch (err) {
-    require("./events.js").emitSilentCatch("thompson.js:_save", err);
+    require("./events.ts").emitSilentCatch("thompson.js:_save", err);
   }
 }
 process.on("exit", _persist);

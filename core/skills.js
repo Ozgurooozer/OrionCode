@@ -86,7 +86,7 @@ function minePatterns(minLen = 2, minCount = 3) {
 
 async function distillSkill(pattern, sessionContext = "") {
   const { ollamaRequest } = require("./extract.js");
-  const { loadConfig }    = require("./router.js");
+  const { loadConfig }    = require("./router.ts");
   const model = loadConfig().tier1Model ?? "qwen2.5-coder:7b";
 
   const prompt = `You are a knowledge engineer. The following tool sequence represents a successful workflow an AI agent repeated.
@@ -186,7 +186,7 @@ async function findRelevantSkills(text, limit = 2) {
   } catch (err) {
     // Embedding yolu hatayla düştü — fuzzy'ye sessizce inmek semantik eşleşmenin
     // kaybını gizler; olay kanalına yaz, akışı bozmadan fuzzy'ye devam et.
-    require("./events.js").emitSilentCatch("skills.js:findRelevantSkills", err, null, "embed-yolu");
+    require("./events.ts").emitSilentCatch("skills.js:findRelevantSkills", err, null, "embed-yolu");
   }
 
   // 2) Fuzzy düşüş — mesaj kelimeleri skill adı/açıklamasındaki token'larla eşleşiyor mu
@@ -202,7 +202,7 @@ async function findRelevantSkills(text, limit = 2) {
     return scored.sort((a, b) => b.score - a.score).slice(0, limit);
   } catch (err) {
     // Boş liste "eşleşme yok" ile aynı görünür — hatayı olayla ayırt edilir kıl.
-    require("./events.js").emitSilentCatch("skills.js:findRelevantSkills", err, null, "fuzzy-yolu");
+    require("./events.ts").emitSilentCatch("skills.js:findRelevantSkills", err, null, "fuzzy-yolu");
     return [];
   }
 }

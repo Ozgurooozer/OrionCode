@@ -17,7 +17,9 @@
     "backends/**/*.js",
     "tools/**/*.js",
     "tui/**/*.js",
-    "tui/**/*.ts"
+    "tui/**/*.ts",
+    "core/**/*.ts",
+    "backends/**/*.ts"
   ],
   "exclude": [
     "node_modules",

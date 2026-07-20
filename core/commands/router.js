@@ -2,7 +2,7 @@
 "use strict";
 const { C }     = require("../../tui/colors.ts");
 const { print } = require("../../tui/output.ts");
-const router = require("../router.js");
+const router = require("../router.ts");
 const i18n = require("../i18n.js");
 const freeenergy = require("../freeenergy.js");
 

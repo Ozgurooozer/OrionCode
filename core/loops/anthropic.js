@@ -9,7 +9,7 @@ const {
 
 module.exports = async function anthropicLoop(session) {
   const anthropic = require("../../backends/anthropic.js");
-  const { getEffectiveMemoryEffort } = require("../router.js");
+  const { getEffectiveMemoryEffort } = require("../router.ts");
   const allowedDefs = session.modes.filterDefs(tools.getDefs());
   const useThinking = getEffectiveMemoryEffort() === "high";
   const chatOpts    = {

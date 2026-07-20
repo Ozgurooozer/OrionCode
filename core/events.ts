@@ -1,9 +1,10 @@
-// core/events.js — Orion evrensel olay yayın kanalı
+// core/events.ts — Orion evrensel olay yayın kanalı
 // TUI, HTTP/SSE istemcileri, ileride node-graph / Babylon editörü aynı akışa bağlanır.
 // Singleton emitter — tüm modüller aynı örneği require eder.
 "use strict";
+import type { EventEmitter as EventEmitterType } from "events";
 
-const { EventEmitter } = require("events");
+const { EventEmitter } = require("events") as { EventEmitter: typeof EventEmitterType };
 
 // ── Olay şeması ──────────────────────────────────────────────────────────────
 // Her olay: { type, sessionId, timestamp, payload }
@@ -24,6 +25,13 @@ const { EventEmitter } = require("events");
 //
 // NDJSON serialize: toNDJSON(event) → satır sonu dahil string.
 // Gelecek: 1 saatlik TTL cache tipi gibi yeni alanlar payload içinde genişletilir.
+
+export interface OrionEvent {
+  type: string;
+  sessionId: string | null;
+  timestamp: number;
+  payload: Record<string, unknown>;
+}
 
 const EVENT_TYPES = Object.freeze({
   tool_start:        "tool_start",
@@ -46,19 +54,21 @@ const EVENT_TYPES = Object.freeze({
 const emitter = new EventEmitter();
 emitter.setMaxListeners(64); // çok sayıda SSE istemcisi için
 // Node.js "error" event type: listener yoksa throw eder — logla ve yut
-emitter.on("error", (err) => {
-  try { process.stderr.write(`[orion:events] error event: ${err?.message ?? err}\n`); } catch {}
+emitter.on("error", (err: unknown) => {
+  try {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[orion:events] error event: ${msg}\n`);
+  } catch {}
 });
 
 /**
  * Standart bir olay yayınla.
- * @param {string} type        — EVENT_TYPES'den bir değer
- * @param {string|null} sessionId
- * @param {object} payload
- * @returns {{ type, sessionId, timestamp, payload }}
+ * @param type      — EVENT_TYPES'den bir değer
+ * @param sessionId
+ * @param payload
  */
-function emit(type, sessionId, payload = {}) {
-  const event = {
+function emit(type: string, sessionId: string | null | undefined, payload: Record<string, unknown> = {}): OrionEvent {
+  const event: OrionEvent = {
     type,
     sessionId: sessionId ?? null,
     timestamp: Date.now(),
@@ -70,23 +80,24 @@ function emit(type, sessionId, payload = {}) {
 }
 
 /** Olay → NDJSON satırı (satır sonu dahil) */
-function toNDJSON(event) {
+function toNDJSON(event: OrionEvent): string {
   return JSON.stringify(event) + "\n";
 }
 
 /**
  * Sessizce yutulan catch blokları için ortak görünürlük yardımcısı.
  * Kendisi asla fırlatmaz — görünürlük mekanizması akışı bozamaz.
- * @param {string} site        — "dosya:fonksiyon" biçiminde konum
- * @param {*} err              — yakalanan hata (Error ya da başka değer)
- * @param {string|null} sessionId
- * @param {*} [detail]         — opsiyonel ek bağlam (ör. hangi alt-adım)
+ * @param site      — "dosya:fonksiyon" biçiminde konum
+ * @param err       — yakalanan hata (Error ya da başka değer)
+ * @param sessionId
+ * @param detail    — opsiyonel ek bağlam (ör. hangi alt-adım)
  */
-function emitSilentCatch(site, err, sessionId = null, detail = undefined) {
+function emitSilentCatch(site: string, err: unknown, sessionId: string | null = null, detail: unknown = undefined): void {
   try {
+    const msg = err instanceof Error ? err.message : err;
     emit(EVENT_TYPES.silent_catch_hit, sessionId, {
       site,
-      error: String(err?.message ?? err ?? "unknown").slice(0, 300),
+      error: String(msg ?? "unknown").slice(0, 300),
       ...(detail !== undefined ? { detail } : {}),
     });
   } catch {}

@@ -8,7 +8,7 @@ const {
 } = require("./shared.js");
 
 module.exports = async function ollamaReactLoop(session) {
-  const ollama = require("../../backends/ollama.js");
+  const ollama = require("../../backends/ollama.ts");
   const { stripThinking } = require("../extract.js");
 
   const allowedNames = session.modes.filterDefs(tools.getDefs())

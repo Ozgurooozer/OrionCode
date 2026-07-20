@@ -111,7 +111,7 @@ function readLog(sessionId) {
 // veya sessionId=null ise tüm aktif logger'lara yazılır.
 function _hookSilentCatch() {
   try {
-    const events = require("./events.js");
+    const events = require("./events.ts");
     events.emitter.on(events.EVENT_TYPES.silent_catch_hit, ({ sessionId, payload }) => {
       const targets = sessionId
         ? [..._liveLoggers].filter(l => l.sessionId === sessionId)

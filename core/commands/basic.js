@@ -1,4 +1,4 @@
-// core/commands/temel.js — reset, undo, info
+// core/commands/basic.js — reset, undo, info
 "use strict";
 const { C }     = require("../../tui/colors.ts");
 const { print } = require("../../tui/output.ts");

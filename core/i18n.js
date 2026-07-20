@@ -1,6 +1,6 @@
 // core/i18n.js — Language support: English default, Turkish available at runtime
 "use strict";
-const router = require("./router.js");
+const router = require("./router.ts");
 
 let _locale = null;
 
@@ -25,7 +25,7 @@ function setLocale(l) {
   // Kalıcılaştırma başarısız olursa dil bu oturumda değişir ama sonraki açılışta
   // geri döner — sessiz kalmak "kaydedildi" izlenimi verir, olayla görünür kıl.
   try { router.saveConfig({ language: _locale }); }
-  catch (err) { require("./events.js").emitSilentCatch("i18n.js:setLocale", err); }
+  catch (err) { require("./events.ts").emitSilentCatch("i18n.js:setLocale", err); }
   return _locale;
 }
 

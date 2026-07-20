@@ -1,4 +1,4 @@
-// core/commands/arac.js — File, search, sub-agent, coordinator
+// core/commands/tool.js — File, search, sub-agent, coordinator
 "use strict";
 const { C }     = require("../../tui/colors.ts");
 const { print } = require("../../tui/output.ts");
@@ -70,7 +70,7 @@ module.exports = [
     desc:    "Run project tests",
     usage:   "/test [pattern]",
     exec: async ({ args }) => {
-      const cfg = require("../router.js").loadConfig();
+      const cfg = require("../router.ts").loadConfig();
       // Hangi test komutu kullanılacak?
       const cwd = process.env.ORION_WORKSPACE ?? process.cwd();
       let cmd;
