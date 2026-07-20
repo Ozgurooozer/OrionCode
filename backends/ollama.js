@@ -160,6 +160,8 @@ async function chatRich(model, messages, { system, tools, onToken, numCtx = 8192
     });
   } catch (err) {
     if (/does not support tools/i.test(err.message)) err.noToolSupport = true;
+    // qwen2.5 ve bazı modellerin Jinja şablonu role:"tool" mesajlarını işleyemiyor
+    if (/Jinja|No user query found/i.test(err.message)) err.ollamaJinjaError = true;
     throw err;
   }
   return { text, toolCalls: toolCalls.filter(c => c.name) };

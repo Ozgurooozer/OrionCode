@@ -7,6 +7,27 @@ const {
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
 } = require("./shared.js");
 
+// qwen2.5 gibi modeller role:"tool" mesajlarını Jinja şablonunda işleyemiyor.
+// Bu durumda araç sonuçları role:"user" mesajına dönüştürülür.
+function _toCompatHistory(history) {
+  const toolCallMap = new Map();
+  const out = [];
+  for (const msg of history) {
+    if (msg.role === "assistant" && Array.isArray(msg.tool_calls)) {
+      for (const tc of msg.tool_calls) {
+        if (tc.id) toolCallMap.set(tc.id, tc.function?.name ?? "tool");
+      }
+      out.push(msg);
+    } else if (msg.role === "tool") {
+      const name = toolCallMap.get(msg.tool_call_id) ?? "tool";
+      out.push({ role: "user", content: `[${name} result]\n${msg.content}` });
+    } else {
+      out.push(msg);
+    }
+  }
+  return out;
+}
+
 module.exports = async function ollamaLoop(session) {
   const ollama = require("../../backends/ollama.js");
   const allowedDefs = session.modes.filterDefs(tools.getDefs()).filter(d => TIER1_TOOLS.has(d.name));
@@ -15,15 +36,17 @@ module.exports = async function ollamaLoop(session) {
 
   let finalText = "";
   let lastCallSig = "";
+  let _toolRoleOk = true; // false olursa history'deki tool mesajları user'a dönüştürülür
   session._interrupted = false;
   aiTurnStart(session.mode?.name, session.backend, `[${session._turnCount + 1}]`);
 
   for (let iter = 0; iter < MAX_ITERS; iter++) {
     if (session._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
 
+    const histForApi = _toolRoleOk ? history : _toCompatHistory(history);
     let r;
     try {
-      r = await ollama.chatRich(session.model, history, {
+      r = await ollama.chatRich(session.model, histForApi, {
         system:  session._systemTier1,
         tools:   useTools ? allowedDefs : undefined,
         onToken: makeThinkFilter(out => {
@@ -36,7 +59,29 @@ module.exports = async function ollamaLoop(session) {
         session.telemetry.record({ event: "react_fallback", model: session.model });
         return session._ollamaReactLoop();
       }
-      throw err;
+      // Jinja şablon hatası: model role:"tool" mesajlarını desteklemiyor — dönüştür ve tekrar dene
+      if (err.ollamaJinjaError && _toolRoleOk && useTools) {
+        _toolRoleOk = false;
+        session.telemetry.record({ event: "ollama_tool_role_compat", model: session.model });
+        try {
+          r = await ollama.chatRich(session.model, _toCompatHistory(history), {
+            system:  session._systemTier1,
+            tools:   useTools ? allowedDefs : undefined,
+            onToken: makeThinkFilter(out => {
+              process.stdout.write(out);
+              events.emit("text_delta", session.id, { delta: out });
+            }),
+          });
+        } catch (retryErr) {
+          if (retryErr.noToolSupport) {
+            session.telemetry.record({ event: "react_fallback", model: session.model });
+            return session._ollamaReactLoop();
+          }
+          throw retryErr;
+        }
+      } else {
+        throw err;
+      }
     }
 
     if (!r.toolCalls.length) { finalText = r.text; break; }
