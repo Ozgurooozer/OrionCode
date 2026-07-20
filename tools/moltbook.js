@@ -80,7 +80,7 @@ async function execute(name, input) {
     case "moltbook_post": {
       if (process.argv.includes("--headless")) return "moltbook_post headless modda kullanılamaz.";
       const { selectInput } = require("../tui/select-input.js");
-      const { C } = require("../tui/index.js");
+      const { C } = require("../tui/colors.ts");
       process.stdout.write(`\n  ${C.yellow("⚡ Moltbook post:")} [${input.submolt}] ${input.title}\n  ${C.dim((input.content ?? "").slice(0, 200))}\n`);
       const ok = await selectInput("Moltbook'a gönderilsin mi?", [
         { value: "yes", label: "Evet, gönder" },

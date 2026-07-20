@@ -2,7 +2,7 @@
 // /compact: LLM ile özet üret, geçmişi 2 mesaja indir → context token'ı serbest bırakır.
 // Auto-compact: session.js içinde contextLimit konfigürasyonuyla tetiklenir.
 "use strict";
-const { print } = require("../../tui/index.js");
+const { print } = require("../../tui/output.ts");
 const i18n = require("../i18n.js");
 
 module.exports = [{

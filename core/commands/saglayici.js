@@ -3,7 +3,9 @@
 // Interactive mode uses select-input + masked-input (clack dependency removed).
 "use strict";
 const path = require("path");
-const { C, T, print, spinner } = require("../../tui/index.js");
+const { C, T }    = require("../../tui/colors.ts");
+const { print }   = require("../../tui/output.ts");
+const { spinner } = require("../../tui/index.js");
 const { selectInput }  = require("../../tui/select-input.js");
 const { maskedInput }  = require("../../tui/masked-input.js");
 const credentials      = require("../credentials.js");

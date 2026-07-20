@@ -1,6 +1,7 @@
 // core/commands/checkpoint.js — Dosya snapshot'larını listele / geri al
 "use strict";
-const { C, print } = require("../../tui/index.js");
+const { C }     = require("../../tui/colors.ts");
+const { print } = require("../../tui/output.ts");
 const checkpoint = require("../checkpoint.js");
 const i18n = require("../i18n.js");
 const path = require("path");

@@ -1,6 +1,7 @@
 // core/commands/arac.js — File, search, sub-agent, coordinator
 "use strict";
-const { C, print } = require("../../tui/index.js");
+const { C }     = require("../../tui/colors.ts");
+const { print } = require("../../tui/output.ts");
 const i18n = require("../i18n.js");
 
 module.exports = [
@@ -156,7 +157,7 @@ module.exports = [
         }
         case "commit": {
           const message = args.slice(1).join(" ");
-          if (!message) { const { print } = require("../../tui/index.js"); print.error("Kullanım: /git commit <mesaj>"); return; }
+          if (!message) { const { print } = require("../../tui/output.ts"); print.error("Kullanım: /git commit <mesaj>"); return; }
           console.log(await gitTools.execute("git_commit", { message, cwd }));
           break;
         }

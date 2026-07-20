@@ -62,7 +62,7 @@ function restart(session) {
   });
   child.on("spawn", () => process.exit(0));
   child.on("error", (err) => {
-    const { print } = require("../tui/index.js");
+    const { print } = require("../tui/output.ts");
     print.warn(`restart: spawn failed — ${err.message}`);
     print.warn("Yeniden başlatılamadı. Lütfen manuel olarak çıkıp tekrar başlat.");
     process.exit(1);

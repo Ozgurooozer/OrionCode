@@ -5,7 +5,7 @@
 
 const fs   = require("fs");
 const path = require("path");
-const { print } = require("../../tui/index.js");
+const { print } = require("../../tui/output.ts");
 const i18n      = require("../i18n.js");
 const REGISTRY  = new Map();
 

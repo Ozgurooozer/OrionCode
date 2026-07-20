@@ -9,7 +9,9 @@
 const fs   = require("fs");
 const path = require("path");
 const os   = require("os");
-const { C, print, spinner } = require("../../tui/index.js");
+const { C }       = require("../../tui/colors.ts");
+const { print }   = require("../../tui/output.ts");
+const { spinner } = require("../../tui/index.js");
 const i18n = require("../i18n.js");
 
 // ── Eşikler (config ile ayarlanabilir) ───────────────────────────────────────

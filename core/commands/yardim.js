@@ -1,6 +1,6 @@
 // core/commands/yardim.js — Command list
 "use strict";
-const { C } = require("../../tui/index.js");
+const { C } = require("../../tui/colors.ts");
 const i18n = require("../i18n.js");
 
 const HELP_EN = () => [

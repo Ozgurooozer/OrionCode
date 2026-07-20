@@ -3,7 +3,8 @@
 const fs   = require("fs");
 const path = require("path");
 const os   = require("os");
-const { C, T, print } = require("../../tui/index.js");
+const { C, T }  = require("../../tui/colors.ts");
+const { print } = require("../../tui/output.ts");
 
 const RESET = "\x1b[0m";
 const BOLD  = "\x1b[1m";

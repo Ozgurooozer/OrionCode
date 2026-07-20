@@ -3,7 +3,8 @@
 // arasında tek komutla geçilir. Mantık core/accounts.js'te.
 "use strict";
 const accounts = require("../accounts.js");
-const { C, print } = require("../../tui/index.js");
+const { C }     = require("../../tui/colors.ts");
+const { print } = require("../../tui/output.ts");
 const i18n = require("../i18n.js");
 
 function _mask(v) { return v.length <= 8 ? "····" : `${v.slice(0, 4)}····${v.slice(-4)}`; }

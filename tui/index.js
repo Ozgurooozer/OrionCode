@@ -3,70 +3,8 @@
 "use strict";
 
 const i18n = require("../core/i18n.js");
-
-const RESET  = "\x1b[0m";
-const BOLD   = "\x1b[1m";
-const DIM    = "\x1b[2m";
-const ITALIC = "\x1b[3m";
-
-// ── Renk temeli ──────────────────────────────────────────────────────────────
-const rgb   = (r, g, b) => `\x1b[38;2;${r};${g};${b}m`;
-const rgbBg = (r, g, b) => `\x1b[48;2;${r};${g};${b}m`;
-
-// Orion teması
-const T = {
-  star:    rgb(96, 220, 255),   // parlak yıldız — cyan
-  nebula:  rgb(167, 139, 250),  // menekşe
-  belt:    rgb(255, 224, 130),  // kuşak yıldızları — altın
-  accent:  rgb(56, 189, 248),
-  ok:      rgb(74, 222, 128),
-  warn:    rgb(250, 204, 21),
-  err:     rgb(248, 113, 113),
-  muted:   rgb(120, 130, 150),
-  boxBg:   rgbBg(36, 43, 62),   // input bloğu zemini — koyu kayrak mavisi
-  boxFg:   rgb(222, 229, 242),  // zemin üstü metin
-  code:    rgb(125, 211, 252),
-  string:  rgb(190, 242, 100),
-  keyword: rgb(244, 114, 182),
-  comment: rgb(100, 110, 130),
-  number:  rgb(251, 191, 36),
-};
-
-const C = {
-  cyan:    s => `\x1b[36m${s}${RESET}`,
-  yellow:  s => `\x1b[33m${s}${RESET}`,
-  gray:    s => `\x1b[90m${s}${RESET}`,
-  green:   s => `\x1b[32m${s}${RESET}`,
-  red:     s => `\x1b[31m${s}${RESET}`,
-  blue:    s => `\x1b[34m${s}${RESET}`,
-  magenta: s => `\x1b[35m${s}${RESET}`,
-  bold:    s => `${BOLD}${s}${RESET}`,
-  dim:     s => `${DIM}${s}${RESET}`,
-  italic:  s => `${ITALIC}${s}${RESET}`,
-  star:    s => `${T.star}${s}${RESET}`,
-  nebula:  s => `${T.nebula}${s}${RESET}`,
-  belt:    s => `${T.belt}${s}${RESET}`,
-  accent:  s => `${T.accent}${s}${RESET}`,
-  muted:   s => `${T.muted}${s}${RESET}`,
-  modeColor: (mode) => {
-    const MAP = { plan: "\x1b[36m", build: "\x1b[32m", chat: "\x1b[90m", agent: "\x1b[33m" };
-    return MAP[mode] ?? "\x1b[33m";
-  },
-};
-
-// Metne cyan→menekşe gradyan uygula
-function gradient(text) {
-  const from = [96, 220, 255], to = [167, 139, 250];
-  const chars = [...text];
-  const n = Math.max(chars.length - 1, 1);
-  return chars.map((ch, i) => {
-    const t = i / n;
-    const r = Math.round(from[0] + (to[0] - from[0]) * t);
-    const g = Math.round(from[1] + (to[1] - from[1]) * t);
-    const b = Math.round(from[2] + (to[2] - from[2]) * t);
-    return `${rgb(r, g, b)}${ch}`;
-  }).join("") + RESET;
-}
+const { RESET, BOLD, DIM, ITALIC, rgb, rgbBg, T, C, gradient } = require("./colors.ts");
+const { print: _print, toolIcon } = require("./output.ts");
 
 // ── Emblem: ORION wordmark + takımyıldız ─────────────────────────────────────
 // ANSI-shadow blok harfler, cyan→menekşe gradyan; sağda Orion takımyıldızı
@@ -171,42 +109,6 @@ function renderMarkdown(text) {
     .replace(/^(\d+)\. (.+)$/gm, (_, n, t) => `  ${T.muted}${n}.${RESET} ${t}`);
 }
 
-// ── Araç görselleştirme ──────────────────────────────────────────────────────
-const TOOL_ICONS = [
-  [/^think$/,             "◌"],
-  [/^file_outline/,       "◉"],
-  [/^read/,               "▤"],
-  [/^apply_patch/,              "⊕"],
-  [/^insert_at_line/,           "⊞"],
-  [/^replace_in_files/,         "↺"],
-  [/^write|^edit|multi_edit/,   "✎"],
-  [/search|grep|ara/,     "⌕"],
-  [/command|shell|run/,   "❯"],
-  [/^memory|hafiza/,      "◈"],
-  [/vault/,               "⬡"],
-  [/^mcp__/,              "⧉"],
-  [/moltbook|feed/,       "☄"],
-  [/list|glob/,           "≡"],
-  [/^git_/,               "⎇"],
-];
-
-function toolIcon(name) {
-  for (const [re, icon] of TOOL_ICONS) if (re.test(name)) return icon;
-  return "⚙";
-}
-
-// Araç girdisinden en anlamlı argümanı seç
-function toolArgPreview(input) {
-  if (!input || typeof input !== "object") return "";
-  const primary = input.path ?? input.file ?? input.pattern ?? input.command
-    ?? input.message ?? input.query ?? input.dir ?? input.from
-    ?? (Array.isArray(input.paths) ? input.paths.join(" ") : input.paths)
-    ?? input.content?.slice?.(0, 50) ?? null;
-  if (primary != null) return String(primary).slice(0, 60);
-  const s = JSON.stringify(input);
-  return s === "{}" ? "" : s.slice(0, 60);
-}
-
 // ── Sayı biçimleme ───────────────────────────────────────────────────────────
 function fmtTokens(n) {
   if (n >= 999_950)  return (n / 1_000_000).toFixed(1) + "M";
@@ -258,40 +160,8 @@ function aiTurnContinue() {
   process.stdout.write(`\n${T.muted}  ···${RESET}\n`);
 }
 
-// ── print ────────────────────────────────────────────────────────────────────
-const print = {
-  // Araç çağrısı: screenshot'taki  *  ToolName "arg"  stili
-  tool: (name, input) => {
-    const arg = toolArgPreview(input);
-    const argStr = arg ? ` ${T.muted}"${arg.replace(/"/g, "'")}"${RESET}` : "";
-    process.stdout.write(`  ${T.muted}*${RESET} ${T.accent}${name}${RESET}${argStr}\n`);
-  },
-  // Araç sonucu: →  öneki
-  result: text => {
-    const s = String(text).slice(0, 120).replace(/\n/g, " ");
-    process.stdout.write(`  ${T.muted}→ ${s}${RESET}\n`);
-  },
-
-  // Renkli unified diff — dosya değişikliklerinde gösterilir
-  diff: (diffStr, { maxLines = 40 } = {}) => {
-    if (!diffStr) return;
-    const lines = diffStr.split("\n");
-    const shown = lines.slice(0, maxLines);
-    for (const l of shown) {
-      if (l.startsWith("+"))       process.stdout.write(`  ${T.ok}${l}${RESET}\n`);
-      else if (l.startsWith("-"))  process.stdout.write(`  ${T.err}${l}${RESET}\n`);
-      else if (l.startsWith("@@")) process.stdout.write(`  ${T.accent}${l}${RESET}\n`);
-      else                         process.stdout.write(`  ${T.muted}${l}${RESET}\n`);
-    }
-    if (lines.length > maxLines)
-      process.stdout.write(`  ${C.muted(`… +${lines.length - maxLines} satır daha`)}\n`);
-  },
-  error:  text => console.error(`${T.err}✗${RESET} ${text}`),
-  warn:   text => console.error(`${T.warn}!${RESET} ${text}`),
-  info:   text => console.log(C.muted(text)),
-  system: text => console.log(`${C.muted("·")} ${C.muted(text)}`),
-
-  // Başlangıç ekranı — emblem + komut ipuçları
+// ── print — temel metotlar output.ts'ten, header/statusline burada ────────────
+const print = Object.assign({}, _print, {
   header: (name, model, backend) => {
     console.log("\n" + emblem(model, backend) + "\n");
     console.log(C.muted(i18n.t(
@@ -300,8 +170,6 @@ const print = {
     )));
     console.log(C.muted("  " + "─".repeat(60)));
   },
-
-  // Statusline — her turdan sonra: mod · model · ↑↓ token · $ · ctx%
   statusline: (info) => {
     if (!info) return;
     const modeC  = C.modeColor(info.mode);
@@ -320,20 +188,7 @@ const print = {
     ];
     console.log(`${C.muted("  ⋆ ")}${parts.join(C.muted("  ·  "))}`);
   },
-
-  sessionList: sessions => {
-    if (!sessions.length) { console.log(C.muted(i18n.t("  (no saved sessions)", "  (kayıtlı oturum yok)"))); return; }
-    console.log("");
-    for (const s of sessions) {
-      const _locTag = i18n.locTag();
-      const date = s.updatedAt ? new Date(s.updatedAt).toLocaleString(_locTag) : "?";
-      const msgs = `${s.msgCount ?? 0} msg`;
-      console.log(`  ${C.cyan(s.id)}  ${C.muted(s.model)}  ${C.dim(msgs)}  ${C.muted(date)}`);
-      if (s.preview) console.log(`       ${C.muted(s.preview)}`);
-    }
-    console.log("");
-  },
-};
+});
 
 // ── Spinner — geçen süre göstergeli ─────────────────────────────────────────
 const SPIN = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];

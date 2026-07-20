@@ -1,6 +1,7 @@
 // core/commands/ayar.js — Persistent config settings
 "use strict";
-const { C, print } = require("../../tui/index.js");
+const { C }     = require("../../tui/colors.ts");
+const { print } = require("../../tui/output.ts");
 const router = require("../router.js");
 const i18n = require("../i18n.js");
 

@@ -4,7 +4,8 @@
 const tools  = require("../tools.js");
 const events = require("../events.js");
 const i18n   = require("../i18n.js");
-const { print, aiTurnStart, aiTurnContinue } = require("../../tui/index.js");
+const { print }   = require("../../tui/output.ts");
+const { aiTurnStart, aiTurnContinue } = require("../../tui/index.js");
 
 const MAX_ITERS = 40;
 

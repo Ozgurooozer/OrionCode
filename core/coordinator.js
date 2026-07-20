@@ -25,7 +25,9 @@
 
 const subagent = require("./subagent.js");
 const memory   = require("./memory.js");
-const { C, print, spinner } = require("../tui/index.js");
+const { C }       = require("../tui/colors.ts");
+const { print }   = require("../tui/output.ts");
+const { spinner } = require("../tui/index.js");
 const i18n = require("./i18n.js");
 
 // ANSI escape code'larını temizle — subagent stdout'u review LLM'e giderken

@@ -1,7 +1,9 @@
 // core/commands/selfdev.js — /selfdev: Orion kendi kaynağını geliştirir
 "use strict";
 const selfdev = require("../selfdev.js");
-const { C, print, spinner } = require("../../tui/index.js");
+const { C }       = require("../../tui/colors.ts");
+const { print }   = require("../../tui/output.ts");
+const { spinner } = require("../../tui/index.js");
 const i18n = require("../i18n.js");
 const { setRuntimeOverride } = require("../router.js");
 

@@ -1,6 +1,7 @@
 // core/commands/oturum.js — Session management
 "use strict";
-const { C, T, print } = require("../../tui/index.js");
+const { C, T }  = require("../../tui/colors.ts");
+const { print } = require("../../tui/output.ts");
 const persist = require("../persist.js");
 const i18n = require("../i18n.js");
 

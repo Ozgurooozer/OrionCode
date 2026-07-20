@@ -117,7 +117,7 @@ async function _askApproval(label) {
   if (cfg.autoApproveCommands) return true;
   if (process.stdin.isTTY && process.stdout.isTTY) {
     const { selectInput } = require("../tui/select-input.js");
-    const { C } = require("../tui/index.js");
+    const { C } = require("../tui/colors.ts");
     const choice = await selectInput(
       `${C.yellow("⚡ git")} ${label}`,
       [

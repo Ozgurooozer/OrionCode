@@ -1,6 +1,7 @@
 // core/commands/skill.js — /skill: prosedürel bellek yönetimi
 "use strict";
-const { C, T, print } = require("../../tui/index.js");
+const { C, T }  = require("../../tui/colors.ts");
+const { print } = require("../../tui/output.ts");
 const skills = require("../skills.js");
 const i18n   = require("../i18n.js");
 

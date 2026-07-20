@@ -1,6 +1,7 @@
 // core/commands/import.js — /import: Claude Code oturumunu devral
 "use strict";
-const { C, print } = require("../../tui/index.js");
+const { C }     = require("../../tui/colors.ts");
+const { print } = require("../../tui/output.ts");
 const i18n = require("../i18n.js");
 
 module.exports = [{

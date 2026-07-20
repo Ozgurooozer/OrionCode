@@ -26,7 +26,9 @@ const { BudgetTracker, countMessages, estimateCost } = require("./budget.js");
 const { SessionLogger } = require("./telemetry.js");
 const router = require("./router.js");
 const backends = require("../backends/index.js");
-const { C, print, spinner, aiTurnStart, aiTurnContinue } = require("../tui/index.js");
+const { C }       = require("../tui/colors.ts");
+const { print }   = require("../tui/output.ts");
+const { spinner, aiTurnStart, aiTurnContinue } = require("../tui/index.js");
 const i18n = require("./i18n.js");
 const {
   MAX_ITERS, TIER1_TOOLS, PARALLEL_SAFE,

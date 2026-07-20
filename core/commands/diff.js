@@ -2,7 +2,8 @@
 "use strict";
 const fs   = require("fs");
 const path = require("path");
-const { C, print } = require("../../tui/index.js");
+const { C }     = require("../../tui/colors.ts");
+const { print } = require("../../tui/output.ts");
 const diff = require("../diff.js");
 const checkpoint = require("../checkpoint.js");
 const i18n = require("../i18n.js");
