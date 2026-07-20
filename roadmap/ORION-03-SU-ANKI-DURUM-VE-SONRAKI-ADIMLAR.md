@@ -4,6 +4,20 @@
 
 ---
 
+## 0. 3. Oturum Kapsamlı Değişiklikler (2026-07-20)
+
+| Değişiklik | Kanıt |
+|---|---|
+| **session.js refactor** | 1409 → 829 satır; core/loops/ (anthropic, openai, ollama, ollama_react, shared) |
+| **makeThinkFilter bölünmüş tag düzeltmesi** | `<thi` + `nk>` gibi tokenlar artık doğru filtrelenir |
+| **emitSilentCatch kritik görünürlük** | _save→print.error, _extractMemories→print.warn, vault/vectors→print.warn |
+| **silent_catch_hit → /log** | telemetry.js SessionLogger'a bağlanır; /log ⚠ ile gösterir |
+| **CLI hata mesajı** | err?.message ?? String(err) — "undefined" yazan hata düzeltildi |
+| **loops.test.js** | 13 yeni test; 333/333 toplam |
+| **Canlı test** | tencent/hy3:free (OpenRouter): multi-tool ✅; Ollama qwen: tek-araç ✅ |
+
+---
+
 ## 1. Canlı Doğrulanmış, Güvenilir Durumdakiler
 
 | Alan | Kanıt |
