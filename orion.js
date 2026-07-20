@@ -429,7 +429,7 @@ async function main() {
         await session.send(text);
         print.statusline(session.statusInfo());
       } catch (err) {
-        print.error(err.message);
+        print.error(err?.message ?? String(err));
       } finally {
         try { rl.resume(); } catch {}
       }

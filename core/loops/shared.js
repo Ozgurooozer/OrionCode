@@ -106,7 +106,12 @@ function _flattenMsgs(msgs) {
   return out;
 }
 
-// <think>…</think> bloklarını filtreleyen token-bazlı state machine factory
+// <think>…</think> bloklarını filtreleyen token-bazlı state machine factory.
+// Açma ve kapama etiketleri birden fazla tokena bölünse de doğru çalışır:
+// - Kapama: son 7 char buffer'da tutulur (</think> = 8 char, en az 1 fazla)
+// - Açma: buffer sonu <think> önekiyle bitiyorsa o önek tutulur
+const _THINK_OPEN  = "<think>";
+const _THINK_CLOSE = "</think>";
 function makeThinkFilter(onVisible) {
   let _thinkDepth = 0, _thinkBuf = "";
   return tok => {
@@ -114,16 +119,25 @@ function makeThinkFilter(onVisible) {
     let out = "";
     while (_thinkBuf.length) {
       if (_thinkDepth > 0) {
-        const close = _thinkBuf.indexOf("</think>");
-        if (close === -1) { _thinkBuf = _thinkBuf.slice(-8); break; }
+        const close = _thinkBuf.indexOf(_THINK_CLOSE);
+        if (close === -1) { _thinkBuf = _thinkBuf.slice(-(_THINK_CLOSE.length - 1)); break; }
         _thinkDepth--;
-        _thinkBuf = _thinkBuf.slice(close + 8);
+        _thinkBuf = _thinkBuf.slice(close + _THINK_CLOSE.length);
       } else {
-        const open = _thinkBuf.indexOf("<think>");
-        if (open === -1) { out += _thinkBuf; _thinkBuf = ""; break; }
+        const open = _thinkBuf.indexOf(_THINK_OPEN);
+        if (open === -1) {
+          // Buffer, <think> öneciyle bitiyor olabilir — o kısmı tut, gerisini yaz
+          let keepLen = 0;
+          for (let k = _THINK_OPEN.length - 1; k >= 1; k--) {
+            if (_thinkBuf.endsWith(_THINK_OPEN.slice(0, k))) { keepLen = k; break; }
+          }
+          out += _thinkBuf.slice(0, _thinkBuf.length - keepLen);
+          _thinkBuf = _thinkBuf.slice(_thinkBuf.length - keepLen);
+          break;
+        }
         out += _thinkBuf.slice(0, open);
         _thinkDepth++;
-        _thinkBuf = _thinkBuf.slice(open + 7);
+        _thinkBuf = _thinkBuf.slice(open + _THINK_OPEN.length);
       }
     }
     if (out) onVisible(out);
