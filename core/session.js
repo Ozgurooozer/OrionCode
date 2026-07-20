@@ -974,7 +974,10 @@ class Session {
         tool_calls: r.toolCalls.map(c => ({
           id:       c.id,
           type:     "function",
-          function: { name: c.name, arguments: typeof c.input === "string" ? c.input : JSON.stringify(c.input) },
+          // Ollama expects arguments as a plain object (not JSON string) in history messages.
+          // OpenAI format uses strings, but Ollama parses objects — sending a string causes
+          // "Value looks like object, but can't find closing '}' symbol" on the next turn.
+          function: { name: c.name, arguments: c.input },
         })),
       });
 

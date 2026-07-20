@@ -205,6 +205,8 @@ async function main() {
 
   const model   = pickModel(backend, MODEL_ARG);
   const session = new Session({ backend: backend.name, model });
+  // CLI'da --backend belirtilmişse router override'ı engelle
+  if (argBackend) session._manualBackend = true;
 
   if (resumeId) {
     try {
