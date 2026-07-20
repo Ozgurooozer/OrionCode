@@ -339,4 +339,100 @@ async function run(task, { onProgress = (_s) => {}, model } = {}) {
   };
 }
 
-module.exports = { run, scanWorkflows, DEFAULTS };
+// ── Status & service control ──────────────────────────────────────────────────
+
+/**
+ * Check health of ComfyUI and Ollama.
+ * @returns {Promise<{
+ *   comfyui: { running: boolean, host: string, port: number, gpuName?: string, vram?: string },
+ *   ollama:  { running: boolean, models: string[] },
+ *   workflows: { count: number, dir: string, files: string[] },
+ *   ready: boolean
+ * }>}
+ */
+async function checkStatus() {
+  const cfg = _cfg();
+
+  // ComfyUI
+  let comfyuiRunning = false;
+  let gpuName, vram;
+  try {
+    const stats = await _get(cfg, "/system_stats");
+    if (stats.system) {
+      comfyuiRunning = true;
+      gpuName = stats.devices?.[0]?.name;
+      const vramFree  = stats.devices?.[0]?.vram_free;
+      const vramTotal = stats.devices?.[0]?.vram_total;
+      if (vramTotal) {
+        const toGB = n => (n / 1024 / 1024 / 1024).toFixed(1) + "GB";
+        vram = `${toGB(vramFree)} free / ${toGB(vramTotal)} total`;
+      }
+    }
+  } catch {}
+
+  // Ollama
+  let ollamaRunning = false;
+  let models = [];
+  try {
+    const ollama = require("../../backends/ollama.ts");
+    models = await ollama.listModels();
+    ollamaRunning = models.length > 0;
+  } catch {}
+
+  // Workflows
+  let workflowFiles = [];
+  try { workflowFiles = fs.readdirSync(cfg.workflowsDir).filter(f => f.endsWith(".json")); } catch {}
+
+  return {
+    comfyui:   { running: comfyuiRunning, host: cfg.comfyuiHost, port: cfg.comfyuiPort, gpuName, vram },
+    ollama:    { running: ollamaRunning, models },
+    workflows: { count: workflowFiles.length, dir: cfg.workflowsDir, files: workflowFiles },
+    ready:     comfyuiRunning && ollamaRunning && workflowFiles.length > 0,
+  };
+}
+
+/**
+ * Start ComfyUI or Ollama as a detached background process.
+ * @param {"comfyui"|"ollama"} service
+ * @returns {{ launched: boolean, message: string }}
+ */
+function startService(service) {
+  const { spawn } = require("child_process");
+  const cfg = _cfg();
+
+  if (service === "comfyui") {
+    const startBat = path.join(path.dirname(cfg.workflowsDir), "..", "start.bat");
+    const resolved = path.resolve(startBat);
+    if (!fs.existsSync(resolved))
+      return { launched: false, message: `start.bat bulunamadı: ${resolved}` };
+    try {
+      const child = spawn("cmd.exe", ["/c", "start", '""', resolved], {
+        detached: true,
+        stdio:    "ignore",
+        shell:    false,
+      });
+      child.unref();
+      return { launched: true, message: `ComfyUI başlatıldı: ${resolved}` };
+    } catch (e) {
+      return { launched: false, message: `Başlatma hatası: ${e.message}` };
+    }
+  }
+
+  if (service === "ollama") {
+    try {
+      const child = spawn("ollama", ["serve"], {
+        detached: true,
+        stdio:    "ignore",
+        shell:    true,
+      });
+      child.unref();
+      return { launched: true, message: "ollama serve başlatıldı (arka planda)" };
+    } catch (e) {
+      return { launched: false, message: `Başlatma hatası: ${e.message}` };
+    }
+  }
+
+  return { launched: false, message: `Bilinmeyen servis: ${service}` };
+}
+
+module.exports = { run, checkStatus, startService, scanWorkflows, DEFAULTS };

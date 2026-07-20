@@ -139,10 +139,65 @@ function createServer() {
 
   // ── IMAGE GENERATION ─────────────────────────────────────────────────────────
 
+  server.tool("image_status",
+    "Check the status of ComfyUI and Ollama — required services for image generation. " +
+    "Returns whether each service is running, GPU/VRAM info, available Ollama models, and workflow count.",
+    {},
+    async () => {
+      const imager = require("./core/agents/imager.js");
+      const s = await imager.checkStatus();
+
+      const comfyLine = s.comfyui.running
+        ? `✓ running (${s.comfyui.host}:${s.comfyui.port})` +
+          (s.comfyui.gpuName ? ` | GPU: ${s.comfyui.gpuName}` : "") +
+          (s.comfyui.vram    ? ` | VRAM: ${s.comfyui.vram}`   : "")
+        : `✗ offline — start with: C:\\3d\\start.bat  or  /image start comfyui`;
+
+      const ollamaLine = s.ollama.running
+        ? `✓ running | models: ${s.ollama.models.slice(0, 8).join(", ")}`
+        : `✗ offline — start with: ollama serve  or  /image start ollama`;
+
+      const readyLine = s.ready
+        ? "✓ Ready — all services up, workflows loaded"
+        : "✗ Not ready — start missing services before generating";
+
+      return { content: [{ type: "text", text:
+        `Image Agent Status\n` +
+        `──────────────────\n` +
+        `ComfyUI:   ${comfyLine}\n` +
+        `Ollama:    ${ollamaLine}\n` +
+        `Workflows: ${s.workflows.count} files in ${s.workflows.dir}\n` +
+        `           ${s.workflows.files.join(", ")}\n\n` +
+        `Overall:   ${readyLine}`
+      }] };
+    }
+  );
+
+  server.tool("image_start",
+    "Start ComfyUI or Ollama as a background process. " +
+    "Use image_status first to check which services need starting.",
+    {
+      service: z.enum(["comfyui", "ollama", "all"]).describe("Which service to start"),
+    },
+    async ({ service }) => {
+      const imager = require("./core/agents/imager.js");
+      const targets = service === "all" ? ["comfyui", "ollama"] : [service];
+      const results = targets.map(svc => {
+        const r = imager.startService(svc);
+        return `${svc}: ${r.launched ? "launched" : "failed"} — ${r.message}`;
+      });
+      return { content: [{ type: "text", text:
+        results.join("\n") +
+        "\n\nServices start in the background. Wait ~10s then call image_status to verify."
+      }] };
+    }
+  );
+
   server.tool("generate_image",
     "Generate an image using ComfyUI. Scans C:\\3d\\WORKFLOWS\\ for available workflows, " +
     "uses a local Ollama model (single inference) to select the best workflow and craft a prompt, " +
-    "then submits to ComfyUI and returns the result with image paths.",
+    "then submits to ComfyUI and returns the result with image paths. " +
+    "Call image_status first to verify services are running.",
     {
       task:  z.string().describe("Natural language description of the image to generate"),
       model: z.string().optional().describe("Ollama model to use for planning (default: OLLAMA_MODEL env or qwen2.5:7b)"),
