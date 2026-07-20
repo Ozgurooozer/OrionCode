@@ -106,4 +106,22 @@ function readLog(sessionId) {
   } catch { return []; }
 }
 
+// silent_catch_hit olaylarını NDJSON'a yaz — /log'da görünmesi için.
+// events.js'den gelen her silent_catch_hit, sessionId'ye ait logger'a (varsa)
+// veya sessionId=null ise tüm aktif logger'lara yazılır.
+function _hookSilentCatch() {
+  try {
+    const events = require("./events.js");
+    events.emitter.on(events.EVENT_TYPES.silent_catch_hit, ({ sessionId, payload }) => {
+      const targets = sessionId
+        ? [..._liveLoggers].filter(l => l.sessionId === sessionId)
+        : [..._liveLoggers];
+      for (const logger of targets) {
+        logger.record({ event: "silent_catch_hit", ...payload });
+      }
+    });
+  } catch {}
+}
+_hookSilentCatch();
+
 module.exports = { SessionLogger, listLogs, readLog, pruneOldLogs };

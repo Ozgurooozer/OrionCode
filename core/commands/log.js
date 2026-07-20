@@ -5,15 +5,16 @@ const { C, print } = require("../../tui/index.js");
 const i18n = require("../i18n.js");
 
 const EVENT_ICONS = {
-  turn_start:     "▶",
-  turn_complete:  "✔",
-  tool_call:      "⚙",
-  routed:         "→",
-  backend_error:  "✖",
-  coordinator_error: "✖",
-  react_fallback: "↷",
-  skill_injected: "★",
-  speculex_hit:   "⚡",
+  turn_start:       "▶",
+  turn_complete:    "✔",
+  tool_call:        "⚙",
+  routed:           "→",
+  backend_error:    "✖",
+  coordinator_error:"✖",
+  react_fallback:   "↷",
+  skill_injected:   "★",
+  speculex_hit:     "⚡",
+  silent_catch_hit: "⚠",
 };
 
 function fmt(ev) {
@@ -27,6 +28,7 @@ function fmt(ev) {
   if (ev.event === "routed")        detail = `tier${ev.tier} (${ev.reason ?? ""})`;
   if (ev.event === "backend_error") detail = C.red(ev.error ?? "");
   if (ev.event === "coordinator_error") detail = C.red(`[${ev.phase}] ${ev.error ?? ""}`);
+  if (ev.event === "silent_catch_hit") detail = C.red(`${ev.site ?? "?"}: ${ev.error ?? ""}${ev.detail ? ` [${ev.detail}]` : ""}`);
   return `  ${C.dim(ageStr.padStart(8))}  ${C.cyan(icon)} ${C.bold((ev.event ?? "").padEnd(16))}  ${C.dim(detail)}`;
 }
 
