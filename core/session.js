@@ -946,6 +946,33 @@ class Session {
     this._interrupted = false;
     aiTurnStart(this.mode?.name, this.backend, `[${this._turnCount + 1}]`);
 
+    // <think>…</think> bloklarını ekranda gösterme — bazı Ollama modelleri (vibethinker vb.)
+    // düşünce zincirini bu tag'lerle metin içine gömer. Token bazlı state machine.
+    // Her chatRich çağrısı için ayrı state (kapalı kalmış tag bir sonraki yanıta taşınmasın).
+    const _makeOnToken = () => {
+      let _thinkDepth = 0, _thinkBuf = "";
+      return tok => {
+      _thinkBuf += tok;
+      // Tag'ler birden fazla tokena bölünebilir — buffer üzerinden tara
+      let out = "";
+      while (_thinkBuf.length) {
+        if (_thinkDepth > 0) {
+          const close = _thinkBuf.indexOf("</think>");
+          if (close === -1) { _thinkBuf = _thinkBuf.slice(-8); break; } // tam tag görmeden bekle
+          _thinkDepth--;
+          _thinkBuf = _thinkBuf.slice(close + 8); // </think> sonrasını al
+        } else {
+          const open = _thinkBuf.indexOf("<think>");
+          if (open === -1) { out += _thinkBuf; _thinkBuf = ""; break; }
+          out += _thinkBuf.slice(0, open); // <think> öncesini yaz
+          _thinkDepth++;
+          _thinkBuf = _thinkBuf.slice(open + 7);
+        }
+      }
+      if (out) { process.stdout.write(out); events.emit("text_delta", this.id, { delta: out }); }
+      };
+    };
+
     for (let iter = 0; iter < MAX_ITERS; iter++) {
       if (this._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
 
@@ -954,7 +981,7 @@ class Session {
         r = await ollama.chatRich(this.model, history, {
           system:  this._systemTier1,
           tools:   useTools ? allowedDefs : undefined,
-          onToken: tok => { process.stdout.write(tok); events.emit("text_delta", this.id, { delta: tok }); },
+          onToken: _makeOnToken(),
         });
       } catch (err) {
         if (err.noToolSupport && useTools) {
