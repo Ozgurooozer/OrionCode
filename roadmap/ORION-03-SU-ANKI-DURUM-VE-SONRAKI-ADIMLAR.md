@@ -62,17 +62,25 @@ Bunlar kötü fikirler değil — **öncelik sırasına göre ertelendi.** Temel
 
 ## 4. Açık, Çözülmemiş Sorunlar
 
-1. **`core/coordinator.js:57`** — LLM çağrı hatası sessizce yedek plana
-   düşüyor (S taramasının bulduğu, dokunmadığı gözlem)
-2. **Manuel backend seçiliyken** (`_manualBackend`) speculex prefetch hiç
-   tetiklenmiyor
+~~1. **`core/coordinator.js:57`** — LLM çağrı hatası sessizce yedek plana düşüyor~~
+   ✅ Kapatıldı — `plan()` artık `print.warn` + `coordinator_error` eventi yayar.
+
+~~2. **Manuel backend seçiliyken** (`_manualBackend`) speculex prefetch hiç tetiklenmiyor~~
+   ✅ Kapatıldı — CLI `--backend` ile `session._manualBackend = true` set ediliyor
+   (commit `7b6400c`); `isTier2Turn` manual modda `backend !== "ollama"` ile hesaplanır.
+
 3. **TUI'deki AI turn başlığı** bazen bayat backend etiketi gösteriyor
-   (kozmetik, TUI hattı ayrı bir akışta)
+   (kozmetik, TUI hattı ayrı bir akışta) — düşük öncelik
+
 4. **QSE kalıntı vault kaydı** — bir oturum hâlâ kuantum içerik taşıyor
    (context'e artık girmiyor ama kozmetik temizlik bekliyor)
-5. **Kimin ne zaman ne yaptığının senkronizasyonu** — kullanıcı zaman zaman
-   bu planlama sohbetinin dışında da doğrudan Claude Code ile çalışıyor;
-   bu, DURUM.md'nin güncel tutulmasını gerektiriyor
+
+5. **session.js 1373 satır** — 6 sorumluluk, CC≈33. Mimari refactor gerektirir;
+   loop dosyaları ayrı modüle taşınabilir (anthropic_loop.js, ollama_loop.js vb.)
+   ama yüksek risk, şimdilik ertelendi.
+
+6. **emitSilentCatch kültürü (~15 site)** — hatalar event kanalına düşüyor, SSE
+   bağlı değilse sessizce kaybolur. PERSONA.md "veri önce" duruşuyla çelişir.
 
 ---
 
