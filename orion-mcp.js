@@ -137,6 +137,50 @@ function createServer() {
     return { content: [{ type: "text", text: content.slice(0, 4000) }] };
   });
 
+  // ── IMAGE GENERATION ─────────────────────────────────────────────────────────
+
+  server.tool("generate_image",
+    "Generate an image using ComfyUI. Scans C:\\3d\\WORKFLOWS\\ for available workflows, " +
+    "uses a local Ollama model (single inference) to select the best workflow and craft a prompt, " +
+    "then submits to ComfyUI and returns the result with image paths.",
+    {
+      task:  z.string().describe("Natural language description of the image to generate"),
+      model: z.string().optional().describe("Ollama model to use for planning (default: OLLAMA_MODEL env or qwen2.5:7b)"),
+    },
+    async ({ task, model }) => {
+      const imager = require("./core/agents/imager.js");
+      const progress = [];
+
+      const result = await imager.run(task, {
+        onProgress: msg => progress.push(msg),
+        model,
+      });
+
+      if (!result.success) {
+        return { content: [{ type: "text", text:
+          `Image generation failed.\nError: ${result.error}\nProgress:\n${progress.join("\n")}`
+        }] };
+      }
+
+      const imageList = (result.images ?? []).map(img =>
+        `  • ${img.filename}\n    Local: ${img.localPath}\n    URL:   ${img.url}`
+      ).join("\n");
+
+      return { content: [{ type: "text", text:
+        `Image generation complete.\n\n` +
+        `Workflow:  ${result.workflow}\n` +
+        `Prompt:    ${result.positivePrompt}\n` +
+        `Negative:  ${result.negativePrompt}\n` +
+        `Reason:    ${result.reason}\n` +
+        `PromptID:  ${result.promptId}\n\n` +
+        `Images (${result.images?.length ?? 0}):\n${imageList}\n\n` +
+        `Evaluation: ${result.evaluation}`
+      }] };
+    }
+  );
+
+  // ── VAULT ─────────────────────────────────────────────────────────────────────
+
   server.tool("vault_kaydet", "Process this Claude Code conversation with the local AI and save it to the vault", {
     session_id:   z.string().describe("Unique session id (e.g. claude-code-2026-07-07)"),
     mesajlar:     z.string().describe("Conversation text — paste the important parts here"),
