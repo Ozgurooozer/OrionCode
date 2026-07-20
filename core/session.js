@@ -840,6 +840,10 @@ class Session {
     const allowedDefs = this.modes.filterDefs(tools.getDefs());
     const useTools = this.mode.allowTools && allowedDefs.length > 0;
     const history  = _flattenMsgs(this.msgs);
+    // maxOutputTokens: OpenRouter/OpenAI için output rezervasyonu sınırla.
+    // 0 → sağlayıcı default (OpenRouter için model max, 65536 gibi → 402 hatası).
+    const _cfgForOutput = router.loadConfig();
+    const maxTokens = (_cfgForOutput.maxOutputTokens > 0) ? _cfgForOutput.maxOutputTokens : undefined;
 
     let finalText = "";
     let lastCallSig = "";
@@ -850,9 +854,10 @@ class Session {
       if (this._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
 
       const r = await provider.chatRich(this.model, history, {
-        system:  this.system,
-        tools:   useTools ? allowedDefs : undefined,
-        onToken: tok => { process.stdout.write(tok); events.emit("text_delta", this.id, { delta: tok }); },
+        system:    this.system,
+        tools:     useTools ? allowedDefs : undefined,
+        onToken:   tok => { process.stdout.write(tok); events.emit("text_delta", this.id, { delta: tok }); },
+        maxTokens,
       });
 
       if (!r.toolCalls.length) { finalText = r.text; break; }

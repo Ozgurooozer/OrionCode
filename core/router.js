@@ -26,6 +26,8 @@ const DEFAULTS = {
   contextLimit:             0,      // 0 = her backend kendi varsayılanını kullanır (akıllı mod)
                                     // >0 = tüm backendler için genel override
   backendContextLimits:     {},     // per-backend override: { "ollama": 8192, "lmstudio": 4096 }
+  maxOutputTokens:          8192,   // OpenAI-compat backendlerde max_tokens; 0 = sağlayıcı default
+                                    // OpenRouter az kredi durumunda düşür: /ayar maxOutputTokens 4096
 };
 
 // 5sn config cache

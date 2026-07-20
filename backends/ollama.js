@@ -16,13 +16,14 @@ const http = require("http");
  * @property {Array<Object>}           [tools]    - Anthropic-format tool definitions
  */
 
-const HOST = process.env.OLLAMA_HOST ?? "localhost";
-const PORT = parseInt(process.env.OLLAMA_PORT ?? "11434");
+// Lazy: /settings ollama runtime'da OLLAMA_HOST/PORT env'i günceller → anında aktif
+const _host = () => process.env.OLLAMA_HOST ?? "localhost";
+const _port = () => parseInt(process.env.OLLAMA_PORT ?? "11434");
 
 async function listModels() {
   return new Promise(resolve => {
     const req = http.request(
-      { hostname: HOST, port: PORT, path: "/api/tags", method: "GET" },
+      { hostname: _host(), port: _port(), path: "/api/tags", method: "GET" },
       res => {
         let d = "";
         res.on("data", c => (d += c));
@@ -53,7 +54,7 @@ function _request(body, { onLine } = {}) {
   return new Promise((resolve, reject) => {
     const req = http.request(
       {
-        hostname: HOST, port: PORT, path: "/api/chat", method: "POST",
+        hostname: _host(), port: _port(), path: "/api/chat", method: "POST",
         headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
       },
       res => {

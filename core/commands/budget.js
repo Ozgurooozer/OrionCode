@@ -33,11 +33,11 @@ module.exports = [
     },
   },
   {
-    name:    "log",
-    aliases: ["telemetri", "logs"],
+    name:    "logs",
+    aliases: ["telemetri"],
     group:   "Cost",
-    desc:    "List session logs / view detail",
-    usage:   "/log [read <id>]",
+    desc:    "List session log files / view detail",
+    usage:   "/logs [read <id>]",
     exec: async ({ args }) => {
       const tel = require("../telemetry.js");
       const sub = args[0]?.toLowerCase();

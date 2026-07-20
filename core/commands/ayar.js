@@ -58,6 +58,12 @@ module.exports = [{
       const host = args[1];
       if (!host) { print.error(i18n.t("Usage: /settings ollama <http://localhost:11434>", "Kullanım: /ayar ollama <http://localhost:11434>")); return; }
       router.saveConfig({ ollamaHost: host });
+      // Mevcut süreç için de hemen aktif et (backends/ollama.js ve embed.js lazy okur)
+      try {
+        const u = new URL(host.startsWith("http") ? host : "http://" + host);
+        process.env.OLLAMA_HOST = u.hostname;
+        process.env.OLLAMA_PORT = String(u.port || "11434");
+      } catch { /* URL parse hatası — kayıt edildi, env değişmedi */ }
       print.system(`ollama host → ${host}`);
       return;
     }
@@ -79,6 +85,20 @@ module.exports = [{
       return;
     }
 
+    if (sub === "maxoutputtokens" || sub === "maxoutput") {
+      const n = parseInt(args[1]);
+      if (isNaN(n) || n < 0) {
+        print.error(i18n.t(
+          "Usage: /settings maxOutputTokens <n>  (0 = provider default)",
+          "Kullanım: /ayar maxOutputTokens <n>  (0 = sağlayıcı default)"
+        ));
+        return;
+      }
+      router.saveConfig({ maxOutputTokens: n });
+      print.system(`maxOutputTokens → ${n === 0 ? "provider default" : n}`);
+      return;
+    }
+
     // /settings — show full config
     const { getEffectiveMemoryEffort } = router;
     const cfg = router.loadConfig();
@@ -96,6 +116,7 @@ module.exports = [{
       row("memoryEffort",             `${cfg.memoryEffort} (effective: ${effective})`),
       row("vaultDir",                 cfg.vaultDir),
       row("ollamaHost",               cfg.ollamaHost ?? "http://localhost:11434"),
+      row("maxOutputTokens",          cfg.maxOutputTokens === 0 ? "provider default" : String(cfg.maxOutputTokens ?? 8192)),
       row("language",                 cfg.language ?? "en"),
       "",
       `  ${C.dim("/settings tier1 <model>")}`,
@@ -103,6 +124,7 @@ module.exports = [{
       `  ${C.dim("/settings budget <usd>     /settings threshold <token>")}`,
       `  ${C.dim("/settings vault <dir>      /settings ollama <host>")}`,
       `  ${C.dim("/settings memoryEffort <low|balanced|high>")}`,
+      `  ${C.dim("/settings maxOutputTokens <n>      (0=provider default)")}`,
       "",
     ].join("\n"));
   },

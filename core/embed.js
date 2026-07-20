@@ -4,8 +4,9 @@
 const http = require("http");
 const os   = require("os");
 
-const HOST       = process.env.OLLAMA_HOST ?? "localhost";
-const PORT       = parseInt(process.env.OLLAMA_PORT ?? "11434");
+// Lazy: /settings ollama runtime'da OLLAMA_HOST/PORT env'i günceller → anında aktif
+const _host = () => process.env.OLLAMA_HOST ?? "localhost";
+const _port = () => parseInt(process.env.OLLAMA_PORT ?? "11434");
 const EMBED_MODEL = process.env.EMBED_MODEL ?? "nomic-embed-text";
 
 // Kullanılabilirlik cache — 30sn TTL
@@ -69,7 +70,7 @@ function embedText(text) {
   return new Promise(resolve => {
     const req = http.request(
       {
-        hostname: HOST, port: PORT, path: "/api/embeddings", method: "POST",
+        hostname: _host(), port: _port(), path: "/api/embeddings", method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(body),
@@ -104,7 +105,7 @@ async function isAvailable() {
   }
   return new Promise(resolve => {
     const req = http.request(
-      { hostname: HOST, port: PORT, path: "/api/tags", method: "GET" },
+      { hostname: _host(), port: _port(), path: "/api/tags", method: "GET" },
       res => {
         let d = "";
         res.on("data", c => (d += c));

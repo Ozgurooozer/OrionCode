@@ -53,9 +53,11 @@ function createProvider(spec) {
   // Lazy cache: credentials.js startup'ta env'i doldurur; oturum boyunca değişmez
   let _apiKeyCache;
   const apiKey = () => {
-    if (_apiKeyCache !== undefined) return _apiKeyCache;
+    // Sadece dolu değeri cache'le — boş string cache'lenirse /provider key
+    // ile sonradan set edilen anahtar görünmez hale gelir
+    if (_apiKeyCache) return _apiKeyCache;
     for (const e of keyEnvs) { if (process.env[e]) return (_apiKeyCache = process.env[e]); }
-    return (_apiKeyCache = "");
+    return "";
   };
 
   function _headers(body) {

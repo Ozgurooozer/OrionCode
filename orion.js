@@ -65,7 +65,15 @@ function pickModel(backend, requestedModel) {
   if (backend.name === "huggingface") return requestedModel ?? "meta-llama/Meta-Llama-3-8B-Instruct";
   if (backend.name === "openai") return requestedModel ?? "gpt-4o-mini";
 
-  // Ollama
+  // OpenAI-compat (openrouter, nim, lmstudio, özel BYOK): model serbestçe belirtilir;
+  // /models listesiyle sınırlama yapılmaz (liste kısmi — detect() ilk 50 döner).
+  const isOpenAICompat = backend.name !== "ollama";
+  if (isOpenAICompat) {
+    if (requestedModel) return requestedModel;
+    return backend.defaultModel ?? backend.models?.[0] ?? null;
+  }
+
+  // Ollama — liste tam, bulunamazsa uyar
   const models = backend.models ?? [];
   if (requestedModel) {
     if (!models.includes(requestedModel)) {
