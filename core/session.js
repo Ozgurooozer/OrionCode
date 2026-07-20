@@ -1078,6 +1078,7 @@ class Session {
     const history = [{ role: "system", content: sysWithTools }, ..._flattenMsgs(this.msgs)];
     let iters = 0, finalText = "", lastRaw = "", lastCallSig = "";
     const REACT_MAX_ITERS = MAX_ITERS;
+    const { stripThinking } = require("./extract.js");
 
     aiTurnStart(this.mode?.name, this.backend, `[${this._turnCount + 1}]`);
     this._interrupted = false;
@@ -1090,12 +1091,20 @@ class Session {
         if (this.mode.allowTools) {
           spinner.start(i18n.t("thinking", "düşünüyor"));
           rawResp = await ollama.chat(this.model, history, { stream: false });
+          rawResp = stripThinking(rawResp); // <think>...</think> bloklarını kaldır
           spinner.stop();
         } else {
-          rawResp = await ollama.chat(this.model, history, {
-            stream: true,
-            onToken: tok => process.stdout.write(tok),
-          });
+          // Streaming modda think bloklarını filtrele (_makeOnToken benzeri state machine)
+          let _td = 0, _tb = "";
+          const _rt = tok => {
+            _tb += tok; let out = "";
+            while (_tb.length) {
+              if (_td > 0) { const c = _tb.indexOf("</think>"); if (c === -1) { _tb = _tb.slice(-8); break; } _td--; _tb = _tb.slice(c + 8); }
+              else { const o = _tb.indexOf("<think>"); if (o === -1) { out += _tb; _tb = ""; break; } out += _tb.slice(0, o); _td++; _tb = _tb.slice(o + 7); }
+            }
+            if (out) process.stdout.write(out);
+          };
+          rawResp = await ollama.chat(this.model, history, { stream: true, onToken: _rt });
         }
       } catch (err) {
         spinner.stop();
