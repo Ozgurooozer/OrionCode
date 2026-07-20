@@ -75,12 +75,19 @@ Bunlar kötü fikirler değil — **öncelik sırasına göre ertelendi.** Temel
 4. **QSE kalıntı vault kaydı** — bir oturum hâlâ kuantum içerik taşıyor
    (context'e artık girmiyor ama kozmetik temizlik bekliyor)
 
-5. **session.js 1373 satır** — 6 sorumluluk, CC≈33. Mimari refactor gerektirir;
-   loop dosyaları ayrı modüle taşınabilir (anthropic_loop.js, ollama_loop.js vb.)
-   ama yüksek risk, şimdilik ertelendi.
+~~5. **session.js 1373 satır** — 6 sorumluluk, CC≈33.~~
+   ✅ Kapatıldı — 4 döngü `core/loops/` altına çıkarıldı (anthropic.js, openai.js,
+   ollama.js, ollama_react.js + shared.js). session.js: 1409 → **829 satır** (−41%).
+   320/320 test geçiyor.
 
-6. **emitSilentCatch kültürü (~15 site)** — hatalar event kanalına düşüyor, SSE
-   bağlı değilse sessizce kaybolur. PERSONA.md "veri önce" duruşuyla çelişir.
+~~6. **emitSilentCatch kültürü (~15 site)**~~
+   ✅ Kısmen kapatıldı — Kritik siteler görünür kılındı:
+   - `session.js:_save`: artık `print.error` basar (kullanıcı kayıp veriden haberdar olur)
+   - `session.js:_extractMemories`: artık `print.warn` basar
+   - `vault.js:writeSession/vectors`: artık `print.warn` basar
+   Geriye kalan ~12 site (vault-inject, turn-recall, skill-inject, thompson, budget,
+   i18n, freeenergy, extract): bunlar arka plan iyileştirme hatalarıdır, SSE bağlı
+   olmayan CLI'de görünmemesi tasarım gereği kabul edildi.
 
 ---
 

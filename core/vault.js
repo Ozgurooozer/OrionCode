@@ -255,8 +255,9 @@ async function writeSession(sessionId, data, knowledge) {
       }
     }
   } catch (err) {
-    // Vektör yazılamadı → oturum vault'a "başarıyla" girer ama semantik aramada
-    // görünmez olur. Yazma akışını bozmadan olay kanalına düş.
+    // Vektör yazılamadı → oturum vault'a girer ama semantik aramada görünmez olur.
+    const { print } = require("../tui/index.js");
+    print.warn(`vault: vector write failed (semantic search degraded): ${err.message}`);
     require("./events.js").emitSilentCatch("vault.js:writeSession", err, sessionId, "vectors");
   }
 
