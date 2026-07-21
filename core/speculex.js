@@ -1,4 +1,4 @@
-// core/speculex.js — Spekülatif salt-okunur tool önbelleği (İş B)
+﻿// core/speculex.js — Spekülatif salt-okunur tool önbelleği (İş B)
 // Tier2 yanıt beklerken tier1 prediction'dan gelen read-only araçları önceden çalıştırır.
 // KATI SINIR: SAFE_TOOLS dışındaki araçlar ASLA spekülatif çalıştırılmaz.
 // İsabet/ıska görünürlüğü: speculex_hit/speculex_miss olaylarını session.js yayınlar;
@@ -18,7 +18,7 @@
  * @property {(entry: Object) => void} record - log a telemetry event
  */
 
-const tools  = require("./tools.js");
+const tools  = require("./tools.ts");
 const events = require("./events.ts");
 
 // events.emit hiçbir koşulda speculex akışını kırmasın — spekülasyon hatası

@@ -1,11 +1,11 @@
-// core/commands/provider.js — BYOK provider management
+﻿// core/commands/provider.js — BYOK provider management
 // Keys are never printed to screen — only presence/absence is shown.
 // Interactive mode uses select-input + masked-input (clack dependency removed).
 "use strict";
 const path = require("path");
 const { C, T }    = require("../../tui/colors.ts");
 const { print }   = require("../../tui/output.ts");
-const { spinner } = require("../../tui/index.js");
+const { spinner } = require("../../tui/index.ts");
 const { selectInput }  = require("../../tui/select-input.js");
 const { maskedInput }  = require("../../tui/masked-input.js");
 const credentials      = require("../credentials.js");
@@ -27,7 +27,7 @@ function _col(s, w) { return String(s ?? "").padEnd(w); }
 // yalanı söylemeye yol açar (özellikle _saveKeyForProvider eski bir çalıştırmada
 // built-in bir isme yazdıysa — bkz. _isBuiltin).
 function _isBuiltin(p) {
-  return require("../../backends/index.js").ALL.includes(p);
+  return require("../../backends/index.ts").ALL.includes(p);
 }
 
 // anthropic.js openai-compat üzerinden değil, elle yazılmış — .spec yok,
@@ -56,7 +56,7 @@ function _keyHint(p, ok) {
 // ── Provider aktivasyonu sonrası: model listesini çek → seçtir ────────────────
 // Liste alınamazsa NEDENİYLE söyler (anahtar geçersiz / servis yanıt vermiyor).
 async function _pickModelFor(providerName, session) {
-  const backends = require("../../backends/index.js");
+  const backends = require("../../backends/index.ts");
   const router   = require("../router.ts");
 
   spinner.start(i18n.t(`fetching ${providerName} models`, `${providerName} modelleri alınıyor`));
@@ -104,7 +104,7 @@ async function _pickModelFor(providerName, session) {
 
 // ── /provider — interaktif ana liste ─────────────────────────────────────────
 async function listProvidersInteractive(session) {
-  const backends = require("../../backends/index.js");
+  const backends = require("../../backends/index.ts");
   const custom   = backends.custom;
   const router   = require("../router.ts");
   const cfg      = router.loadConfig();
@@ -378,7 +378,7 @@ module.exports = [{
   desc:    "AI providers: list, add (BYOK), remove",
   usage:   "/provider [add <name> [url] | key <name> <key> | remove <name> | presets]",
   exec: async ({ args, rl, session }) => {
-    const backends = require("../../backends/index.js");
+    const backends = require("../../backends/index.ts");
     const custom   = backends.custom;
     const sub      = args[0]?.toLowerCase();
 

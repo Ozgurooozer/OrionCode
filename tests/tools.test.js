@@ -1,4 +1,4 @@
-// tests/tools.test.js — dinamik araç kaydı
+﻿// tests/tools.test.js — dinamik araç kaydı
 "use strict";
 const fs   = require("fs");
 const os   = require("os");
@@ -7,7 +7,7 @@ process.env.ORION_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "orion-test-"));
 
 const { test } = require("node:test");
 const assert = require("node:assert");
-const tools = require("../core/tools.js");
+const tools = require("../core/tools.ts");
 
 const DEF = {
   name: "test_topla",

@@ -1,4 +1,4 @@
-// core/commands/moltbook.js — Moltbook skill toggle
+﻿// core/commands/moltbook.js — Moltbook skill toggle
 // /moltbook on  → Moltbook araçlarını bu oturuma ekle
 // /moltbook off → kaldır
 // /moltbook     → mevcut durumu göster
@@ -14,7 +14,7 @@ module.exports = [{
   desc:    "Enable or disable Moltbook tools for this session",
   usage:   "/moltbook [on|off]",
   exec: ({ args }) => {
-    const tools = require("../tools.js");
+    const tools = require("../tools.ts");
     const sub = (args[0] ?? "").toLowerCase();
 
     if (!sub) {

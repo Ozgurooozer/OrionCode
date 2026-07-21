@@ -1,21 +1,22 @@
-// backends/index.js — Provider kaydı ve otomatik tespit
+﻿// backends/index.ts — Provider kaydı ve otomatik tespit
 // Yerleşik: anthropic, ollama, openrouter, openai, huggingface
 // Özel (BYOK): ~/.orion/providers.json → herhangi bir OpenAI-uyumlu servis
 "use strict";
+import type { Backend } from './types.ts';
 const ollama      = require("./ollama.ts");
-const anthropic   = require("./anthropic.js");
+const anthropic   = require("./anthropic.ts");
 const huggingface = require("./huggingface.js");
-const openai      = require("./openai.js");
-const openrouter  = require("./openrouter.js");
+const openai      = require("./openai.ts");
+const openrouter  = require("./openrouter.ts");
 const lmstudio    = require("./lmstudio.js");
-const nim         = require("./nim.js");
+const nim         = require("./nim.ts");
 const custom      = require("./custom.js");
 
 const BUILTIN = [anthropic, ollama, lmstudio, nim, openrouter, openai, huggingface];
 
 // Plugin'lerin kayıt ettiği ek provider'lar (core/plugins.js)
-const EXTRA = [];
-function registerProvider(provider) {
+const EXTRA: any[] = [];
+function registerProvider(provider: any) {
   if (!provider?.name) return false;
   const i = EXTRA.findIndex(p => p.name === provider.name);
   if (i !== -1) EXTRA.splice(i, 1);
@@ -27,12 +28,12 @@ function all() {
   return [...BUILTIN, ...custom.loadProviders(), ...EXTRA];
 }
 
-function get(name) {
+function get(name: string) {
   return all().find(p => p.name === name) ?? null;
 }
 
 // Anthropic dışındaki her şey OpenAI-uyumludur (chatRich destekler)
-function isOpenAIFamily(name) {
+function isOpenAIFamily(name: string) {
   const p = get(name);
   return !!p && p.name !== "anthropic" && p.name !== "ollama" && typeof p.chatRich === "function";
 }
@@ -48,7 +49,7 @@ async function detect() {
       models = await p.listModelIds(20).catch(() => []);
     } else {
       const m = await p.listModels().catch(() => []);
-      models = m.map(x => (typeof x === "string" ? x : x.id));
+      models = m.map((x: any) => (typeof x === "string" ? x : x.id));
     }
     results.push({ name: p.name, models, defaultModel: p.defaultModel ?? null, custom: !BUILTIN.includes(p) });
   }

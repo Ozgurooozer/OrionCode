@@ -1,11 +1,11 @@
-// tests/loops.test.js — core/loops/ modüllerinin birim testleri
+﻿// tests/loops.test.js — core/loops/ modüllerinin birim testleri
 "use strict";
 const { describe, test } = require("node:test");
 const assert = require("node:assert/strict");
 
 // ── shared.js ──────────────────────────────────────────────────────────────
-describe("loops/shared.js", () => {
-  const shared = require("../core/loops/shared.js");
+describe("loops/shared.ts", () => {
+  const shared = require("../core/loops/shared.ts");
 
   test("sabitleri doğru ihraç eder", () => {
     assert.equal(shared.MAX_ITERS, 40);
@@ -182,14 +182,14 @@ describe("ollama.js Jinja uyumluluğu", () => {
 
 // ── loop fonksiyonları ─────────────────────────────────────────────────────
 describe("loop modülleri", () => {
-  test("anthropic.js async fonksiyon export eder", () => {
+  test("anthropic.ts async fonksiyon export eder", () => {
     const fn = require("../core/loops/anthropic.js");
     assert.equal(typeof fn, "function");
     // AsyncFunction kontrolü
     assert.ok(fn.constructor.name === "AsyncFunction" || fn.toString().includes("async"), "async fonksiyon olmalı");
   });
 
-  test("openai.js async fonksiyon export eder", () => {
+  test("openai.ts async fonksiyon export eder", () => {
     const fn = require("../core/loops/openai.js");
     assert.equal(typeof fn, "function");
   });
@@ -224,7 +224,7 @@ describe("session.js ↔ loops entegrasyonu", () => {
 
   test("shared.js'den ihraç edilen _callToolCached session.js'deki ile aynı referans", () => {
     const { _callToolCached: fromSession } = require("../core/session.ts");
-    const { _callToolCached: fromShared }  = require("../core/loops/shared.js");
+    const { _callToolCached: fromShared }  = require("../core/loops/shared.ts");
     assert.strictEqual(fromSession, fromShared, "aynı fonksiyon referansı olmalı");
   });
 });

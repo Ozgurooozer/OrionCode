@@ -1,4 +1,4 @@
-// tests/lmstudio.test.js — LM Studio backend (backends/lmstudio.js)
+﻿// tests/lmstudio.test.js — LM Studio backend (backends/lmstudio.js)
 "use strict";
 // Gerçek LM Studio çalışıyor olabilir — ölü porta yönlendir (modül env'i require anında okur)
 process.env.LMSTUDIO_PORT = "1";
@@ -20,7 +20,7 @@ test("lmstudio: sunucu kapalıyken isAvailable false (anahtarsız-hep-true tuza�
 });
 
 test("lmstudio: BUILTIN listesinde ve OpenAI ailesinde", () => {
-  const backends = require("../backends/index.js");
+  const backends = require("../backends/index.ts");
   assert.ok(backends.ALL.some(p => p.name === "lmstudio"), "BUILTIN'de olmalı");
   assert.strictEqual(backends.isOpenAIFamily("lmstudio"), true);
 });

@@ -1,4 +1,4 @@
-// core/commands/entropy.js — /entropy: statik karmaşıklık analizi
+﻿// core/commands/entropy.js — /entropy: statik karmaşıklık analizi
 // Kütüphane seçimi: harici bağımlılık YOK. Proje 5 kritik bağımlılıkla sıkı tutulmuştur;
 // typhonjs-escomplex/plato gibi ağır analiz paketleri bu felsefeyle çelişir.
 // Buradaki regex+brace-counting yaklaşımı JS/CJS dosyaları için %85+ doğrulukta
@@ -11,7 +11,7 @@ const path = require("path");
 const os   = require("os");
 const { C }       = require("../../tui/colors.ts");
 const { print }   = require("../../tui/output.ts");
-const { spinner } = require("../../tui/index.js");
+const { spinner } = require("../../tui/index.ts");
 const i18n = require("../i18n.js");
 
 // ── Eşikler (config ile ayarlanabilir) ───────────────────────────────────────

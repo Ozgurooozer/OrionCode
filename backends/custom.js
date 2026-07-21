@@ -1,4 +1,4 @@
-// backends/custom.js — BYOK özel sağlayıcılar (~/.orion/providers.json)
+﻿// backends/custom.js — BYOK özel sağlayıcılar (~/.orion/providers.json)
 // Herhangi bir OpenAI-uyumlu servis 5 satır JSON ile eklenir.
 "use strict";
 
@@ -16,7 +16,7 @@
 const fs   = require("fs");
 const path = require("path");
 const os   = require("os");
-const { createProvider } = require("./openai-compat.js");
+const { createProvider } = require("./openai-compat.ts");
 const i18n = require("../core/i18n.js");
 
 const FILE = path.join(process.env.ORION_HOME || os.homedir(), ".orion", "providers.json");

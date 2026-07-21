@@ -1,4 +1,4 @@
-// tests/slashmenu.test.js — "/" komut açılır menüsü durum makinesi
+﻿// tests/slashmenu.test.js — "/" komut açılır menüsü durum makinesi
 "use strict";
 
 const { test } = require("node:test");
@@ -110,13 +110,13 @@ test("attachSlashMenu: non-TTY ortamında null döner", () => {
 });
 
 test("tui: inputBoxTop ve renderMenuBelow export edilmiş", () => {
-  const tui = require("../tui/index.js");
+  const tui = require("../tui/index.ts");
   assert.strictEqual(typeof tui.inputBoxTop, "function");
   assert.strictEqual(typeof tui.renderMenuBelow, "function");
 });
 
 test("tui: emblem ORION blok harflerini ve model bilgisini içerir", () => {
-  const { emblem } = require("../tui/index.js");
+  const { emblem } = require("../tui/index.ts");
   const out = emblem("claude-sonnet-4-6", "anthropic");
   const plain = out.replace(/\x1b\[[^m]*m/g, "").replace(/\x1b\][^\x07]*\x07/g, "");
   assert.ok(plain.includes("██"), "blok harf içermeli");
@@ -135,7 +135,7 @@ test("slashmenu: filtre değişince seçim sıfırlanır", () => {
 });
 
 test("tui: setInputLock/isInputLocked — kilit durumu yönetilir", () => {
-  const { setInputLock, isInputLocked } = require("../tui/index.js");
+  const { setInputLock, isInputLocked } = require("../tui/index.ts");
   assert.strictEqual(isInputLocked(), false, "başlangıçta kilitsiz");
   setInputLock(true);
   assert.strictEqual(isInputLocked(), true, "kilitlenebilmeli");
@@ -144,7 +144,7 @@ test("tui: setInputLock/isInputLocked — kilit durumu yönetilir", () => {
 });
 
 test("tui: placeholder fonksiyonları export edilmiş ve non-TTY'de çökmez", () => {
-  const tui = require("../tui/index.js");
+  const tui = require("../tui/index.ts");
   assert.strictEqual(typeof tui.showInputPlaceholder, "function");
   assert.strictEqual(typeof tui.clearInputPlaceholder, "function");
   assert.doesNotThrow(() => tui.showInputPlaceholder());

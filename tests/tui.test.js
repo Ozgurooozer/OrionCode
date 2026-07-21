@@ -1,4 +1,4 @@
-// tests/tui.test.js — TUI chat arayüzü: turn header fonksiyonları
+﻿// tests/tui.test.js — TUI chat arayüzü: turn header fonksiyonları
 "use strict";
 
 const { test } = require("node:test");
@@ -6,7 +6,7 @@ const assert   = require("node:assert");
 
 // ── Test 1: inputBoxTop dolgulu başlık bandı yazar ───────────────────────────
 test("inputBoxTop: stdout'a ozyn + zemin rengi içeren bant yazar", () => {
-  const { inputBoxTop } = require("../tui/index.js");
+  const { inputBoxTop } = require("../tui/index.ts");
   assert.strictEqual(typeof inputBoxTop, "function", "export edilmeli");
 
   // stdout'u yakala
@@ -27,7 +27,7 @@ test("inputBoxTop: stdout'a ozyn + zemin rengi içeren bant yazar", () => {
 
 // ── Test 2: aiTurnStart stdout'a yazar, orion + ✦ içerir ─────────────────────
 test("aiTurnStart: stdout'a orion ✦ içeren başlık yazar", () => {
-  const { aiTurnStart } = require("../tui/index.js");
+  const { aiTurnStart } = require("../tui/index.ts");
   assert.strictEqual(typeof aiTurnStart, "function", "export edilmeli");
 
   const chunks = [];
@@ -48,7 +48,7 @@ test("aiTurnStart: stdout'a orion ✦ içeren başlık yazar", () => {
 
 // ── Test 3: aiTurnStart mod/backend yoksa çökmez ─────────────────────────────
 test("aiTurnStart: undefined argümanlarla çökmez", () => {
-  const { aiTurnStart } = require("../tui/index.js");
+  const { aiTurnStart } = require("../tui/index.ts");
   const orig = process.stdout.write.bind(process.stdout);
   process.stdout.write = () => true;
   try {
@@ -61,7 +61,7 @@ test("aiTurnStart: undefined argümanlarla çökmez", () => {
 
 // ── Test 4: aiTurnContinue stdout'a subtil bağlayıcı yazar ──────────────────
 test("aiTurnContinue: stdout'a ··· içeren satır yazar", () => {
-  const { aiTurnContinue } = require("../tui/index.js");
+  const { aiTurnContinue } = require("../tui/index.ts");
   assert.strictEqual(typeof aiTurnContinue, "function", "export edilmeli");
 
   const chunks = [];
@@ -79,7 +79,7 @@ test("aiTurnContinue: stdout'a ··· içeren satır yazar", () => {
 
 // ── Test 5: print.tool stdout'a yazar (stderr değil) ─────────────────────────
 test("print.tool: stdout'a yazar (araç adı + ikon içerir)", () => {
-  const { print } = require("../tui/index.js");
+  const { print } = require("../tui/index.ts");
 
   const stdoutChunks = [];
   const stderrChunks = [];
@@ -102,7 +102,7 @@ test("print.tool: stdout'a yazar (araç adı + ikon içerir)", () => {
 
 // ── Test 6: print.result stdout'a yazar (stderr değil) ───────────────────────
 test("print.result: stdout'a → önekiyle yazar", () => {
-  const { print } = require("../tui/index.js");
+  const { print } = require("../tui/index.ts");
 
   const stdoutChunks = [];
   const stderrChunks = [];
@@ -125,7 +125,7 @@ test("print.result: stdout'a → önekiyle yazar", () => {
 
 // ── Test 7: makeInputPrompt readline \x01/\x02 wrapper içerir ────────────────
 test("makeInputPrompt: readline genişlik wrapper'ı içerir, görünür karakter bulunur", () => {
-  const { makeInputPrompt } = require("../tui/index.js");
+  const { makeInputPrompt } = require("../tui/index.ts");
   assert.strictEqual(typeof makeInputPrompt, "function", "export edilmeli");
   const prompt = makeInputPrompt();
   assert.ok(prompt.includes("►"), "► ok sembolü bulunmalı");
@@ -136,7 +136,7 @@ test("makeInputPrompt: readline genişlik wrapper'ı içerir, görünür karakte
 
 // ── Test 8: finishUserTurn geri sarar, dolgulu blok çizer ────────────────────
 test("finishUserTurn: geri sarma + zemin rengi + metin, çizgi karakteri yok", () => {
-  const { finishUserTurn } = require("../tui/index.js");
+  const { finishUserTurn } = require("../tui/index.ts");
   assert.strictEqual(typeof finishUserTurn, "function", "export edilmeli");
 
   const chunks = [];
@@ -162,7 +162,7 @@ test("finishUserTurn: geri sarma + zemin rengi + metin, çizgi karakteri yok", (
 
 // ── Test 8b: refreshInputFill satır kalanını zeminle doldurur ────────────────
 test("refreshInputFill: içerik sonundan satır sonuna zemin dolgusu, cursor geri döner", () => {
-  const { refreshInputFill } = require("../tui/index.js");
+  const { refreshInputFill } = require("../tui/index.ts");
   assert.strictEqual(typeof refreshInputFill, "function", "export edilmeli");
 
   // sahte rl: "abc" yazılmış, cursor sonda → içerik sonu = 4 (prompt) + 3 = kolon 7
@@ -197,7 +197,7 @@ test("refreshInputFill: içerik sonundan satır sonuna zemin dolgusu, cursor ger
 
 // ── Test 9: finishUserTurn uzun satırı blok genişliğinde sarar ───────────────
 test("finishUserTurn: uzun satır blok genişliğine sarılır", () => {
-  const { finishUserTurn } = require("../tui/index.js");
+  const { finishUserTurn } = require("../tui/index.ts");
 
   const chunks = [];
   const orig     = process.stdout.write.bind(process.stdout);
@@ -224,7 +224,7 @@ test("finishUserTurn: uzun satır blok genişliğine sarılır", () => {
 
 // ── Test 10b: akış modeli fonksiyonları export edilmiş ───────────────────────
 test("akış modeli fonksiyonları export edilmiş", () => {
-  const mod = require("../tui/index.js");
+  const mod = require("../tui/index.ts");
   assert.strictEqual(typeof mod.inputBoxTop, "function");
   assert.strictEqual(typeof mod.renderMenuBelow, "function");
   assert.strictEqual(typeof mod.clearMenuBelow, "function");
@@ -233,7 +233,7 @@ test("akış modeli fonksiyonları export edilmiş", () => {
 
 // non-TTY'de renderMenuBelow/clearMenuBelow stdout'a hiçbir şey yazmaz
 test("renderMenuBelow/clearMenuBelow: non-TTY ortamında stdout'a yazmaz", () => {
-  const { renderMenuBelow, clearMenuBelow } = require("../tui/index.js");
+  const { renderMenuBelow, clearMenuBelow } = require("../tui/index.ts");
   const chunks = [];
   const orig = process.stdout.write.bind(process.stdout);
   process.stdout.write = (s) => { chunks.push(s); return true; };
@@ -246,7 +246,7 @@ test("renderMenuBelow/clearMenuBelow: non-TTY ortamında stdout'a yazmaz", () =>
 
 // inputBoxTop dolgulu başlık bandı çizer (ozyn + info, çizgi karakteri yok)
 test("inputBoxTop: başlık bandı + info yazar", () => {
-  const { inputBoxTop } = require("../tui/index.js");
+  const { inputBoxTop } = require("../tui/index.ts");
   const chunks = [];
   const orig = process.stdout.write.bind(process.stdout);
   process.stdout.write = (s) => { chunks.push(s); return true; };
@@ -260,7 +260,7 @@ test("inputBoxTop: başlık bandı + info yazar", () => {
 
 // fitLine: ANSI kodları genişlik hesabına girmez, görünür kısım kırpılır
 test("fitLine: ANSI'yi sayma, görünür genişliğe kırp", () => {
-  const { fitLine } = require("../tui/index.js");
+  const { fitLine } = require("../tui/index.ts");
   const colored = "\x1b[36mabcdef\x1b[0m";
   const out = fitLine(colored, 3);
   const plain = out.replace(/\x1b\[[^m]*m/g, "");
@@ -270,7 +270,7 @@ test("fitLine: ANSI'yi sayma, görünür genişliğe kırp", () => {
 
 // ── Test 10: print.tool * formatında yazar ───────────────────────────────────
 test("print.tool: * ToolName format kullanır", () => {
-  const { print } = require("../tui/index.js");
+  const { print } = require("../tui/index.ts");
 
   const chunks = [];
   const orig = process.stdout.write.bind(process.stdout);

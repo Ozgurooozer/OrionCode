@@ -1,14 +1,14 @@
-// core/loops/anthropic.js — Anthropic native blok akışı döngüsü
+﻿// core/loops/anthropic.js — Anthropic native blok akışı döngüsü
 "use strict";
 
 const {
   MAX_ITERS, PARALLEL_SAFE,
   _callToolCached, _emitDiff, makeRepeatDetector,
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
-} = require("./shared.js");
+} = require("./shared.ts");
 
 module.exports = async function anthropicLoop(session) {
-  const anthropic = require("../../backends/anthropic.js");
+  const anthropic = require("../../backends/anthropic.ts");
   const { getEffectiveMemoryEffort } = require("../router.ts");
   const allowedDefs = session.modes.filterDefs(tools.getDefs());
   const useThinking = getEffectiveMemoryEffort() === "high";

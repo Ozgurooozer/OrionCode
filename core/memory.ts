@@ -1,4 +1,5 @@
-// core/memory.js — Orion hafıza sistemi — semantik embedding + keyword fallback
+// core/memory.ts — Orion hafıza sistemi — semantik embedding + keyword fallback
+// @ts-nocheck
 "use strict";
 
 const os     = require("os");

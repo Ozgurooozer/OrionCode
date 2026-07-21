@@ -1,6 +1,7 @@
-// backends/openrouter.js — OpenRouter.ai (600+ model, OpenAI compat, native tools)
+﻿// backends/openrouter.ts — OpenRouter.ai (600+ model, OpenAI compat, native tools)
+// @ts-nocheck
 "use strict";
-const { createProvider } = require("./openai-compat.js");
+const { createProvider } = require("./openai-compat.ts");
 
 module.exports = createProvider({
   name:     "openrouter",

@@ -1,4 +1,4 @@
-// backends/huggingface.js — HuggingFace Inference (OpenAI compat router)
+﻿// backends/huggingface.js — HuggingFace Inference (OpenAI compat router)
 "use strict";
 
 /**
@@ -8,7 +8,7 @@
  * @property {string} [provider] - inference provider filter (passed as inference_provider query param)
  */
 const https = require("https");
-const { createProvider } = require("./openai-compat.js");
+const { createProvider } = require("./openai-compat.ts");
 
 const provider = createProvider({
   name:         "huggingface",

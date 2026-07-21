@@ -1,4 +1,4 @@
-// core/plugins.js — Plugin manifest yükleyici
+﻿// core/plugins.js — Plugin manifest yükleyici
 // ~/.orion/plugins/<ad>/orion-plugin.json ile kod değişikliği gerektirmeden
 // üç yüzeyden genişletme: araçlar, komutlar, provider'lar.
 //
@@ -45,7 +45,7 @@ function _loadOne(dir) {
       const mod = require(path.resolve(dir, manifest.tools));
       if (!Array.isArray(mod.DEFS) || typeof mod.execute !== "function")
         throw new Error(`${manifest.tools}: DEFS dizisi ve execute fonksiyonu gerekli`);
-      const tools = require("./tools.js");
+      const tools = require("./tools.ts");
       tools.registerDynamic(mod.DEFS, (n, i) => mod.execute(n, i), source);
       info.tools = mod.DEFS.length;
     }
@@ -61,8 +61,8 @@ function _loadOne(dir) {
     }
 
     if (Array.isArray(manifest.providers)) {
-      const backends = require("../backends/index.js");
-      const { createProvider } = require("../backends/openai-compat.js");
+      const backends = require("../backends/index.ts");
+      const { createProvider } = require("../backends/openai-compat.ts");
       for (const spec of manifest.providers) {
         if (!spec?.name || !spec?.host) continue;
         backends.registerProvider(createProvider(spec));

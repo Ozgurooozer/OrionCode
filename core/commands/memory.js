@@ -1,8 +1,8 @@
-// core/commands/memory.js — Memory: list / search / add / delete
+﻿// core/commands/memory.js — Memory: list / search / add / delete
 "use strict";
 const { C }     = require("../../tui/colors.ts");
 const { print } = require("../../tui/output.ts");
-const memory = require("../memory.js");
+const memory = require("../memory.ts");
 const i18n = require("../i18n.js");
 
 const LABELS = {

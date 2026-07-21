@@ -1,4 +1,4 @@
-// tests/speculex-integration.test.js — Speculex × session entegrasyonu
+﻿// tests/speculex-integration.test.js — Speculex × session entegrasyonu
 // KATI SINIR kanıtı: write_file / edit_file / run_command SPEKÜLATİF TETİKLENEMEZ.
 // Ayrıca speculex_hit / speculex_miss olay yayınını doğrular (events.js değişmeden).
 "use strict";
@@ -22,7 +22,7 @@ function collectEvents(types) {
 // startPrefetch bunların HİÇBİRİNİ çalıştırmamalı, yalnızca read_file prefetch edilmeli.
 test("KATI SINIR: write_file/edit_file/run_command spekülatif tetiklenemez", async () => {
   const extract = require("../core/extract.js");
-  const tools   = require("../core/tools.js");
+  const tools   = require("../core/tools.ts");
   const origFetch   = global.fetch;
   const origRequest = extract.ollamaRequest;
   const origCall    = tools.callTool;
@@ -64,7 +64,7 @@ test("KATI SINIR: write_file/edit_file/run_command spekülatif tetiklenemez", as
 // ── Test 2: isabet — _callToolCached önbellekten döner ve speculex_hit yayınlar ─
 test("_callToolCached: isabet → önbellekten anında dönüş + speculex_hit olayı", async () => {
   const { _callToolCached } = require("../core/session.ts");
-  const tools = require("../core/tools.js");
+  const tools = require("../core/tools.ts");
   const origCall = tools.callTool;
 
   const realCalls = [];
@@ -100,7 +100,7 @@ test("_callToolCached: isabet → önbellekten anında dönüş + speculex_hit o
 // get() tarafındaki SAFE_TOOLS çiti önbellekten dönüşü engeller: gerçek araç çalışır.
 test("_callToolCached: zorla enjekte edilmiş write_file girdisi asla isabet almaz", async () => {
   const { _callToolCached } = require("../core/session.ts");
-  const tools = require("../core/tools.js");
+  const tools = require("../core/tools.ts");
   const origCall = tools.callTool;
 
   const realCalls = [];

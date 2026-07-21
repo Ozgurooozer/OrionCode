@@ -1,6 +1,18 @@
-// tui/index.js — Orion TUI v3
+// tui/index.ts — Orion TUI v3
 // Truecolor tema, takımyıldız emblemi, statusline, markdown renderer v2
 "use strict";
+
+import type { } from './colors.ts';
+
+interface StatuslineInfo {
+  mode: string;
+  backend: string;
+  model: string;
+  input: number;
+  output: number;
+  costUSD: number;
+  ctxTokens: number;
+}
 
 const i18n = require("../core/i18n.js");
 const { RESET, BOLD, DIM, ITALIC, rgb, rgbBg, T, C, gradient } = require("./colors.ts");
@@ -9,7 +21,7 @@ const { print: _print, toolIcon } = require("./output.ts");
 // ── Emblem: ORION wordmark + takımyıldız ─────────────────────────────────────
 // ANSI-shadow blok harfler, cyan→menekşe gradyan; sağda Orion takımyıldızı
 // (omuzlar, ✶ ✶ ✶ kuşak, ayaklar). Dar terminalde kompakt satıra düşer.
-function emblem(model, backend) {
+function emblem(model: string | null, backend: string | null): string {
   const cols = process.stdout.columns ?? 80;
   const S = T.star, N = T.nebula, B = T.belt, M = T.muted, R = RESET;
   const info1 = `${M}aethelred — ${i18n.t("coding agent", "kodlama ajanı")}${R}`;
@@ -50,7 +62,7 @@ function emblem(model, backend) {
 // ── Markdown renderer v2 ─────────────────────────────────────────────────────
 const KEYWORDS = /\b(function|const|let|var|return|if|else|for|while|class|new|async|await|import|export|require|module|try|catch|throw|def|fn|pub|struct|impl|match|use|switch|case|break|continue|typeof|instanceof|null|undefined|true|false|None|True|False)\b/g;
 
-function highlightCode(code, lang = "") {
+function highlightCode(code: string, lang: string = ""): string {
   if (lang === "diff") {
     return code.split("\n").map(l => {
       if (l.startsWith("+")) return `${T.ok}${l}${RESET}`;
@@ -64,8 +76,8 @@ function highlightCode(code, lang = "") {
     const cm = line.match(/^(\s*)(\/\/|#|--)(.*)$/);
     if (cm && !line.trim().startsWith("#!")) return `${T.comment}${line}${RESET}`;
     // Placeholder tabanlı vurgu — renk kodlarının içi tekrar işlenmez
-    const slots = [];
-    const stash = (color, m) => { slots.push(`${color}${m}\x1b[39m`); return `\x00${slots.length - 1}\x00`; };
+    const slots: string[] = [];
+    const stash = (color: string, m: string) => { slots.push(`${color}${m}\x1b[39m`); return `\x00${slots.length - 1}\x00`; };
     let out = line
       .replace(/("[^"]*"|'[^']*'|`[^`]*`)/g, m => stash(T.string, m))
       .replace(KEYWORDS, m => stash(T.keyword, m))
@@ -75,12 +87,12 @@ function highlightCode(code, lang = "") {
   }).join("\n");
 }
 
-function renderMarkdown(text) {
+function renderMarkdown(text: string): string {
   return text
     // Kod blokları — çerçeve + dil etiketi + vurgu
     .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
       const lines = code.replace(/\n$/, "").split("\n");
-      const w = Math.min(76, Math.max(40, ...lines.map(l => l.length)) + 2);
+      const w = Math.min(76, Math.max(40, ...lines.map((l: string) => l.length)) + 2);
       const label = lang ? ` ${lang} ` : "";
       const top    = C.muted(`╭─${label}${"─".repeat(Math.max(0, w - label.length - 1))}`);
       const bottom = C.muted(`╰${"─".repeat(w)}`);
@@ -110,14 +122,14 @@ function renderMarkdown(text) {
 }
 
 // ── Sayı biçimleme ───────────────────────────────────────────────────────────
-function fmtTokens(n) {
+function fmtTokens(n: number): string {
   if (n >= 999_950)  return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 999.5)    return (n / 1000).toFixed(1) + "k";
   return String(n);
 }
 
 // Model bağlam penceresi tahmini
-function contextWindow(model = "", backend = "") {
+function contextWindow(model: string = "", backend: string = ""): number {
   if (/claude/.test(model)) return 200_000;
   if (backend === "ollama") return 8192;
   return 128_000;
@@ -135,7 +147,7 @@ function _boxW() {
 // Zemin renkli " ► " sekmesi; sonda zemin AÇIK bırakılır: readline'ın yazdığı
 // karakterler de blok zeminine düşer. Satırın kalan boşluğunu refreshInputFill
 // boyar; RESET gereken her yazma noktası kendi başına RESET basar.
-function makeInputPrompt() {
+function makeInputPrompt(): string {
   const Za = `\x01${T.boxBg}${T.accent}\x02`;
   const Zf = `\x01${T.boxFg}\x02`;
   return `${Za} ► ${Zf} `;
@@ -143,7 +155,7 @@ function makeInputPrompt() {
 
 // session.js backend döngüsü başında — AI yanıtı başlamadan önce
 // turnInfo: isteğe bağlı "[3/40]" formatında tur sayacı
-function aiTurnStart(mode, backend, turnInfo = null) {
+function aiTurnStart(mode: string | null, backend: string | null, turnInfo: string | null = null): void {
   const W    = _boxW();
   const turnStr = turnInfo ? ` ${turnInfo}` : "";
   const info = `${mode ?? "chat"} · ${backend ?? ""}${turnStr}`;
@@ -156,13 +168,13 @@ function aiTurnStart(mode, backend, turnInfo = null) {
 }
 
 // Araç çağrısı sonrası devam — subtil bağlayıcı
-function aiTurnContinue() {
+function aiTurnContinue(): void {
   process.stdout.write(`\n${T.muted}  ···${RESET}\n`);
 }
 
 // ── print — temel metotlar output.ts'ten, header/statusline burada ────────────
 const print = Object.assign({}, _print, {
-  header: (name, model, backend) => {
+  header: (name: string, model: string | null, backend: string | null) => {
     console.log("\n" + emblem(model, backend) + "\n");
     console.log(C.muted(i18n.t(
       "   type / to browse commands · Tab completes · Ctrl+C×2 exit",
@@ -170,7 +182,7 @@ const print = Object.assign({}, _print, {
     )));
     console.log(C.muted("  " + "─".repeat(60)));
   },
-  statusline: (info) => {
+  statusline: (info: StatuslineInfo | null) => {
     if (!info) return;
     const modeC  = C.modeColor(info.mode);
     const ctxW   = contextWindow(info.model, info.backend);
@@ -192,7 +204,7 @@ const print = Object.assign({}, _print, {
 
 // ── Spinner — geçen süre göstergeli ─────────────────────────────────────────
 const SPIN = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
-let _spinInt = null;
+let _spinInt: NodeJS.Timeout | null = null;
 let _spinI   = 0;
 let _spinT0  = 0;
 const spinner = {
@@ -215,7 +227,7 @@ const spinner = {
 // select-input / masked-input gibi raw-mode alt istemler aktifken readline'ın
 // tuşları işlemesini engeller (çift işleme: key echo + rl.line kirlenmesi).
 let _inputLock = false;
-function setInputLock(v) { _inputLock = !!v; }
+function setInputLock(v: boolean): void { _inputLock = !!v; }
 function isInputLocked() { return _inputLock; }
 
 // ═══ AKIŞ TABANLI RENDER MODELİ ═══════════════════════════════════════════════
@@ -227,7 +239,7 @@ function isInputLocked() { return _inputLock; }
 
 // ANSI kaçış kodlarını sayarak görünür genişliğe kırp (satır sarması = satır
 // sayısı hesabı bozulur — widget'lar her satırı terminal genişliğine sığdırmalı)
-function fitLine(s, width) {
+function fitLine(s: string, width: number): string {
   // Windows CRLF: \r görünmez karakter değil, satır başı — genişlik hesabını bozar
   s = s.replace(/\r\n/g, "\n").replace(/\r/g, "");
   let visible = 0, out = "";
@@ -261,14 +273,14 @@ function _bandHeader(info = "") {
   return `${T.boxBg}${BOLD}${T.belt}${left}${RESET}${T.boxBg}${T.muted}${" ".repeat(pad)}${right} ${RESET}`;
 }
 
-function inputBoxTop(info = "") {
+function inputBoxTop(info: string = ""): void {
   process.stdout.write(`\n${_bandHeader(info)}\n`);
 }
 
 // Enter sonrası: canlı yazılan satırları geri sarıp turn'ü dolgulu blok olarak
 // scrollback'e kalıcı çizer. rawLine = readline'ın ham satırı (geri sarılacak
 // satır sayısı, ekranda gerçekten kaplanan alan üzerinden hesaplanır).
-function finishUserTurn(rawLine, info = "") {
+function finishUserTurn(rawLine: string, info: string = ""): void {
   if (!process.stdout.isTTY) return;
   const cols = process.stdout.columns ?? 80;
   const W    = _boxW();
@@ -295,7 +307,7 @@ function finishUserTurn(rawLine, info = "") {
 // hesaplar, içerik sonundan satır sonuna kadar zemin renkli boşluk basar,
 // cursor'u aynen geri bırakır. Tamamen göreli hareket (↓n, ↑n, sütun) —
 // BCE'ye güvenmez: dolgu gerçek boşluk karakterleriyle yapılır.
-function refreshInputFill(rl) {
+function refreshInputFill(rl: any): void {
   if (!process.stdout.isTTY || !rl?.getCursorPos) return;
   const cols = process.stdout.columns ?? 80;
   const pos  = rl.getCursorPos(); // prompt başlangıcına göre {rows, cols}
@@ -337,11 +349,11 @@ function clearInputPlaceholder() {
 // geri sayım doğru kalır (aşağı inilen satır sayısı = geri çıkılacak satır sayısı).
 const PROMPT_VISIBLE_W = 4; // " ► " sekmesi + boşluk görünür genişliği
 
-function _promptCol(rl) {
+function _promptCol(rl: any): number {
   return PROMPT_VISIBLE_W + (rl?.cursor ?? 0) + 1; // 1-tabanlı sütun
 }
 
-function renderMenuBelow(rl, { items = [], selected = 0 } = {}) {
+function renderMenuBelow(rl: any, { items = [] as any[], selected = 0 } = {}): void {
   if (!process.stdout.isTTY) return;
   if (!items.length) { clearMenuBelow(rl); return; }
   const W = process.stdout.columns ?? 80;
@@ -363,7 +375,7 @@ function renderMenuBelow(rl, { items = [], selected = 0 } = {}) {
   process.stdout.write(out);
 }
 
-function clearMenuBelow(rl) {
+function clearMenuBelow(rl: any): void {
   if (!process.stdout.isTTY) return;
   process.stdout.write(`${RESET}\x1b[?25l\r\n\x1b[J\x1b[1A\x1b[${_promptCol(rl)}G${T.boxBg}${T.boxFg}\x1b[?25h`);
 }

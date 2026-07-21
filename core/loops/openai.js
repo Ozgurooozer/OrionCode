@@ -1,11 +1,11 @@
-// core/loops/openai.js — OpenAI ailesi native tool calling döngüsü
+﻿// core/loops/openai.js — OpenAI ailesi native tool calling döngüsü
 "use strict";
 
 const {
   MAX_ITERS, PARALLEL_SAFE,
   _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeRepeatDetector,
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
-} = require("./shared.js");
+} = require("./shared.ts");
 
 module.exports = async function openaiFamilyLoop(session, provider) {
   const router = require("../router.ts");

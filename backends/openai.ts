@@ -1,6 +1,7 @@
-// backends/openai.js — OpenAI (OPENAI_BASE_URL ile proxy desteği)
+﻿// backends/openai.ts — OpenAI (OPENAI_BASE_URL ile proxy desteği)
+// @ts-nocheck
 "use strict";
-const { createProvider } = require("./openai-compat.js");
+const { createProvider } = require("./openai-compat.ts");
 
 // OPENAI_BASE_URL /v1 ile bitiyorsa tekrar ekleme (/v1/v1 önlenir)
 const raw  = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(/\/$/, "");

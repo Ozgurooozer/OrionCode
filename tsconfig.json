@@ -27,6 +27,7 @@
     "electron",
     "tests",
     "scripts",
-    "tui/beta2"
+    "tui/beta2",
+    "orion-server.js"
   ]
 }

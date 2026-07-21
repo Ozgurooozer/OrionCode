@@ -1,17 +1,29 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 // orion.js — Orion Aethelred CLI v2
 "use strict";
+
+// ── .mcp.json auto-generate (yoksa .example'dan üret) ───────────────────────
+const _fs0 = require("fs"), _path0 = require("path");
+const _mcpPath = _path0.join(__dirname, ".mcp.json");
+if (!_fs0.existsSync(_mcpPath)) {
+  const _ex = _path0.join(__dirname, ".mcp.json.example");
+  if (_fs0.existsSync(_ex)) {
+    const _cfg = _fs0.readFileSync(_ex, "utf8")
+      .replace(/<PROJECT_ROOT>/g, __dirname.replace(/\\/g, "\\\\"));
+    _fs0.writeFileSync(_mcpPath, _cfg, "utf8");
+  }
+}
 
 // ── Credentials → env (kimlik bilgileri asla çıktıya yazdırılmaz) ────────────
 require("./core/credentials.js").load();
 require("./core/accounts.js").applyActive(); // aktif hesap profili credentials üzerine biner
 
 const readline = require("readline");
-const backends = require("./backends/index.js");
+const backends = require("./backends/index.ts");
 const { Session, interrupt, clearInterrupt } = require("./core/session.ts");
 const { C, print, renderMarkdown, makeInputPrompt, finishUserTurn, refreshInputFill,
         inputBoxTop, renderMenuBelow, clearMenuBelow,
-        showInputPlaceholder, clearInputPlaceholder } = require("./tui/index.js");
+        showInputPlaceholder, clearInputPlaceholder } = require("./tui/index.ts");
 const { attachSlashMenu, MAX_ITEMS: MENU_MAX } = require("./tui/slashmenu.js");
 const vaultCore = require("./core/vault.js");
 const commands  = require("./core/commands/index.js");
@@ -136,7 +148,7 @@ async function runHeadless(session) {
   if (scopeB64) {
     try {
       const entries = JSON.parse(Buffer.from(scopeB64, "base64").toString("utf8"));
-      const { buildInjectSuffix } = require("./core/memory.js");
+      const { buildInjectSuffix } = require("./core/memory.ts");
       const suffix = buildInjectSuffix(entries);
       if (suffix) session.system += suffix;
     } catch {}

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 // orion-server.js — Orion sunucusu (client/server ayrımı, v4 madde 1)
 // TUI, web veya IDE aynı Orion çekirdeğine HTTP üzerinden bağlanır.
 //
@@ -31,7 +31,7 @@ const fs     = require("fs");
 const path   = require("path");
 const os     = require("os");
 const crypto = require("crypto");
-const backends = require("./backends/index.js");
+const backends = require("./backends/index.ts");
 const persist  = require("./core/persist.js");
 const { Session } = require("./core/session.ts");
 const { emitter: orionEvents, toNDJSON } = require("./core/events.ts");

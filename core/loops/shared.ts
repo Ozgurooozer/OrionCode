@@ -1,11 +1,12 @@
-// core/loops/shared.js — Loop'lar arası ortak sabitler ve yardımcı fonksiyonlar
+﻿// core/loops/shared.ts — Loop'lar arası ortak sabitler ve yardımcı fonksiyonlar
+// @ts-nocheck
 "use strict";
 
-const tools  = require("../tools.js");
+const tools  = require("../tools.ts");
 const events = require("../events.ts");
 const i18n   = require("../i18n.js");
 const { print }   = require("../../tui/output.ts");
-const { aiTurnStart, aiTurnContinue } = require("../../tui/index.js");
+const { aiTurnStart, aiTurnContinue } = require("../../tui/index.ts");
 
 const MAX_ITERS = 40;
 

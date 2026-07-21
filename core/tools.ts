@@ -1,4 +1,5 @@
-// core/tools.js — Araç kaydı, yönlendirme, dinamik (MCP) araçlar, ReAct format
+// core/tools.ts — Araç kaydı, yönlendirme, dinamik (MCP) araçlar, ReAct format
+// @ts-nocheck
 "use strict";
 const events = require("./events.ts");
 const fsTools       = require("../tools/fs.js");

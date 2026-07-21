@@ -1,4 +1,4 @@
-// tests/coordinator.test.js — Multi-agent koordinatör pipeline testleri
+﻿// tests/coordinator.test.js — Multi-agent koordinatör pipeline testleri
 "use strict";
 const fs   = require("fs");
 const os   = require("os");
@@ -17,7 +17,7 @@ const assert   = require("node:assert");
 
 const coordinator = require("../core/coordinator.js");
 const subagent    = require("../core/subagent.js");
-const backends    = require("../backends/index.js");
+const backends    = require("../backends/index.ts");
 
 // Fake session: backend "fake-coord-test" ile hep sabit yanıt döner
 function makeFakeSession(responseText) {

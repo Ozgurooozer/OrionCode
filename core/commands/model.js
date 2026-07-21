@@ -1,15 +1,15 @@
-// core/commands/model.js — Model and backend management
+﻿// core/commands/model.js — Model and backend management
 "use strict";
 const { C }       = require("../../tui/colors.ts");
 const { print }   = require("../../tui/output.ts");
-const { spinner } = require("../../tui/index.js");
+const { spinner } = require("../../tui/index.ts");
 const { fuzzyPicker } = require("../../tui/fuzzy-picker.js");
 const i18n = require("../i18n.js");
 
 // Tüm erişilebilir backend'lerin model listesini topla — arama kutusu için
 // generic detect()'in 20/50 sınırından daha geniş bir havuz çeker.
 async function _gatherSearchableModels() {
-  const backends = require("../../backends/index.js");
+  const backends = require("../../backends/index.ts");
   const items = [];
   await Promise.all(backends.all().map(async p => {
     const ok = await p.isAvailable().catch(() => false);
@@ -48,7 +48,7 @@ module.exports = [{
         print.warn(i18n.t("OPENROUTER_API_KEY missing — add it to credentials.json", "OPENROUTER_API_KEY eksik — credentials.json'a ekle"));
         return;
       }
-      const or     = require("../../backends/openrouter.js");
+      const or     = require("../../backends/openrouter.ts");
       const filter = args[1] ?? "";
       print.info(i18n.t(`Fetching OpenRouter${filter ? ` (${filter})` : ""} list...`, `OpenRouter${filter ? ` (${filter})` : ""} listesi alınıyor...`));
       const models = await or.listModels({ filter, limit: 50 });
@@ -137,7 +137,7 @@ module.exports = [{
 
     // Non-TTY — statik döküm (script/CI için)
     console.log(`\n  ${C.bold(i18n.t("Active:", "Aktif:"))} ${C.cyan(session.backend)} ${C.yellow(session.model)}\n`);
-    const backends = require("../../backends/index.js");
+    const backends = require("../../backends/index.ts");
     const all      = await backends.detect();
     for (const b of all) {
       const tag = b.name === session.backend ? C.green(" ◀") : "";

@@ -1,4 +1,4 @@
-// core/coordinator.js — Multi-agent koordinatör: plan → execute → review
+﻿// core/coordinator.js — Multi-agent koordinatör: plan → execute → review
 "use strict";
 
 /**
@@ -24,10 +24,10 @@
  */
 
 const subagent = require("./subagent.js");
-const memory   = require("./memory.js");
+const memory   = require("./memory.ts");
 const { C }       = require("../tui/colors.ts");
 const { print }   = require("../tui/output.ts");
-const { spinner } = require("../tui/index.js");
+const { spinner } = require("../tui/index.ts");
 const i18n = require("./i18n.js");
 
 // ANSI escape code'larını temizle — subagent stdout'u review LLM'e giderken
@@ -119,12 +119,12 @@ Write a concise summary:
 async function _callModel(session, userContent) {
   const msgs = [{ role: "user", content: userContent }];
   if (session.backend === "anthropic") {
-    const anthropic = require("../backends/anthropic.js");
+    const anthropic = require("../backends/anthropic.ts");
     const resp = await anthropic.chat(session.model, msgs, "", [], {});
     return resp.content.filter(b => b.type === "text").map(b => b.text).join("");
   }
   // ollama + openrouter + openai + BYOK: hepsi chat(model, msgs, opts) imzası
-  const backends = require("../backends/index.js");
+  const backends = require("../backends/index.ts");
   const p = backends.get(session.backend);
   if (!p?.chat) throw new Error(`Backend chat desteklemiyor: ${session.backend}`);
   return await p.chat(session.model, msgs, { stream: false });
@@ -324,7 +324,7 @@ async function review(task, results, session) {
   try {
     let text = "";
     if (session.backend === "anthropic") {
-      const anthropic = require("../backends/anthropic.js");
+      const anthropic = require("../backends/anthropic.ts");
       const resp = await anthropic.chat(
         session.model,
         [{ role: "user", content: REVIEW_PROMPT(task, results) }],

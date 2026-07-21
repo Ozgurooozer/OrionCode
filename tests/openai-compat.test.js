@@ -1,8 +1,8 @@
-// tests/openai-compat.test.js — BYOK fabrika ve araç şeması dönüşümü
+﻿// tests/openai-compat.test.js — BYOK fabrika ve araç şeması dönüşümü
 "use strict";
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { createProvider, toOpenAITools } = require("../backends/openai-compat.js");
+const { createProvider, toOpenAITools } = require("../backends/openai-compat.ts");
 
 test("toOpenAITools: Anthropic şemasından OpenAI function formatına", () => {
   const defs = [{

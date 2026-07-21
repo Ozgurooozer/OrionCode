@@ -1,9 +1,9 @@
-// core/commands/image.js
+﻿// core/commands/image.js
 "use strict";
 
 const imager      = require("../agents/imager.js");
 const { print }   = require("../../tui/output.ts");
-const { spinner } = require("../../tui/index.js");
+const { spinner } = require("../../tui/index.ts");
 const { C }       = require("../../tui/colors.ts");
 
 async function exec({ args }) {

@@ -1,4 +1,4 @@
-// tests/cache.test.js — Prompt caching: breakpoint yerleşimi + maliyet hesabı
+﻿// tests/cache.test.js — Prompt caching: breakpoint yerleşimi + maliyet hesabı
 "use strict";
 
 const { test } = require("node:test");
@@ -6,7 +6,7 @@ const assert   = require("node:assert");
 
 // ── Test 1: _addCacheBreakpoints — son assistant mesajını işaretler ───────────
 test("_addCacheBreakpoints: son assistant mesajına cache_control ekler", () => {
-  const { _addCacheBreakpoints } = require("../backends/anthropic.js");
+  const { _addCacheBreakpoints } = require("../backends/anthropic.ts");
 
   const messages = [
     { role: "user",      content: "merhaba" },
@@ -33,7 +33,7 @@ test("_addCacheBreakpoints: son assistant mesajına cache_control ekler", () => 
 
 // ── Test 2: Array içerikli assistant mesajı ────────────────────────────────────
 test("_addCacheBreakpoints: array content'teki son bloğa cache_control ekler", () => {
-  const { _addCacheBreakpoints } = require("../backends/anthropic.js");
+  const { _addCacheBreakpoints } = require("../backends/anthropic.ts");
 
   const messages = [
     { role: "user",      content: "soru" },
@@ -57,7 +57,7 @@ test("_addCacheBreakpoints: array content'teki son bloğa cache_control ekler", 
 
 // ── Test 3: history yokken değişiklik yapılmaz ─────────────────────────────────
 test("_addCacheBreakpoints: sadece user mesajları varsa hiçbir şey değişmez", () => {
-  const { _addCacheBreakpoints } = require("../backends/anthropic.js");
+  const { _addCacheBreakpoints } = require("../backends/anthropic.ts");
 
   const messages = [{ role: "user", content: "ilk mesaj" }];
   const result = _addCacheBreakpoints(messages);

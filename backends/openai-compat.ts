@@ -1,7 +1,8 @@
-// backends/openai-compat.js — Generic OpenAI-uyumlu sürücü fabrikası
+﻿// backends/openai-compat.ts — Generic OpenAI-uyumlu sürücü fabrikası
 // OpenAI, OpenRouter, HuggingFace, Groq, Together, DeepSeek, Mistral, xAI...
 // hepsi bu fabrikanın bir konfigürasyonudur. BYOK: anahtar env'den okunur,
 // asla çıktıya yazılmaz.
+// @ts-nocheck
 "use strict";
 
 /**

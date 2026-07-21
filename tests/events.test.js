@@ -1,4 +1,4 @@
-// tests/events.test.js — core/events.js + tools.js event entegrasyonu
+﻿// tests/events.test.js — core/events.js + tools.js event entegrasyonu
 "use strict";
 
 const { test } = require("node:test");
@@ -46,10 +46,10 @@ test("callTool: tool_start ve tool_end olayları yayınlanır", async () => {
   const { emitter } = require("../core/events.ts");
 
   // tools.js modülünü temizle (önceki require cache'i temizle)
-  const toolsPath = require.resolve("../core/tools.js");
+  const toolsPath = require.resolve("../core/tools.ts");
   delete require.cache[toolsPath];
 
-  const toolsModule = require("../core/tools.js");
+  const toolsModule = require("../core/tools.ts");
 
   const seen = [];
   function listener(ev) { seen.push(ev); }
@@ -83,7 +83,7 @@ test("emitter: type bazlı event dinleyici", () => {
 
 // ── Test 6: callTool geriye dönük uyumluluk — sessionId opsiyonel ─────────────
 test("callTool: sessionId olmadan çağrılabilir (geriye uyumluluk)", async () => {
-  const toolsModule = require("../core/tools.js");
+  const toolsModule = require("../core/tools.ts");
   // Sadece hata fırlatmaması yeterli
   const result = await toolsModule.callTool("olmayan_arac_2", {});
   assert.ok(typeof result === "string", "string sonuç döner");

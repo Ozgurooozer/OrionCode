@@ -1,4 +1,4 @@
-// core/mcp.js — MCP istemcisi: dış MCP sunucularına bağlan, araçlarını kullan
+﻿// core/mcp.js — MCP istemcisi: dış MCP sunucularına bağlan, araçlarını kullan
 // Config: <proje>/mcp.json + ~/.orion/mcp.json (proje kazanır)
 //   { "servers": { "ad": {"command":"node","args":["x.js"],"env":{}} | {"url":"http://..."} } }
 // Araçlar registry'e mcp__<sunucu>__<araç> adıyla köprülenir.
@@ -7,7 +7,7 @@
 const fs   = require("fs");
 const path = require("path");
 const os   = require("os");
-const tools = require("./tools.js");
+const tools = require("./tools.ts");
 const i18n  = require("./i18n.js");
 
 const GLOBAL_FILE  = path.join(process.env.ORION_HOME || os.homedir(), ".orion", "mcp.json");

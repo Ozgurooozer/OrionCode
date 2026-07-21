@@ -1,4 +1,4 @@
-// core/session.ts — Konuşma döngüsü
+﻿// core/session.ts — Konuşma döngüsü
 // Native tool calling her yerde:
 //   anthropic  → native blok akışı
 //   ollama     → /api/chat native tools (desteksiz modelde ReAct'a düşüş)
@@ -22,23 +22,23 @@ export interface ApiUsage {
 const fs     = require("fs") as typeof FsType;
 const path   = require("path") as typeof PathType;
 const crypto = require("crypto") as typeof CryptoType;
-const tools  = require("./tools.js");
+const tools  = require("./tools.ts");
 const events = require("./events.ts");
 const { ModeManager } = require("./modes.js");
 const persist = require("./persist.js");
-const memory = require("./memory.js");
+const memory = require("./memory.ts");
 const { BudgetTracker, countMessages, estimateCost } = require("./budget.js");
 const { SessionLogger } = require("./telemetry.js");
 const router = require("./router.ts");
-const backends = require("../backends/index.js");
+const backends = require("../backends/index.ts");
 const { C }       = require("../tui/colors.ts");
 const { print }   = require("../tui/output.ts");
-const { spinner, aiTurnStart, aiTurnContinue } = require("../tui/index.js");
+const { spinner, aiTurnStart, aiTurnContinue } = require("../tui/index.ts");
 const i18n = require("./i18n.js");
 const {
   MAX_ITERS, TIER1_TOOLS, PARALLEL_SAFE,
   _callToolCached, _sweepSpeculexMisses, _emitDiff, _flattenMsgs, _cleanResponse,
-} = require("./loops/shared.js");
+} = require("./loops/shared.ts");
 
 const ROOT        = path.join(__dirname, "..");
 const MAX_HISTORY = 60;
@@ -490,7 +490,7 @@ class Session {
     const t0 = Date.now();
     // Heartbeat: her 30s'de "hâlâ çalışıyor" uyarısı — tur bitene kadar sürer.
     // Önceden 3 mesajla (30/60/90s) sınırlıydı; ağ isteği backend'e göre
-    // 180s'ye kadar canlı kalabildiği için (bkz. backends/openai-compat.js
+    // 180s'ye kadar canlı kalabildiği için (bkz. backends/openai-compat.ts
     // req.setTimeout) sessizlik "donmuş" izlenimi veriyordu — bkz.
     // docs/06-vaka-analizi-uzun-sureli-donma.md. Artık istek canlı olduğu
     // sürece uyarı da devam eder.
@@ -640,10 +640,10 @@ class Session {
   }
 
   // ── Anthropic: native blok akışı ──────────────────────────────────────────
-  _anthropicLoop(): Promise<string | undefined>         { return require("./loops/anthropic.js")(this); }
+  _anthropicLoop(): Promise<string | undefined>         { return require("./loops/anthropic.ts")(this); }
 
   // ── OpenAI ailesi: native tool calling (openai, openrouter, hf, özel) ────
-  _openaiFamilyLoop(provider: any): Promise<string | undefined> { return require("./loops/openai.js")(this, provider); }
+  _openaiFamilyLoop(provider: any): Promise<string | undefined> { return require("./loops/openai.ts")(this, provider); }
 
   // ── Ollama: native tools → desteksiz modelde ReAct'a düşüş ───────────────
   _ollamaLoop(): Promise<string | undefined>            { return require("./loops/ollama.js")(this); }
@@ -660,7 +660,7 @@ class Session {
       let raw = "";
 
       if (this.backend === "anthropic") {
-        const anthropic = require("../backends/anthropic.js");
+        const anthropic = require("../backends/anthropic.ts");
         const resp = await anthropic.chat(this.model, [{ role: "user", content: prompt }], "", []);
         raw = resp.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
       } else {
@@ -746,7 +746,7 @@ class Session {
   async _quickChat(prompt: string): Promise<string> {
     const msgs = [{ role: "user", content: prompt }];
     if (this.backend === "anthropic") {
-      const a = require("../backends/anthropic.js");
+      const a = require("../backends/anthropic.ts");
       const resp = await a.chat(this.model, msgs, "", [], {});
       return resp.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
     }

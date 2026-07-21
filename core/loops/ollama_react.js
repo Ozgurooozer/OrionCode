@@ -1,11 +1,11 @@
-// core/loops/ollama_react.js — Ollama ReAct metin formatı döngüsü (native tools desteklenmeyen modeller)
+﻿// core/loops/ollama_react.js — Ollama ReAct metin formatı döngüsü (native tools desteklenmeyen modeller)
 "use strict";
 
 const {
   MAX_ITERS, TIER1_TOOLS,
   _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeThinkFilter, makeRepeatDetector,
   tools, i18n, print, aiTurnStart, aiTurnContinue,
-} = require("./shared.js");
+} = require("./shared.ts");
 
 module.exports = async function ollamaReactLoop(session) {
   const ollama = require("../../backends/ollama.ts");
@@ -28,7 +28,7 @@ module.exports = async function ollamaReactLoop(session) {
     let rawResp = "";
     try {
       if (session.mode.allowTools) {
-        const { spinner } = require("../../tui/index.js");
+        const { spinner } = require("../../tui/index.ts");
         spinner.start(i18n.t("thinking", "düşünüyor"));
         rawResp = await ollama.chat(session.model, history, { stream: false });
         rawResp = stripThinking(rawResp);
@@ -40,7 +40,7 @@ module.exports = async function ollamaReactLoop(session) {
         });
       }
     } catch (err) {
-      const { spinner } = require("../../tui/index.js");
+      const { spinner } = require("../../tui/index.ts");
       spinner.stop();
       process.stdout.write("\n");
       print.error(i18n.t(`Ollama error: ${err.message}`, `Ollama hatası: ${err.message}`));

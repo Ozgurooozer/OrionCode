@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "orion": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["<PROJECT_ROOT>/orion-mcp.js"],
+      "env": {}
+    }
+  }
+}

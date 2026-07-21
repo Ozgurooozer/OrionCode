@@ -1,11 +1,11 @@
-// core/loops/ollama.js — Ollama native tools döngüsü (desteksiz modelde ReAct'a düşüş)
+﻿// core/loops/ollama.js — Ollama native tools döngüsü (desteksiz modelde ReAct'a düşüş)
 "use strict";
 
 const {
   MAX_ITERS, TIER1_TOOLS, PARALLEL_SAFE,
   _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeThinkFilter, makeRepeatDetector,
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
-} = require("./shared.js");
+} = require("./shared.ts");
 
 // qwen2.5 gibi modeller role:"tool" mesajlarını Jinja şablonunda işleyemiyor.
 // Bu durumda araç sonuçları role:"user" mesajına dönüştürülür.

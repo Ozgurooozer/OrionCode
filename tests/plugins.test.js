@@ -1,4 +1,4 @@
-// tests/plugins.test.js — manifest yükleyici, üç genişletme yüzeyi
+﻿// tests/plugins.test.js — manifest yükleyici, üç genişletme yüzeyi
 "use strict";
 const fs   = require("fs");
 const os   = require("os");
@@ -8,8 +8,8 @@ process.env.ORION_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "orion-test-"));
 const { test } = require("node:test");
 const assert = require("node:assert");
 const plugins = require("../core/plugins.js");
-const tools   = require("../core/tools.js");
-const backends = require("../backends/index.js");
+const tools   = require("../core/tools.ts");
+const backends = require("../backends/index.ts");
 
 function kur(name, manifest, files = {}) {
   const dir = path.join(plugins.DIR, name);

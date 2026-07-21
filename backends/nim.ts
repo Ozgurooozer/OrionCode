@@ -1,9 +1,10 @@
-// backends/nim.js — NVIDIA NIM (OpenAI-uyumlu bulut API)
+﻿// backends/nim.ts — NVIDIA NIM (OpenAI-uyumlu bulut API)
 // Uç nokta: https://integrate.api.nvidia.com/v1
 // API anahtarı: NGC_API_KEY veya NVIDIA_API_KEY env değişkeni
 // Model listesi: https://build.nvidia.com/explore/discover
+// @ts-nocheck
 "use strict";
-const { createProvider } = require("./openai-compat.js");
+const { createProvider } = require("./openai-compat.ts");
 
 module.exports = createProvider({
   name:         "nim",

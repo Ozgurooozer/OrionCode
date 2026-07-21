@@ -1,4 +1,5 @@
-// backends/anthropic.js
+﻿// backends/anthropic.ts
+// @ts-nocheck
 "use strict";
 
 /**

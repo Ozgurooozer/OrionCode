@@ -17,3 +17,10 @@ logs/
 
 # Claude Code yerel config
 .claude/
+
+# MCP config (makine-spesifik absolute path içerir, .example'dan üret)
+.mcp.json
+
+# Ortam değişkenleri
+.env
+.env.local

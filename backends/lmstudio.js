@@ -1,7 +1,7 @@
-// backends/lmstudio.js — LM Studio yerel sunucusu (OpenAI-uyumlu, anahtar yok)
+﻿// backends/lmstudio.js — LM Studio yerel sunucusu (OpenAI-uyumlu, anahtar yok)
 // Varsayılan uç: http://localhost:1234/v1 — LMSTUDIO_HOST / LMSTUDIO_PORT ile değişir.
 "use strict";
-const { createProvider } = require("./openai-compat.js");
+const { createProvider } = require("./openai-compat.ts");
 
 const provider = createProvider({
   name:     "lmstudio",
