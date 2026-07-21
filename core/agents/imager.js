@@ -240,4 +240,16 @@ async function run(prompt, { workflow = 0, negative = "", onProgress = () => {} 
   };
 }
 
-module.exports = { run, checkStatus, startService, listWorkflows, DEFAULTS };
+// ── Skill manifest (Hafta 4 standardı) ───────────────────────────────────────
+
+const manifest = Object.freeze({
+  name:          "image",
+  version:       "1.0",
+  cost_class:    "zero_llm",    // LLM çağrısı yok
+  vram_needed_gb: 2.5,
+  triggers:      ["resim", "görsel", "çiz", "draw", "image", "generate", "illustrate", "paint", "anime", "pixel", "3d", "render"],
+  input_schema:  { prompt: "string", workflow: "integer?", negative: "string?" },
+  output_schema: { images: "array", workflow: "string", promptId: "string?" },
+});
+
+module.exports = { run, checkStatus, startService, listWorkflows, DEFAULTS, manifest };

@@ -360,6 +360,108 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // ── GET /tasks — görev yöneticisi web arayüzü ────────────────────────────
+    // SSE olaylarını filtreler: queue:* ve scheduler:* — gerçek zamanlı görünüm.
+    // Sayfa EventSource('/events') ile bağlanır (auth token URL'de taşınır).
+    if (req.method === "GET" && url.pathname === "/tasks") {
+      const scheduler = (() => { try { return require("./core/scheduler.js"); } catch { return null; } })();
+      const queue     = (() => { try { return require("./core/queue.js");     } catch { return null; } })();
+      const vram      = scheduler?.vramStatus() ?? { currentlyLoaded: "none", vram_used_gb: 0, mean_cycle_ms: null };
+      const qStatus   = queue?.status()         ?? { queue_length: 0, processing: false, pending_jobs: [], recent: [] };
+
+      const html = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Orion — Görev Yöneticisi</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:monospace;background:#0d1117;color:#c9d1d9;padding:16px;font-size:13px}
+h2{color:#58a6ff;margin-bottom:12px;font-size:15px}
+#rampa{background:#161b22;border:1px solid #30363d;padding:8px 12px;border-radius:6px;margin-bottom:12px}
+.label{color:#8b949e;font-size:11px;margin-bottom:4px}
+.val{color:#e3b341;font-weight:bold}
+#jobs{margin-bottom:12px}
+.job{border:1px solid #30363d;padding:6px 10px;margin:4px 0;border-radius:4px;display:flex;gap:12px;align-items:center}
+.job.running{border-color:#58a6ff;background:#111820}
+.job.done{border-color:#238636;background:#0d1117}
+.job.error{border-color:#da3633}
+.job.queued{opacity:.6}
+.icon{font-size:14px}
+.id{color:#8b949e;font-size:11px}
+.type{color:#79c0ff}
+.time{color:#8b949e;margin-left:auto}
+#metrics{color:#8b949e;font-size:11px;margin-top:8px}
+#log{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px;max-height:200px;overflow-y:auto;font-size:11px;color:#8b949e;margin-top:12px}
+.log-entry{padding:2px 0;border-bottom:1px solid #21262d}
+.log-entry:last-child{border-bottom:none}
+</style>
+</head>
+<body>
+<h2>⚙ Orion — Görev Yöneticisi</h2>
+<div id="rampa">
+  <div class="label">RAMPA DURUMU</div>
+  <div><span class="val" id="loaded">${vram.currentlyLoaded}</span>
+  — <span id="vram_gb">${vram.vram_used_gb}</span>GB / 8GB
+  <span id="cycle"> ${vram.mean_cycle_ms != null ? "| ort. döngü: " + vram.mean_cycle_ms + "ms" : ""}</span>
+  | sırada: <span id="q_len">${qStatus.queue_length}</span></div>
+</div>
+<div class="label">AKTİF / SIRA</div>
+<div id="jobs">${qStatus.processing ? '<div class="job running"><span class="icon">▶</span><span class="type">işleniyor...</span></div>' : '<div style="color:#8b949e;padding:6px">boş</div>'}</div>
+<div class="label">SON İŞLER</div>
+<div id="recent">${qStatus.recent.slice(0,5).map(j => \`<div class="job done"><span class="icon">✓</span><span class="type">\${j.type}\${j.skill ? ":" + j.skill : ""}</span><span class="time">\${j.wall_ms ?? "?"}ms</span></div>\`).join("") || '<div style="color:#8b949e;padding:6px">henüz yok</div>'}</div>
+<div id="metrics">döngü sayısı: ${vram.cycle_count ?? 0}</div>
+<div class="label" style="margin-top:12px">CANLI OLAYLAR</div>
+<div id="log"></div>
+<script>
+const TASK_EVENTS = new Set(["queue:added","queue:status","queue:job_error","scheduler:job_start","scheduler:job_done","scheduler:tick","scheduler:tack","scheduler:started","meissa:done"]);
+const src = new EventSource("/events");
+const log = document.getElementById("log");
+function addLog(text) {
+  const d = document.createElement("div");
+  d.className = "log-entry";
+  d.textContent = new Date().toISOString().slice(11,19) + " " + text;
+  log.prepend(d);
+  if (log.children.length > 60) log.removeChild(log.lastChild);
+}
+src.addEventListener("message", e => {
+  try {
+    const ev = JSON.parse(e.data);
+    if (!TASK_EVENTS.has(ev.type)) return;
+    const p = ev.payload ?? {};
+    addLog(ev.type + " " + JSON.stringify(p).slice(0,120));
+    if (ev.type === "queue:status") {
+      document.getElementById("q_len").textContent = p.queue_length ?? "?";
+    }
+    if (ev.type === "scheduler:tick") {
+      document.getElementById("loaded").textContent = p.loading ?? "?";
+    }
+    if (ev.type === "scheduler:job_start") {
+      document.getElementById("jobs").innerHTML = \`<div class="job running"><span class="icon">▶</span><span class="id">\${(p.job_id||"").slice(-6)}</span><span class="type">\${p.type}\${p.skill ? ":" + p.skill : ""}</span></div>\`;
+    }
+    if (ev.type === "scheduler:job_done") {
+      const ok = p.success;
+      document.getElementById("jobs").innerHTML = '<div style="color:#8b949e;padding:6px">boş</div>';
+      const r = document.getElementById("recent");
+      const d = document.createElement("div");
+      d.className = "job " + (ok ? "done" : "error");
+      d.innerHTML = \`<span class="icon">\${ok ? "✓" : "✗"}</span><span class="type">\${p.type}\${p.skill ? ":" + p.skill : ""}</span><span class="time">\${p.wall_ms ?? "?"}ms</span>\`;
+      r.prepend(d);
+    }
+    if (ev.type === "meissa:done") {
+      document.getElementById("metrics").textContent = "meissa: " + (p.rota ?? "?") + " karmasiklik:" + (p.karmasiklik ?? "?") + " | döngü: " + (p.wall_ms ?? "?") + "ms";
+    }
+  } catch {}
+});
+src.onerror = () => addLog("SSE bağlantısı kesildi");
+</script>
+</body>
+</html>`;
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      return res.end(html);
+    }
+
     // ── GET /config — ~/.orion/config.json ──────────────────────────────────
     if (req.method === "GET" && url.pathname === "/config") {
       try {
