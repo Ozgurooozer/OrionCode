@@ -293,6 +293,11 @@ async function main() {
     }
   }
 
+  // Scheduler: VRAM eşapman yöneticisini başlat (Queue işleyicisini atar)
+  if (!isHeadless) {
+    try { require("./core/scheduler.js").start(); } catch {}
+  }
+
   // Dosya değişikliklerinde renkli diff — edit_file/write_file sonrası CLI'da göster
   if (!isHeadless) {
     const orionEvents = require("./core/events.ts");

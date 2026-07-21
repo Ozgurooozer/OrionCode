@@ -334,6 +334,12 @@ class Session {
     this._abortController = new AbortController();
     this._interrupted = false;
 
+    // Meissa: arka planda kategorize et + logla + event yay — bloklama yok, routing değiştirmez
+    try {
+      const meissa = require("./agents/meissa.js");
+      meissa.run(text, { sessionId: this.id }).catch(() => {});
+    } catch {}
+
     // Bütçe aşıldıysa hata fırlat — sonsuz döngü veya geniş öz-onay senaryolarında koruma
     if (this.budget.isExceeded()) {
       throw new Error(i18n.t(
