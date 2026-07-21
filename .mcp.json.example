@@ -3,8 +3,13 @@
     "orion": {
       "type": "stdio",
       "command": "node",
-      "args": ["<PROJECT_ROOT>/orion-mcp.js"],
+      "args": ["<PROJECT_ROOT>/orion-mcp.ts"],
       "env": {}
+    },
+    "codegraph": {
+      "type": "stdio",
+      "command": "codegraph",
+      "args": ["serve", "--mcp"]
     }
   }
 }

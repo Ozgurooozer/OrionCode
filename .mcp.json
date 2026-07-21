@@ -4,7 +4,7 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        "C:\\Users\\ozigo\\Documents\\molp\\orion-mcp.js"
+        "C:\\Users\\ozigo\\Documents\\molp\\orion-mcp.ts"
       ],
       "env": {}
     }
