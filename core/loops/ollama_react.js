@@ -3,7 +3,7 @@
 
 const {
   MAX_ITERS, TIER1_TOOLS,
-  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeThinkFilter,
+  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeThinkFilter, makeRepeatDetector,
   tools, i18n, print, aiTurnStart, aiTurnContinue,
 } = require("./shared.js");
 
@@ -16,7 +16,8 @@ module.exports = async function ollamaReactLoop(session) {
   const sysWithTools = session._systemTier1 + (session.mode.allowTools ? tools.buildToolPromptSuffix(allowedNames) : "");
 
   const history = [{ role: "system", content: sysWithTools }, ..._flattenMsgs(session.msgs)];
-  let iters = 0, finalText = "", lastRaw = "", lastCallSig = "";
+  let iters = 0, finalText = "", lastRaw = "";
+  const detectRepeat = makeRepeatDetector();
 
   aiTurnStart(session.mode?.name, session.backend, `[${session._turnCount + 1}]`);
   session._interrupted = false;
@@ -76,11 +77,13 @@ module.exports = async function ollamaReactLoop(session) {
     }
 
     const sig = `${call.name}:${JSON.stringify(call.input)}`;
-    if (sig === lastCallSig) {
-      print.warn(i18n.t(`Repeated tool call stopped: ${call.name}`, `Tekrarlayan araç çağrısı durduruldu: ${call.name}`));
+    const { repeated: _sigRepeated, cyclical: _sigCyclical } = detectRepeat(sig);
+    if (_sigRepeated) {
+      print.warn(_sigCyclical
+        ? i18n.t(`Cyclical tool call pattern stopped: ${call.name}`, `Döngüsel araç çağrısı deseni durduruldu: ${call.name}`)
+        : i18n.t(`Repeated tool call stopped: ${call.name}`, `Tekrarlayan araç çağrısı durduruldu: ${call.name}`));
       break;
     }
-    lastCallSig = sig;
 
     print.tool(call.name, call.input);
     const result = await _callToolCached(session._specCache, call.name, call.input ?? {}, session.id, session.telemetry, session._touchedFiles);

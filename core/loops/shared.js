@@ -26,6 +26,22 @@ const _DIFF_RE      = /```diff\n([\s\S]*?)```/;
 const _DIFF_STAT_RE = /\(([+-]\d+[^)]*)\)/;
 const _WRITE_TOOLS  = new Set(["write_file","edit_file","multi_edit","apply_patch","insert_at_line","replace_in_files","delete_file","move_file","create_dir"]);
 
+// Tekrar/döngü tespiti: tek adım geriye bakmanın ötesine geçer.
+// "immediate" — aynı imza art arda iki kez (klasik tekrar).
+// "cyclical"  — aynı imza son historySize çağrının en az minRepeats'inde
+//               tekrar ediyor ama art arda değil (A-B-A-B gibi 2+ adımlı döngü).
+// Her iki durumda da modelin aracı yeniden çalıştırmadan uyarılması gerekir.
+function makeRepeatDetector(historySize = 6, minRepeats = 3) {
+  const hist = [];
+  return sig => {
+    const immediate = hist.length > 0 && hist[hist.length - 1] === sig;
+    hist.push(sig);
+    if (hist.length > historySize) hist.shift();
+    const cyclical = !immediate && hist.filter(s => s === sig).length >= minRepeats;
+    return { repeated: immediate || cyclical, cyclical };
+  };
+}
+
 function _toolCallError(out) {
   if (typeof out !== "string") return null;
   if (out.startsWith("Araç hatası (")) return out.replace(/^Araç hatası \([^)]+\):\s*/, "").slice(0, 100);
@@ -150,6 +166,6 @@ module.exports = {
   _DIFF_RE, _DIFF_STAT_RE, _WRITE_TOOLS,
   _toolCallError, _cleanResponse,
   _callToolCached, _sweepSpeculexMisses, _emitDiff, _flattenMsgs,
-  makeThinkFilter,
+  makeThinkFilter, makeRepeatDetector,
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
 };

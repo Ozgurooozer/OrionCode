@@ -268,21 +268,25 @@ async function main() {
       const daemon = require("./core/daemon.js");
       vaultCore.ensureVault();
       const d = daemon.startDaemon();
+      // [daemon] öneki + dim renk: arka plan işçisinin çıktısını aktif ajan
+      // turunun çıktısından görsel olarak ayırır — ikisi aynı terminal akışına
+      // düşüyor ve karıştırılabiliyor (bkz. docs/06-vaka-analizi-uzun-sureli-donma.md §6.3).
+      const _daemonTag = C.dim("[daemon]");
       d.on("vault_updated", ({ sessionId, novelty }) => {
         const nov = novelty != null ? ` (novelty: ${(novelty * 100).toFixed(0)}%)` : "";
-        notifyAbove(() => print.system(i18n.t(`vault: saved [${sessionId}]${nov}`, `vault: kaydedildi [${sessionId}]${nov}`)));
+        notifyAbove(() => print.system(`${_daemonTag} ` + i18n.t(`vault: saved [${sessionId}]${nov}`, `vault: kaydedildi [${sessionId}]${nov}`)));
       });
       d.on("vault_skipped", ({ sessionId, maxSim, closestId }) => {
-        notifyAbove(() => print.info(i18n.t(
+        notifyAbove(() => print.info(`${_daemonTag} ` + i18n.t(
           `vault: skipped [${sessionId}] — too similar to ${closestId} (${(maxSim * 100).toFixed(0)}%)`,
           `vault: atlandı [${sessionId}] — ${closestId} ile çok benzer (%${(maxSim * 100).toFixed(0)})`
         )));
       });
       d.on("digest_ready", ({ file }) => {
-        notifyAbove(() => print.system(i18n.t(`lovelace: digest ready — /vault digest to read`, `lovelace: özet hazır — /vault digest ile oku`)));
+        notifyAbove(() => print.system(`${_daemonTag} ` + i18n.t(`lovelace: digest ready — /vault digest to read`, `lovelace: özet hazır — /vault digest ile oku`)));
       });
       d.on("daemon_error", ({ error }) => {
-        notifyAbove(() => print.warn(`vault daemon: ${error}`));
+        notifyAbove(() => print.warn(`${_daemonTag} vault daemon: ${error}`));
       });
     } catch (err) {
       print.warn(i18n.t(`vault daemon failed to start: ${err.message}`, `vault daemon başlatılamadı: ${err.message}`));

@@ -3,7 +3,7 @@
 
 const {
   MAX_ITERS, PARALLEL_SAFE,
-  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs,
+  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeRepeatDetector,
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
 } = require("./shared.js");
 
@@ -16,21 +16,55 @@ module.exports = async function openaiFamilyLoop(session, provider) {
   const maxTokens = (_cfgForOutput.maxOutputTokens > 0) ? _cfgForOutput.maxOutputTokens : undefined;
 
   let finalText = "";
-  let lastCallSig = "";
+  let iter = 0;
+  let _emptyRetries = 0; // reasoning bütçe tükenmesi: en fazla 1 kez yeniden dene
+  const detectRepeat = makeRepeatDetector();
   session._interrupted = false;
   aiTurnStart(session.mode?.name, session.backend, `[${session._turnCount + 1}]`);
 
-  for (let iter = 0; iter < MAX_ITERS; iter++) {
+  for (; iter < MAX_ITERS; iter++) {
     if (session._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
 
     const r = await provider.chatRich(session.model, history, {
       system:    session.system,
       tools:     useTools ? allowedDefs : undefined,
       onToken:   tok => { process.stdout.write(tok); events.emit("text_delta", session.id, { delta: tok }); },
+      // Reasoning modelleri (hy3, deepseek-r1, o-serisi): düşünme ayrı akış.
+      // Ekrana basılmaz ama olay olarak yayınlanır — SSE/TUI izleyebilir,
+      // kullanıcı "sessiz bekleyiş" yerine modelin düşündüğünü görebilir.
+      onReasoning: tok => events.emit("thinking_delta", session.id, { thinking: tok }),
       maxTokens,
     });
 
-    if (!r.toolCalls.length) { finalText = r.text; break; }
+    if (!r.toolCalls.length) {
+      // Boş yanıt + finish=length: model tüm token bütçesini (görünmez)
+      // reasoning'e harcayıp içerik üretemeden kesildi. Bir kez, kısa
+      // cevap talimatıyla yeniden denenir; ikinci kez olursa açık hata.
+      if (!r.text && r.finish === "length" && _emptyRetries < 1) {
+        _emptyRetries++;
+        const rLen = (r.reasoning ?? "").length;
+        print.warn(i18n.t(
+          `Model spent the entire token budget on reasoning (${rLen} chars) and produced no output — retrying with a brevity instruction`,
+          `Model tüm token bütçesini reasoning'e harcadı (${rLen} karakter), çıktı üretemedi — kısalık talimatıyla yeniden deneniyor`
+        ));
+        session.telemetry.record({ event: "reasoning_budget_exhausted", model: session.model, reasoningChars: rLen });
+        history.push({ role: "user", content:
+          "SYSTEM NOTE: your previous response was cut at max_tokens before producing any visible output " +
+          "(all budget went to reasoning). Answer now with MINIMAL reasoning. " +
+          "If the task is large, do one small step per tool call.",
+        });
+        aiTurnContinue();
+        continue;
+      }
+      if (r.finish === "length") {
+        print.warn(i18n.t(
+          "Response truncated (max_tokens/finish=length). Output may be incomplete.",
+          "Yanıt kesildi (max_tokens/finish=length). Çıktı eksik olabilir."
+        ));
+      }
+      finalText = r.text;
+      break;
+    }
 
     process.stdout.write("\n");
     history.push({
@@ -43,9 +77,39 @@ module.exports = async function openaiFamilyLoop(session, provider) {
       })),
     });
 
+    // Kesik araç çağrısı koruması: yanıt max_tokens'da kesildiyse ya da
+    // argüman JSON'u parse edilemediyse araç ÇALIŞTIRILMAZ — yarım içerikle
+    // write_file gibi bir aracın çalışması dosyayı yarım yazar (bkz.
+    // docs/06-vaka-analizi §6.2). Bunun yerine modele işi parçalara bölmesi
+    // söylenir; model sonraki iterasyonda küçük parçalarla devam eder.
+    const _truncatedCall = r.finish === "length" || r.toolCalls.some(c => c.argsTruncated);
+    if (_truncatedCall) {
+      print.warn(i18n.t(
+        "Tool call truncated at max_tokens — not executed; asking the model to split the work",
+        "Araç çağrısı max_tokens'da kesildi — çalıştırılmadı; modelden işi bölmesi istendi"
+      ));
+      session.telemetry.record({ event: "tool_call_truncated", model: session.model, tools: r.toolCalls.map(c => c.name) });
+      for (const call of r.toolCalls) {
+        history.push({
+          role: "tool", tool_call_id: call.id,
+          content: i18n.t(
+            "ERROR: your output hit the max_tokens limit mid tool-call, so this call was NOT executed. " +
+            "Do not retry the same single large call. Split the work into smaller steps: " +
+            "write the first part of the file with write_file, then append the remaining parts with edit_file. " +
+            "Keep each tool call small enough to fit in the output limit.",
+            "HATA: çıktın araç çağrısının ortasında max_tokens sınırına takıldı, bu çağrı ÇALIŞTIRILMADI. " +
+            "Aynı büyük çağrıyı tekrar deneme. İşi küçük adımlara böl: " +
+            "dosyanın ilk parçasını write_file ile yaz, kalan parçaları edit_file ile ekle. " +
+            "Her araç çağrısını çıktı limitine sığacak kadar küçük tut."
+          ),
+        });
+      }
+      aiTurnContinue();
+      continue;
+    }
+
     const sig = r.toolCalls.map(c => `${c.name}:${JSON.stringify(c.input)}`).join("|");
-    const repeated = sig === lastCallSig;
-    lastCallSig = sig;
+    const { repeated, cyclical } = detectRepeat(sig);
 
     const _canParallel = !repeated && r.toolCalls.length > 1
       && r.toolCalls.every(c => PARALLEL_SAFE.has(c.name) && session.modes.canUse(c.name).ok);
@@ -85,15 +149,26 @@ module.exports = async function openaiFamilyLoop(session, provider) {
         history.push({ role: "tool", tool_call_id: call.id, content: String(out) });
       }
     }
-    if (repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
+    if (cyclical) print.warn(i18n.t("Cyclical tool call pattern detected — reported to the model", "Döngüsel araç çağrısı deseni tespit edildi — modele bildirildi"));
+    else if (repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
     aiTurnContinue();
   }
 
+  // "Max iterations" yalnızca döngü GERÇEKTEN tükendiyse basılır — eskiden
+  // boş finalText ile erken kırılan her durumda (ör. reasoning bütçe
+  // tükenmesi) yanıltıcı şekilde görünüyordu.
   if (!finalText && !session._interrupted) {
-    print.warn(i18n.t(
-      `Max iterations (${MAX_ITERS}) reached without a final response.`,
-      `Maksimum iterasyon (${MAX_ITERS}) aşıldı, nihai yanıt alınamadı.`
-    ));
+    if (iter >= MAX_ITERS) {
+      print.warn(i18n.t(
+        `Max iterations (${MAX_ITERS}) reached without a final response.`,
+        `Maksimum iterasyon (${MAX_ITERS}) aşıldı, nihai yanıt alınamadı.`
+      ));
+    } else {
+      print.warn(i18n.t(
+        "Model returned an empty response.",
+        "Model boş yanıt döndürdü."
+      ));
+    }
   }
 
   finalText = _cleanResponse(finalText);

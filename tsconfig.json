@@ -26,6 +26,7 @@
     "graphify-out",
     "electron",
     "tests",
-    "scripts"
+    "scripts",
+    "tui/beta2"
   ]
 }

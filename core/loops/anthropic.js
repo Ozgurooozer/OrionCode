@@ -3,7 +3,7 @@
 
 const {
   MAX_ITERS, PARALLEL_SAFE,
-  _callToolCached, _emitDiff,
+  _callToolCached, _emitDiff, makeRepeatDetector,
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
 } = require("./shared.js");
 
@@ -36,7 +36,7 @@ module.exports = async function anthropicLoop(session) {
   totalCacheWrite += resp.usage?.cache_creation_input_tokens ?? 0;
 
   let _anthropicIters = 0;
-  let _lastAnthropicSig = "";
+  const _detectRepeat = makeRepeatDetector();
   while (resp.stop_reason === "tool_use") {
     if (++_anthropicIters > MAX_ITERS) {
       print.warn(i18n.t(
@@ -55,8 +55,7 @@ module.exports = async function anthropicLoop(session) {
       .filter(b => b.type === "tool_use")
       .map(b => `${b.name}:${JSON.stringify(b.input)}`)
       .join("|");
-    const _repeated = _roundSig === _lastAnthropicSig;
-    _lastAnthropicSig = _roundSig;
+    const { repeated: _repeated, cyclical: _cyclical } = _detectRepeat(_roundSig);
 
     const _toolBlocks = resp.content.filter(b => b.type === "tool_use");
 
@@ -106,7 +105,8 @@ module.exports = async function anthropicLoop(session) {
       }
     }
 
-    if (_repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
+    if (_cyclical) print.warn(i18n.t("Cyclical tool call pattern detected — reported to the model", "Döngüsel araç çağrısı deseni tespit edildi — modele bildirildi"));
+    else if (_repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
     session.msgs.push({ role: "user", content: results });
     aiTurnContinue();
     try {

@@ -17,10 +17,41 @@ describe("loops/shared.js", () => {
   });
 
   test("yardımcı fonksiyonlar export edilmiş", () => {
-    const fns = ["_callToolCached", "_sweepSpeculexMisses", "_emitDiff", "_flattenMsgs", "_cleanResponse", "makeThinkFilter"];
+    const fns = ["_callToolCached", "_sweepSpeculexMisses", "_emitDiff", "_flattenMsgs", "_cleanResponse", "makeThinkFilter", "makeRepeatDetector"];
     for (const fn of fns) {
       assert.equal(typeof shared[fn], "function", `${fn} bir fonksiyon olmalı`);
     }
+  });
+
+  test("makeRepeatDetector: art arda aynı imza → repeated (immediate)", () => {
+    const detect = shared.makeRepeatDetector();
+    assert.equal(detect("A").repeated, false, "ilk çağrı tekrar değil");
+    const r = detect("A");
+    assert.equal(r.repeated, true, "art arda aynı imza tekrar sayılmalı");
+    assert.equal(r.cyclical, false, "immediate tekrar cyclical değil");
+  });
+
+  test("makeRepeatDetector: A-B-A-B döngüsü → cyclical yakalanır", () => {
+    const detect = shared.makeRepeatDetector();
+    detect("A"); detect("B"); detect("A"); detect("B");
+    const r = detect("A"); // A üçüncü kez, pencere içinde, art arda değil
+    assert.equal(r.repeated, true, "2-adımlı döngü tekrar sayılmalı");
+    assert.equal(r.cyclical, true, "döngüsel bayrak set edilmeli");
+  });
+
+  test("makeRepeatDetector: farklı imzalar tekrar sayılmaz", () => {
+    const detect = shared.makeRepeatDetector();
+    for (const sig of ["A", "B", "C", "D", "E"]) {
+      assert.equal(detect(sig).repeated, false, `${sig} tekrar sayılmamalı`);
+    }
+  });
+
+  test("makeRepeatDetector: pencere dışına düşen eski imzalar unutulur", () => {
+    const detect = shared.makeRepeatDetector(3, 3); // pencere 3, eşik 3
+    detect("A"); detect("B"); detect("C"); // A pencereden düştü
+    detect("A"); detect("B");
+    const r = detect("A"); // pencere: [A,B,A] → A sadece 2 kez
+    assert.equal(r.repeated, false, "pencere dışı imzalar sayılmamalı");
   });
 
   test("_cleanResponse <think> ve <<<TOOL>>> bloklarını kaldırır", () => {

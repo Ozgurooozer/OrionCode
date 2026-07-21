@@ -3,7 +3,7 @@
 
 const {
   MAX_ITERS, TIER1_TOOLS, PARALLEL_SAFE,
-  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeThinkFilter,
+  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeThinkFilter, makeRepeatDetector,
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
 } = require("./shared.js");
 
@@ -35,7 +35,7 @@ module.exports = async function ollamaLoop(session) {
   const history  = _flattenMsgs(session.msgs);
 
   let finalText = "";
-  let lastCallSig = "";
+  const detectRepeat = makeRepeatDetector();
   let _toolRoleOk = true; // false olursa history'deki tool mesajları user'a dönüştürülür
   session._interrupted = false;
   aiTurnStart(session.mode?.name, session.backend, `[${session._turnCount + 1}]`);
@@ -99,8 +99,7 @@ module.exports = async function ollamaLoop(session) {
     });
 
     const sig = r.toolCalls.map(c => `${c.name}:${JSON.stringify(c.input)}`).join("|");
-    const repeated = sig === lastCallSig;
-    lastCallSig = sig;
+    const { repeated, cyclical } = detectRepeat(sig);
 
     const _canParallel = !repeated && r.toolCalls.length > 1
       && r.toolCalls.every(c => PARALLEL_SAFE.has(c.name) && session.modes.canUse(c.name).ok);
@@ -140,7 +139,8 @@ module.exports = async function ollamaLoop(session) {
         history.push({ role: "tool", tool_call_id: call.id, content: String(out) });
       }
     }
-    if (repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
+    if (cyclical) print.warn(i18n.t("Cyclical tool call pattern detected — reported to the model", "Döngüsel araç çağrısı deseni tespit edildi — modele bildirildi"));
+    else if (repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
     aiTurnContinue();
   }
 

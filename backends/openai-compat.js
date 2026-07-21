@@ -13,9 +13,10 @@
 /**
  * @typedef {Object} ChatOpts
  * @property {string}                   [system]    - system prompt injected as first message
- * @property {(token: string) => void}  [onToken]   - streaming callback, called per text delta
- * @property {Array<Object>}            [tools]     - Anthropic-format tool definitions
- * @property {number}                   [maxTokens] - max_tokens passed to provider
+ * @property {(token: string) => void}  [onToken]     - streaming callback, called per text delta
+ * @property {(token: string) => void}  [onReasoning] - streaming callback for reasoning deltas (reasoning models)
+ * @property {Array<Object>}            [tools]       - Anthropic-format tool definitions
+ * @property {number}                   [maxTokens]   - max_tokens passed to provider
  */
 const https = require("https");
 const http  = require("http");
@@ -127,7 +128,7 @@ function createProvider(spec) {
    * @param {Array<Object>} messages
    * @param {ChatOpts} [opts]
    */
-  function chatRich(model, messages, { system, tools, onToken, maxTokens } = {}) {
+  function chatRich(model, messages, { system, tools, onToken, onReasoning, maxTokens } = {}) {
     const key = apiKey();
     if (keyEnvs.length && !key)
       return Promise.reject(new Error(`${keyEnvs[0]} yok — credentials.json'a ekle`));
@@ -151,6 +152,7 @@ function createProvider(spec) {
         },
         res => {
           let text = "";
+          let reasoning = ""; // reasoning modelleri (OpenRouter delta.reasoning / DeepSeek reasoning_content)
           let finish = null;
           let errBody = "";
           const calls = {}; // index → {id, name, args}
@@ -173,6 +175,15 @@ function createProvider(spec) {
                   text += delta.content;
                   if (onToken) onToken(delta.content);
                 }
+                // Reasoning modelleri düşünmeyi ayrı alanda stream eder —
+                // content'e karışmaz ama toplamak gerekir: model tüm token
+                // bütçesini reasoning'e harcayıp boş content dönebilir; bu
+                // durumu loop katmanının teşhis edebilmesi için biriktirilir.
+                const rtok = delta.reasoning ?? delta.reasoning_content;
+                if (rtok) {
+                  reasoning += rtok;
+                  if (onReasoning) onReasoning(rtok);
+                }
                 for (const tc of delta.tool_calls ?? []) {
                   const i = tc.index ?? 0;
                   calls[i] ??= { id: "", name: "", args: "" };
@@ -194,10 +205,16 @@ function createProvider(spec) {
             }
             const toolCalls = Object.values(calls).map((c, i) => {
               let input = {};
-              try { input = c.args ? JSON.parse(c.args) : {}; } catch {}
-              return { id: c.id || `call_${i}`, name: c.name, input, rawArgs: c.args };
+              let argsTruncated = false;
+              // finish=length ortasında kesilen JSON parse edilemez — bunu
+              // sessizce {} yapmak, aracın yanlış/boş argümanla çalışmasına
+              // yol açıyordu. Kesik argüman açıkça işaretlenir; loop katmanı
+              // bu bayrağı görüp aracı ÇALIŞTIRMADAN modele geri bildirir.
+              try { input = c.args ? JSON.parse(c.args) : {}; }
+              catch { argsTruncated = true; }
+              return { id: c.id || `call_${i}`, name: c.name, input, rawArgs: c.args, argsTruncated };
             }).filter(c => c.name);
-            resolve({ text, toolCalls, finish });
+            resolve({ text, toolCalls, finish, reasoning });
           });
         }
       );
