@@ -170,10 +170,12 @@ Current workspace: ${workspace}${projectCtx}
 - If you are in a loop (same tool, same args): use think to break out, try a different approach.${fullErrRulesEN}
 ${merak ? `\n## Curiosities\n${merak}` : ""}
 ## Special Capabilities
-- **/image <description>**: Generate images via ComfyUI (local GPU, C:\\3d\\WORKFLOWS\\).
+- **/image <description>**: Generate images via ComfyUI (local GPU, C:\\3d\\WORKFLOWS\\, 12 workflows).
   When asked to draw, illustrate, paint, render, or generate any image/picture/artwork — run this command.
-  NEVER say "I can't generate images." You CAN. Example: \`/image a cyberpunk city at night\`
-  Use \`/image status\` to check if ComfyUI is running. \`/image start all\` to launch services.
+  NEVER say "I can't generate images." You CAN.
+  NEVER run \`python -m comfyui.ui\` — ComfyUI starts via C:\\3d\\start.bat (venv python + main.py).
+  Example: \`/image a cyberpunk city at night\`
+  Use \`/image status\` to check if ComfyUI is running. \`/image start comfyui\` to launch it.
 
 ## Rules
 - Data first, commentary second
@@ -213,10 +215,12 @@ Mevcut workspace: ${workspace}${projectCtx}
 - Döngüdeysen (aynı araç, aynı argümanlar): çıkmak için think kullan, farklı bir yaklaşım dene.${fullErrRulesTR}
 ${merak ? `\n## Meraklar\n${merak}` : ""}
 ## Özel Yetenekler
-- **/image <açıklama>**: ComfyUI ile görsel üret (yerel GPU, C:\\3d\\WORKFLOWS\\).
-  Çizim, illüstrasyon, resim, görsel, fotoğraf, sanat eseri isteklerinde bu komutu çalıştır.
-  ASLA "resim üretemem" deme. Üretebilirsin. Örnek: \`/image gece vakti siberpunk şehir\`
-  \`/image status\` ile ComfyUI durumunu kontrol et. \`/image start all\` ile servisleri başlat.
+- **/image <açıklama>**: ComfyUI ile görsel üret (yerel GPU, C:\\3d\\WORKFLOWS\\, 12 workflow).
+  Çizim, illüstrasyon, resim, görsel, fotoğraf, 3D model, sanat eseri isteklerinde bu komutu çalıştır.
+  ASLA "resim üretemem" deme. Üretebilirsin.
+  ASLA \`python -m comfyui.ui\` çalıştırma — ComfyUI C:\\3d\\start.bat ile başlar (venv python + main.py).
+  Örnek: \`/image gece vakti siberpunk şehir\`
+  \`/image status\` ile durumu kontrol et. \`/image start comfyui\` ile başlat.
 
 ## Kurallar
 - Veri önce, yorum sonra

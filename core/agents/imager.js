@@ -401,18 +401,21 @@ function startService(service) {
   const cfg = _cfg();
 
   if (service === "comfyui") {
-    const startBat = path.join(path.dirname(cfg.workflowsDir), "..", "start.bat");
-    const resolved = path.resolve(startBat);
-    if (!fs.existsSync(resolved))
-      return { launched: false, message: `start.bat bulunamadı: ${resolved}` };
+    // start.bat: C:\3d\venv\Scripts\python.exe main.py --windows-standalone-build (C:\3d\ComfyUI\ cwd)
+    // Derive from workflowsDir (C:\3d\WORKFLOWS) → parent = C:\3d → start.bat
+    const base = path.resolve(cfg.workflowsDir, "..");
+    const startBat = path.join(base, "start.bat");
+    if (!fs.existsSync(startBat))
+      return { launched: false, message: `start.bat bulunamadı: ${startBat}\nBeklenen: ${base}\\start.bat` };
     try {
-      const child = spawn("cmd.exe", ["/c", "start", '""', resolved], {
+      const child = spawn("cmd.exe", ["/c", "start", '""', startBat], {
         detached: true,
         stdio:    "ignore",
         shell:    false,
+        cwd:      base,
       });
       child.unref();
-      return { launched: true, message: `ComfyUI başlatıldı: ${resolved}` };
+      return { launched: true, message: `ComfyUI başlatıldı: ${startBat}` };
     } catch (e) {
       return { launched: false, message: `Başlatma hatası: ${e.message}` };
     }
