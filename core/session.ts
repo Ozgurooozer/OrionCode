@@ -169,6 +169,12 @@ Current workspace: ${workspace}${projectCtx}
 - run_command exit non-zero: read the full error output, fix root cause before retrying.
 - If you are in a loop (same tool, same args): use think to break out, try a different approach.${fullErrRulesEN}
 ${merak ? `\n## Curiosities\n${merak}` : ""}
+## Special Capabilities
+- **/image <description>**: Generate images via ComfyUI (local GPU, C:\\3d\\WORKFLOWS\\).
+  When asked to draw, illustrate, paint, render, or generate any image/picture/artwork — run this command.
+  NEVER say "I can't generate images." You CAN. Example: \`/image a cyberpunk city at night\`
+  Use \`/image status\` to check if ComfyUI is running. \`/image start all\` to launch services.
+
 ## Rules
 - Data first, commentary second
 - Admit mistakes openly, don't over-apologize
@@ -206,6 +212,12 @@ Mevcut workspace: ${workspace}${projectCtx}
 - run_command sıfırdan farklı exit: tam hata çıktısını oku, yeniden denemeden önce kök nedeni düzelt.
 - Döngüdeysen (aynı araç, aynı argümanlar): çıkmak için think kullan, farklı bir yaklaşım dene.${fullErrRulesTR}
 ${merak ? `\n## Meraklar\n${merak}` : ""}
+## Özel Yetenekler
+- **/image <açıklama>**: ComfyUI ile görsel üret (yerel GPU, C:\\3d\\WORKFLOWS\\).
+  Çizim, illüstrasyon, resim, görsel, fotoğraf, sanat eseri isteklerinde bu komutu çalıştır.
+  ASLA "resim üretemem" deme. Üretebilirsin. Örnek: \`/image gece vakti siberpunk şehir\`
+  \`/image status\` ile ComfyUI durumunu kontrol et. \`/image start all\` ile servisleri başlat.
+
 ## Kurallar
 - Veri önce, yorum sonra
 - Hataları açıkça kabul et, özür sarma
@@ -470,18 +482,18 @@ class Session {
     }
 
     const t0 = Date.now();
-    // Heartbeat: 30/60/90s'de "hâlâ çalışıyor" uyarısı — takilma tespiti
-    const _STUCK_INTERVALS = [30, 60, 90];
-    let _stuckIdx = 0;
+    // Heartbeat: her 30s'de "hâlâ çalışıyor" uyarısı — tur bitene kadar sürer.
+    // Önceden 3 mesajla (30/60/90s) sınırlıydı; ağ isteği backend'e göre
+    // 180s'ye kadar canlı kalabildiği için (bkz. backends/openai-compat.js
+    // req.setTimeout) sessizlik "donmuş" izlenimi veriyordu — bkz.
+    // docs/06-vaka-analizi-uzun-sureli-donma.md. Artık istek canlı olduğu
+    // sürece uyarı da devam eder.
     const _heartbeat = setInterval(() => {
-      if (_stuckIdx < _STUCK_INTERVALS.length) {
-        const elapsed = Math.round((Date.now() - t0) / 1000);
-        print.system(i18n.t(
-          `Still working... (${elapsed}s) — Ctrl+C to interrupt`,
-          `Hâlâ çalışıyor... (${elapsed}s) — durdurmak için Ctrl+C`
-        ));
-        _stuckIdx++;
-      }
+      const elapsed = Math.round((Date.now() - t0) / 1000);
+      print.system(i18n.t(
+        `Still working... (${elapsed}s) — Ctrl+C to interrupt`,
+        `Hâlâ çalışıyor... (${elapsed}s) — durdurmak için Ctrl+C`
+      ));
     }, 30_000);
 
     let result;
