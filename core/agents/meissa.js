@@ -141,10 +141,16 @@ async function run(userMessage, { sessionId = null } = {}) {
   let error  = null;
   let raw    = "";
 
-  try {
+  // Boş girdi → FALLBACK, LLM çağrısı yapma (boş LLM çağrısı yasak)
+  if (!truncated.trim()) {
+    result = { ...FALLBACK };
+    error  = "empty_input";
+  }
+
+  if (!result) try {
     const messages = [
       { role: "system",  content: SYSTEM_PROMPT },
-      { role: "user",    content: truncated || "(boş)" },
+      { role: "user",    content: truncated },
     ];
     raw    = await _ollamaChat(cfg.model, cfg.ollamaHost, cfg.ollamaPort, messages);
     result = _parse(raw);
