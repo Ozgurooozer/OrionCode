@@ -1,7 +1,8 @@
 # TAYF v0.1 — Çerçeve (Fırça Sorumluluğunda)
 
-**Durum:** Damıtım bekleniyor — Meissa'nın ilk 100 koşusundan çıkarılacak  
+**Durum:** Damıtım bekleniyor — Meissa'nın ilk 3x100 koşusundan (300 satır, 2026-07-21) çıkarılacak
 **Tetikleyici:** `node scripts/meissa_batch.js --count 100` çalıştırıldıktan sonra
+**Context (damıtımdan önce oku):** [MEISSA_GURULTU_NOTLARI.md](MEISSA_GURULTU_NOTLARI.md) — 300 satırdaki gürültünün hangi kısmı dilin parçası, hangisi altyapının parçası, önceden ayrıştırılmış
 
 ---
 
@@ -22,7 +23,11 @@ Her satır: `{ kategoriler[], rota, skill, karmasiklik, tahmini_butce, wall_time
 
 ---
 
-## Mevcut Trigger Paleti (Taslak — loglardan güncellenecek)
+## Mevcut Trigger Paleti (ÖNCEKİ TAHMİN — veriyle karşılaştırılmadan güvenilmez)
+
+> ⚠️ Bu tablo ve aşağıdaki sözdizim şeması, 300 satırlık gerçek log analizi çalıştırılmadan önce yazıldı. Fırça'nın ilkesi ("dil canlı bir şey, spec'e yazmak ölü iş") burada ihlal edilmiş olabilir. Damıtıma başlamadan önce `node scripts/tayf_distill.js` çalıştırılıp gerçek dağılım bu taslakla karşılaştırılmalı — fark varsa veri kazanır, taslak silinir/güncellenir.
+
+> **Kod karşılığı:** Bu paletin Seviye 0 (kural/anahtar-kelime, LLM'siz) uygulaması `core/agents/level0.js` — Meissa artık net tek-kategori eşleşmelerde LLM'e hiç gitmiyor. Log satırlarındaki `level` alanı (0=kural, 2=LLM) hangi katmanın karar verdiğini gösterir. Fırça damıtım yaparken palet güncellenirse level0.js de senkron güncellenmeli. Seviye 1 (embedding, nomic-embed-text) Faz 6/7'ye ertelendi — MVP'yi bloklamaz.
 
 | Kategori | Trigger Örnekleri | Rota |
 |----------|-------------------|------|
@@ -47,7 +52,7 @@ Her satır: `{ kategoriler[], rota, skill, karmasiklik, tahmini_butce, wall_time
 
 ---
 
-## Sözdizim Şeması v0.1 (Taslak)
+## Sözdizim Şeması v0.1 (ÖNCEKİ TAHMİN — aynı uyarı geçerli)
 
 ```
 TAYF_message ::= trigger* content context?
@@ -65,28 +70,13 @@ action_word   ::= "yap"|"oluştur"|"üret"|"generate"|"create"|...
 ## Doldurmak İçin (Batch Sonrası)
 
 ```bash
-# Log analizi komutu (batch tamamlandıktan sonra çalıştır):
-node -e "
-const fs = require('fs'), path = require('path'), os = require('os');
-const dir = path.join(os.homedir(), '.orion', 'meissa_runs');
-const files = fs.readdirSync(dir).filter(f=>f.endsWith('.jsonl'));
-const entries = files.flatMap(f =>
-  fs.readFileSync(path.join(dir,f),'utf8').trim().split('\n')
-  .filter(Boolean).map(l => { try{return JSON.parse(l)}catch{return null} })
-  .filter(Boolean)
-);
-const rota = {};
-const kat  = {};
-entries.forEach(e => {
-  const r = e.output_parsed?.rota ?? 'unknown';
-  rota[r] = (rota[r]??0)+1;
-  for(const k of e.output_parsed?.kategoriler??[]) kat[k]=(kat[k]??0)+1;
-});
-console.log('Rota:', JSON.stringify(rota, null, 2));
-console.log('Kategoriler:', JSON.stringify(kat, null, 2));
-console.log('Toplam:', entries.length);
-"
+# Log analizi (batch tamamlandıktan sonra çalıştır):
+node scripts/tayf_distill.js
 ```
+
+İki ayrı çıktı üretir:
+1. **Başarılı dağılım** (`output_parsed` olan satırlar) — rota/kategori sayımı, taslak tabloyla karşılaştırılacak.
+2. **Hata/fallback listesi** (`error != null || output_parsed == null` olan satırlar) — input + ham `output_raw`, kategorik dağılımdan ayrı ama yan yana okunmalı. TAYF'ın en çok öğreneceği yer burası (bkz. [MEISSA_GURULTU_NOTLARI.md](MEISSA_GURULTU_NOTLARI.md) §2 — `sosyal_temas` ve rol-karışması aday kategorileri bu listenin içinde yaşıyor).
 
 ---
 

@@ -2,7 +2,7 @@
 "use strict";
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { diffText, diffStat, diffLines } = require("../core/diff.js");
+const { diffText, diffStat, diffLines } = require("../core/diff.ts");
 
 test("aynı metin → boş diff", () => {
   assert.strictEqual(diffText("a\nb\nc", "a\nb\nc"), "");

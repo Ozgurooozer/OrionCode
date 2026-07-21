@@ -97,7 +97,7 @@ const TEST_MESSAGES = [
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function main() {
-  const meissa = require("../core/agents/meissa.js");
+  const meissa = require("../core/agents/meissa.ts");
 
   // Kaç mesaj, döngüyle doldur
   const messages = [];
@@ -109,7 +109,7 @@ async function main() {
   }
 
   const logDir  = meissa.logPath();
-  const results = { total: 0, parsed: 0, fallback: 0, errors: 0, byRota: {} };
+  const results = { total: 0, parsed: 0, fallback: 0, errors: 0, byRota: {}, byLevel: {} };
 
   console.log(`\nMeissa Batch Runner — ${COUNT} koşu, ${DELAY}ms gecikme`);
   console.log(`Log: ${logDir}\n`);
@@ -125,6 +125,8 @@ async function main() {
       else results.parsed++;
       if (r._meta.error === "empty_input") results.fallback++;
       results.byRota[r.rota] = (results.byRota[r.rota] ?? 0) + 1;
+      const lvl = r._meta.level === 0 ? "level0" : r._meta.level === 2 ? "level2_llm" : "guard";
+      results.byLevel[lvl] = (results.byLevel[lvl] ?? 0) + 1;
 
       if ((i + 1) % bar === 0 || i === messages.length - 1) {
         const pct  = Math.round((i + 1) / COUNT * 100);
@@ -146,6 +148,7 @@ async function main() {
   console.log(`Fallback   : ${results.fallback}`);
   console.log(`Hata       : ${results.errors}`);
   console.log(`Rota dağılımı: ${JSON.stringify(results.byRota, null, 2)}`);
+  console.log(`Seviye dağılımı: ${JSON.stringify(results.byLevel, null, 2)}`);
   console.log(`\nLog dosyası: ${logDir}`);
 
   if (parseRate >= 90) {

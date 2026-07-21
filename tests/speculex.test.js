@@ -6,7 +6,7 @@ const assert   = require("node:assert");
 
 // ── Test 1: Güvenlik garantisi — yazma araçları ASLA cache'e girmez ──────────
 test("SpeculativeCache: güvensiz tool set() ile kaydedilmez", () => {
-  const { SpeculativeCache } = require("../core/speculex.js");
+  const { SpeculativeCache } = require("../core/speculex.ts");
   const cache = new SpeculativeCache();
 
   // Yazma araçları — güvensiz
@@ -23,7 +23,7 @@ test("SpeculativeCache: güvensiz tool set() ile kaydedilmez", () => {
 
 // ── Test 2: Güvenli araçlar normal cache'lenir ────────────────────────────────
 test("SpeculativeCache: güvenli tool set/get çalışır", () => {
-  const { SpeculativeCache } = require("../core/speculex.js");
+  const { SpeculativeCache } = require("../core/speculex.ts");
   const cache = new SpeculativeCache();
 
   cache.set("read_file", { path: "/proje/dosya.js" }, "içerik burada");
@@ -34,7 +34,7 @@ test("SpeculativeCache: güvenli tool set/get çalışır", () => {
 
 // ── Test 3: TTL geçince cache miss döner ──────────────────────────────────────
 test("SpeculativeCache: TTL geçince miss döner", async () => {
-  const { SpeculativeCache } = require("../core/speculex.js");
+  const { SpeculativeCache } = require("../core/speculex.ts");
   const cache = new SpeculativeCache();
 
   // TTL'i test için 50ms'e indir (monkey-patch)
@@ -48,7 +48,7 @@ test("SpeculativeCache: TTL geçince miss döner", async () => {
 
 // ── Test 4: Hit/miss oranı doğru sayar ───────────────────────────────────────
 test("SpeculativeCache: hit/miss istatistikleri doğru", () => {
-  const { SpeculativeCache } = require("../core/speculex.js");
+  const { SpeculativeCache } = require("../core/speculex.ts");
   const cache = new SpeculativeCache();
 
   cache.set("list_files", { path: "/" }, "[dosyalar]");
@@ -64,7 +64,7 @@ test("SpeculativeCache: hit/miss istatistikleri doğru", () => {
 
 // ── Test 5: SAFE_TOOLS whitelist doğruluğu ───────────────────────────────────
 test("SAFE_TOOLS: izin verilenler ve yasaklar", () => {
-  const { SAFE_TOOLS } = require("../core/speculex.js");
+  const { SAFE_TOOLS } = require("../core/speculex.ts");
 
   // İzin verilen
   for (const t of ["read_file", "list_files", "search", "vault_search", "memory_read"]) {
@@ -79,7 +79,7 @@ test("SAFE_TOOLS: izin verilenler ve yasaklar", () => {
 
 // ── Test 6: clear() tüm cache'i siler ────────────────────────────────────────
 test("SpeculativeCache: clear() sonrası tüm girdiler silinir", () => {
-  const { SpeculativeCache } = require("../core/speculex.js");
+  const { SpeculativeCache } = require("../core/speculex.ts");
   const cache = new SpeculativeCache();
 
   cache.set("read_file", { path: "/a" }, "içerik a");
@@ -92,12 +92,12 @@ test("SpeculativeCache: clear() sonrası tüm girdiler silinir", () => {
 
 // ── Test 7: startPrefetch güvensiz araç çalıştırmaz ──────────────────────────
 test("startPrefetch: güvensiz araç spekülatif çalıştırılmaz (offline Ollama)", async () => {
-  const { SpeculativeCache } = require("../core/speculex.js");
+  const { SpeculativeCache } = require("../core/speculex.ts");
   // startPrefetch gerçekte Ollama'ya bağlanmayı dener — offline ortamda hemen döner
   // Test: hata fırlatmaması ve güvensiz araçların cache'e girmemiş olması yeterli
 
   const cache = new SpeculativeCache();
-  const { startPrefetch } = require("../core/speculex.js");
+  const { startPrefetch } = require("../core/speculex.ts");
 
   // Offline Ollama — bağlantı hatası sessizce yutulmalı
   await assert.doesNotReject(
@@ -111,7 +111,7 @@ test("startPrefetch: güvensiz araç spekülatif çalıştırılmaz (offline Oll
 
 // ── Test 8: SpeculativeCache Session'a entegre — constructor'da var ───────────
 test("Session: _specCache alanı mevcut ve SpeculativeCache örneği", () => {
-  const speculex = require("../core/speculex.js");
+  const speculex = require("../core/speculex.ts");
   assert.ok(typeof speculex.SpeculativeCache === "function", "SpeculativeCache class export edilmeli");
   assert.ok(speculex.SAFE_TOOLS instanceof Set, "SAFE_TOOLS Set export edilmeli");
   assert.ok(typeof speculex.startPrefetch === "function", "startPrefetch export edilmeli");
@@ -119,7 +119,7 @@ test("Session: _specCache alanı mevcut ve SpeculativeCache örneği", () => {
 
 // ── Test 9: hasUnsafe() MCP araç isimlerinde (server:tool) doğru çalışır ──────
 test("SpeculativeCache: hasUnsafe() MCP 'server:tool' formatında doğru çalışır", () => {
-  const { SpeculativeCache, SAFE_TOOLS } = require("../core/speculex.js");
+  const { SpeculativeCache, SAFE_TOOLS } = require("../core/speculex.ts");
   const cache = new SpeculativeCache();
 
   // SAFE_TOOLS içindeki araçlar güvenlidir
@@ -135,7 +135,7 @@ test("SpeculativeCache: hasUnsafe() MCP 'server:tool' formatında doğru çalı�
 
 // ── Test 10: Hata string'leri set() içinde filtrelenir (savunma derinliği) ──────
 test("SpeculativeCache: hata string'i set() ile kaydedilmez", () => {
-  const { SpeculativeCache } = require("../core/speculex.js");
+  const { SpeculativeCache } = require("../core/speculex.ts");
   const cache = new SpeculativeCache();
 
   // set() artık hata string'lerini doğrudan reddeder (startPrefetch'e bağlı değil)
@@ -155,7 +155,7 @@ test("SpeculativeCache: hata string'i set() ile kaydedilmez", () => {
 
 // ── Test 11: 50KB üzeri sonuç önbelleğe alınmaz (boyut koruması) ─────────────
 test("SpeculativeCache: 50KB üzeri sonuç set() ile kaydedilmez", () => {
-  const { SpeculativeCache } = require("../core/speculex.js");
+  const { SpeculativeCache } = require("../core/speculex.ts");
   const cache = new SpeculativeCache();
 
   const huge = "x".repeat(50_001);
@@ -167,7 +167,7 @@ test("SpeculativeCache: 50KB üzeri sonuç set() ile kaydedilmez", () => {
 // ── Test 12: ollamaRequest 3-arg arity fix — model argümanı iletilir ──────────
 test("ollamaRequest: 3-arg form prompt'u ikinci argüman olarak alır", () => {
   // Gerçek Ollama çağrısı değil — fonksiyon imzasını ve arity'yi doğrular
-  const { ollamaRequest } = require("../core/extract.js");
+  const { ollamaRequest } = require("../core/extract.ts");
   assert.strictEqual(typeof ollamaRequest, "function", "ollamaRequest fonksiyondur");
   // (modelOrPrompt, maybePrompt, opts={}) → ilk iki param: length 2
   assert.ok(ollamaRequest.length >= 1, "en az 1 parametresi olmalı");

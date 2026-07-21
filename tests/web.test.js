@@ -2,7 +2,7 @@
 "use strict";
 const { test } = require("node:test");
 const assert   = require("node:assert");
-const web      = require("../tools/web.js");
+const web      = require("../tools/web.ts");
 
 test("web_fetch: DEFS tanımlı ve doğru şekilde", () => {
   assert.strictEqual(web.DEFS.length, 1);

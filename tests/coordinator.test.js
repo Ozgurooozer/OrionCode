@@ -15,8 +15,8 @@ const assert   = require("node:assert");
 // Helpers
 // ────────────────────────────────────────────────────────────────────
 
-const coordinator = require("../core/coordinator.js");
-const subagent    = require("../core/subagent.js");
+const coordinator = require("../core/coordinator.ts");
+const subagent    = require("../core/subagent.ts");
 const backends    = require("../backends/index.ts");
 
 // Fake session: backend "fake-coord-test" ile hep sabit yanıt döner

@@ -13,7 +13,7 @@ process.env.ORION_HOME = TMP;
 
 // router cache temizle — config dosyası TMP'ye yazılsın
 delete require.cache[require.resolve("../core/router.ts")];
-const workspace = require("../core/workspace.js");
+const workspace = require("../core/workspace.ts");
 
 const TEST_DIR = path.join(TMP, "test-project");
 fs.mkdirSync(TEST_DIR, { recursive: true });

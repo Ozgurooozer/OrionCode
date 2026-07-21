@@ -4,7 +4,7 @@
 
 const tools  = require("../tools.ts");
 const events = require("../events.ts");
-const i18n   = require("../i18n.js");
+const i18n   = require("../i18n.ts");
 const { print }   = require("../../tui/output.ts");
 const { aiTurnStart, aiTurnContinue } = require("../../tui/index.ts");
 
@@ -52,7 +52,7 @@ function _toolCallError(out) {
 }
 
 function _cleanResponse(text) {
-  text = require("../extract.js").stripThinking(text);
+  text = require("../extract.ts").stripThinking(text);
   text = text.replace(/<<<TOOL>>>[\s\S]*?<<<END>>>/g, "");
   text = text.replace(/<<<TOOL>>>[\s\S]*/g, "");
   text = text.replace(/<<<RESULT>>>[\s\S]*?<<<END>>>/g, "");

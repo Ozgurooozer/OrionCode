@@ -14,7 +14,7 @@ const VAULT = path.join(HOME, "vault");
 fs.mkdirSync(path.join(HOME, ".orion"), { recursive: true });
 fs.writeFileSync(path.join(HOME, ".orion", "config.json"), JSON.stringify({ vaultDir: VAULT }));
 
-const vault = require("../core/vault.js");
+const vault = require("../core/vault.ts");
 
 test("getVaultDir: config'teki vaultDir kullanılır", () => {
   assert.strictEqual(vault.getVaultDir(), VAULT);

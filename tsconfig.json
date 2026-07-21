@@ -1,25 +1,25 @@
 {
   "compilerOptions": {
-    "allowJs": true,
+    "allowJs": false,
     "checkJs": false,
     "noEmit": true,
-    "strict": true,
+    "strict": false,
+    "noImplicitAny": false,
     "target": "ES2022",
     "module": "commonjs",
     "moduleResolution": "bundler",
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node"],
+    "lib": ["ES2022"]
   },
   "include": [
-    "*.js",
-    "core/**/*.js",
-    "backends/**/*.js",
-    "tools/**/*.js",
-    "tui/**/*.js",
-    "tui/**/*.ts",
+    "*.ts",
     "core/**/*.ts",
-    "backends/**/*.ts"
+    "backends/**/*.ts",
+    "tools/**/*.ts",
+    "tui/**/*.ts"
   ],
   "exclude": [
     "node_modules",
@@ -28,6 +28,7 @@
     "tests",
     "scripts",
     "tui/beta2",
-    "orion-server.js"
+    "tui/beta3",
+    "orion-server.ts"
   ]
 }

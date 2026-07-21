@@ -2,7 +2,7 @@
 "use strict";
 const { test } = require("node:test");
 const assert   = require("node:assert");
-const fuzzy    = require("../tui/fuzzy.js");
+const fuzzy    = require("../tui/fuzzy.ts");
 
 test("fuzzyMatch: yaygın typo'lara tolerans gösterir", () => {
   assert.ok(fuzzy.fuzzyMatch("codxe", "gpt-5-codex"), "harf yer değiştirme tolere edilmeli");

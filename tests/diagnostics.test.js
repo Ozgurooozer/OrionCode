@@ -5,7 +5,7 @@ const os   = require("os");
 const path = require("path");
 const { test } = require("node:test");
 const assert = require("node:assert");
-const diagnostics = require("../core/diagnostics.js");
+const diagnostics = require("../core/diagnostics.ts");
 
 const WORK = fs.mkdtempSync(path.join(os.tmpdir(), "orion-diag-"));
 

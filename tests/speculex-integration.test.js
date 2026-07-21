@@ -6,7 +6,7 @@
 const { test } = require("node:test");
 const assert   = require("node:assert");
 
-const { SpeculativeCache, startPrefetch } = require("../core/speculex.js");
+const { SpeculativeCache, startPrefetch } = require("../core/speculex.ts");
 const { emitter } = require("../core/events.ts");
 
 // Olay toplayıcı — dinleyiciyi eklerken kaldırma fonksiyonunu döndürür
@@ -21,7 +21,7 @@ function collectEvents(types) {
 // Tier1 tahmincisi (mock) kasıtlı olarak write_file/edit_file/run_command üretir;
 // startPrefetch bunların HİÇBİRİNİ çalıştırmamalı, yalnızca read_file prefetch edilmeli.
 test("KATI SINIR: write_file/edit_file/run_command spekülatif tetiklenemez", async () => {
-  const extract = require("../core/extract.js");
+  const extract = require("../core/extract.ts");
   const tools   = require("../core/tools.ts");
   const origFetch   = global.fetch;
   const origRequest = extract.ollamaRequest;

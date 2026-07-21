@@ -2,12 +2,12 @@
 // @ts-nocheck
 "use strict";
 const events = require("./events.ts");
-const fsTools       = require("../tools/fs.js");
-const shellTools    = require("../tools/shell.js");
-const memoryTools   = require("../tools/memory.js");
-const vaultTools    = require("../tools/vault.js");
-const webTools      = require("../tools/web.js");
-const gitTools      = require("../tools/git.js");
+const fsTools       = require("../tools/fs.ts");
+const shellTools    = require("../tools/shell.ts");
+const memoryTools   = require("../tools/memory.ts");
+const vaultTools    = require("../tools/vault.ts");
+const webTools      = require("../tools/web.ts");
+const gitTools      = require("../tools/git.ts");
 // moltbook: skill olarak yüklenir — her oturumda kayıtlı değil
 // registerMoltbook() ile dinamik olarak devreye girer
 
@@ -79,7 +79,7 @@ function unregisterDynamic(source) {
 let _moltbookRegistered = false;
 function registerMoltbook() {
   if (_moltbookRegistered) return;
-  const mb = require("../tools/moltbook.js");
+  const mb = require("../tools/moltbook.ts");
   registerDynamic(mb.DEFS, (name, input) => mb.execute(name, input), "moltbook");
   _moltbookRegistered = true;
 }

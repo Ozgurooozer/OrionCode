@@ -12,7 +12,7 @@ process.env.ORION_HOME = tmpHome;
 process.env.OLLAMA_HOST = "127.0.0.1";
 process.env.OLLAMA_PORT = "11434";
 
-const meissa = require("../core/agents/meissa.js");
+const meissa = require("../core/agents/meissa.ts");
 
 // ── Kazıcı protokolü: 10 saçma girdi (unit — Ollama gerektirmez) ────────────
 

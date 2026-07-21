@@ -15,9 +15,9 @@ const assert   = require("node:assert");
 // ── Test 1: /provider key <name> <key> — key providers.json'a kaydedilir ─────
 test("/provider key: anahtarı providers.json'a yazar, ekrana basmaz", async () => {
   // require chain temizle
-  delete require.cache[require.resolve("../backends/custom.js")];
+  delete require.cache[require.resolve("../backends/custom.ts")];
 
-  const custom = require("../backends/custom.js");
+  const custom = require("../backends/custom.ts");
 
   // Önce preset'i ekle (specs'e yaz)
   custom.addProvider("groq", {});
@@ -28,7 +28,7 @@ test("/provider key: anahtarı providers.json'a yazar, ekrana basmaz", async () 
   console.log = (...a) => printed.push(a.join(" "));
 
   // Komutu doğrudan çalıştır (non-interactive path: args[0]="key")
-  const cmd = require("../core/commands/provider.js")[0];
+  const cmd = require("../core/commands/provider.ts")[0];
   await cmd.exec({ args: ["key", "groq", "sk-test-secret-key-1234567890"] });
 
   console.log = origLog;
@@ -45,7 +45,7 @@ test("/provider key: anahtarı providers.json'a yazar, ekrana basmaz", async () 
   assert.ok(!outputText.includes("1234567890"), "key değeri konsola yazılmamış olmalı");
 
   // Dosyayı temizle
-  delete require.cache[require.resolve("../backends/custom.js")];
+  delete require.cache[require.resolve("../backends/custom.ts")];
   try { fs.unlinkSync(path.join(HOME, ".orion", "providers.json")); } catch {}
 });
 
@@ -54,16 +54,16 @@ test("/provider key: anahtarı providers.json'a yazar, ekrana basmaz", async () 
 // Burada davranışı mock stdin üzerinden test ediyoruz.
 test("maskedInput: non-TTY ortamında boş string döner (pipe/test güvenliği)", async () => {
   // process.stdin.isTTY false olduğu için maskedInput hemen resolve("") döner
-  const { maskedInput } = require("../tui/masked-input.js");
+  const { maskedInput } = require("../tui/masked-input.ts");
   const result = await maskedInput("Test prompt: ");
   assert.strictEqual(result, "", "TTY olmayan ortamda boş string dönmeli");
 });
 
 // ── Test 3: /provider add — preset eklenir ───────────────────────────────────
 test("/provider add: preset sağlayıcı providers.json'a eklenir", async () => {
-  delete require.cache[require.resolve("../backends/custom.js")];
-  const custom = require("../backends/custom.js");
-  const cmd    = require("../core/commands/provider.js")[0];
+  delete require.cache[require.resolve("../backends/custom.ts")];
+  const custom = require("../backends/custom.ts");
+  const cmd    = require("../core/commands/provider.ts")[0];
 
   const printed = [];
   const origLog = console.log;
@@ -77,15 +77,15 @@ test("/provider add: preset sağlayıcı providers.json'a eklenir", async () => 
   assert.ok("deepseek" in specs, "deepseek eklenmeli");
   assert.ok(specs.deepseek.baseURL, "baseURL mevcut olmalı");
 
-  delete require.cache[require.resolve("../backends/custom.js")];
+  delete require.cache[require.resolve("../backends/custom.ts")];
   try { fs.unlinkSync(path.join(HOME, ".orion", "providers.json")); } catch {}
 });
 
 // ── Test 4: /provider remove — provider kaldırılır ──────────────────────────
 test("/provider remove: provider silinir", async () => {
-  delete require.cache[require.resolve("../backends/custom.js")];
-  const custom = require("../backends/custom.js");
-  const cmd    = require("../core/commands/provider.js")[0];
+  delete require.cache[require.resolve("../backends/custom.ts")];
+  const custom = require("../backends/custom.ts");
+  const cmd    = require("../core/commands/provider.ts")[0];
 
   custom.addProvider("mistral", {});
 
@@ -94,7 +94,7 @@ test("/provider remove: provider silinir", async () => {
   const specs = custom.loadSpecs();
   assert.ok(!("mistral" in specs), "mistral kaldırılmış olmalı");
 
-  delete require.cache[require.resolve("../backends/custom.js")];
+  delete require.cache[require.resolve("../backends/custom.ts")];
   try { fs.unlinkSync(path.join(HOME, ".orion", "providers.json")); } catch {}
 });
 
@@ -109,7 +109,7 @@ test("_withRlPause: rl.pause() çağrılır, fn çalışır, rl.resume() ile tem
     resume: () => calls.push("resume"),
   };
 
-  const cmd = require("../core/commands/provider.js")[0];
+  const cmd = require("../core/commands/provider.ts")[0];
   // 'presets' subcommand non-TTY'de metin çıktısı verir; pause/resume test için yeterli
   await cmd.exec({ args: ["presets"], rl: mockRl });
 
@@ -120,19 +120,19 @@ test("_withRlPause: rl.pause() çağrılır, fn çalışır, rl.resume() ile tem
 
 // ── Test 6: çift render yok — non-TTY çıktısında aynı satır iki kez gözükmez ──
 test("non-TTY /provider çıktısında mesaj tekrarı yok", async () => {
-  delete require.cache[require.resolve("../backends/custom.js")];
-  delete require.cache[require.resolve("../core/commands/provider.js")];
+  delete require.cache[require.resolve("../backends/custom.ts")];
+  delete require.cache[require.resolve("../core/commands/provider.ts")];
 
   const lines = [];
   const origWrite = process.stdout.write.bind(process.stdout);
   process.stdout.write = (s, ...rest) => { lines.push(String(s)); return origWrite(s, ...rest); };
 
-  const cmd = require("../core/commands/provider.js")[0];
+  const cmd = require("../core/commands/provider.ts")[0];
   // Non-TTY'de metin fallback çalışır, clack devreye girmez
   await cmd.exec({ args: [] });
 
   process.stdout.write = origWrite;
-  delete require.cache[require.resolve("../core/commands/provider.js")];
+  delete require.cache[require.resolve("../core/commands/provider.ts")];
 
   const full = lines.join("");
   // ANSI kodlarını soy, düz metni karşılaştır

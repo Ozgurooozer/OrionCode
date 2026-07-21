@@ -47,7 +47,7 @@ test("mineWeaknesses grouping: ok:false kayıtları tool+error'a göre gruplanı
   fs.writeFileSync(path.join(logDir, "s2.ndjson"), [lines[2], lines[4]].map(l => JSON.stringify(l)).join("\n") + "\n");
 
   // Gruplama mantığını doğrula (daemon.js'deki mineWeaknesses ile aynı mantık)
-  const { listLogs, readLog } = require("../core/telemetry.js");
+  const { listLogs, readLog } = require("../core/telemetry.ts");
   const groups = {};
   for (const { sessionId } of listLogs(200)) {
     for (const e of readLog(sessionId)) {
@@ -86,8 +86,8 @@ test("/weakness list: rapor yokken bilgi mesajı", async () => {
   const orig = console.log;
   console.log = (...a) => lines.push(a.join(" "));
 
-  delete require.cache[require.resolve("../core/commands/weakness.js")];
-  const cmd = require("../core/commands/weakness.js")[0];
+  delete require.cache[require.resolve("../core/commands/weakness.ts")];
+  const cmd = require("../core/commands/weakness.ts")[0];
   await cmd.exec({ args: ["list"] });
 
   console.log = orig;
@@ -106,8 +106,8 @@ test("/weakness list: rapor varken dosya adını listeler", async () => {
   const orig = console.log;
   console.log = (...a) => lines.push(a.join(" "));
 
-  delete require.cache[require.resolve("../core/commands/weakness.js")];
-  const cmd = require("../core/commands/weakness.js")[0];
+  delete require.cache[require.resolve("../core/commands/weakness.ts")];
+  const cmd = require("../core/commands/weakness.ts")[0];
   await cmd.exec({ args: ["list"] });
 
   console.log = orig;
@@ -129,8 +129,8 @@ test("/weakness default: en son rapor içeriğini gösterir", async () => {
   const orig = console.log;
   console.log = (...a) => lines.push(a.join(" "));
 
-  delete require.cache[require.resolve("../core/commands/weakness.js")];
-  const cmd = require("../core/commands/weakness.js")[0];
+  delete require.cache[require.resolve("../core/commands/weakness.ts")];
+  const cmd = require("../core/commands/weakness.ts")[0];
   await cmd.exec({ args: [] });
 
   console.log = orig;
@@ -150,9 +150,9 @@ test("EVENT_TYPES: weakness_mined tipi mevcut", () => {
 
 // ── Test 7: /weakness komutu kayıtlı (index.js) ──────────────────────────────
 test("/weakness komutu dispatch edilebilir", async () => {
-  delete require.cache[require.resolve("../core/commands/index.js")];
-  delete require.cache[require.resolve("../core/commands/weakness.js")];
-  const { dispatch } = require("../core/commands/index.js");
+  delete require.cache[require.resolve("../core/commands/index.ts")];
+  delete require.cache[require.resolve("../core/commands/weakness.ts")];
+  const { dispatch } = require("../core/commands/index.ts");
   // rapor yok ortamında hata fırlatmamalı
   await assert.doesNotReject(() => dispatch("weakness", [], {}));
 });

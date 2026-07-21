@@ -61,7 +61,7 @@ test("emitSilentCatch: dinleyici fırlatsa bile kendisi fırlatmaz", () => {
 // Ollama tamamen erişilemezken 3 deneme de düşer → manuel yedek döner AMA artık
 // silent_catch_hit olayı hatanın nedenini taşır ("başarı gibi" görünmez).
 test("extractWithOllama: manuel yedeğe düşüş silent_catch_hit yayınlar", async () => {
-  const { extractWithOllama } = require("../core/extract.js");
+  const { extractWithOllama } = require("../core/extract.ts");
 
   const origFetch = global.fetch;
   global.fetch = async () => { throw new Error("ECONNREFUSED test-ollama-yok"); };
@@ -93,7 +93,7 @@ test("extractWithOllama: manuel yedeğe düşüş silent_catch_hit yayınlar", a
 // artık olay kanalından görülür.
 test("setLocale: saveConfig hatası silent_catch_hit yayınlar, dönüş bozulmaz", () => {
   const router = require("../core/router.ts");
-  const i18n   = require("../core/i18n.js");
+  const i18n   = require("../core/i18n.ts");
 
   const origSave = router.saveConfig;
   router.saveConfig = () => { throw new Error("EACCES config yazılamadı"); };

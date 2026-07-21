@@ -15,7 +15,7 @@ const { test } = require("node:test");
 const assert   = require("node:assert");
 
 const router     = require("../core/router.ts");
-const freeenergy = require("../core/freeenergy.js");
+const freeenergy = require("../core/freeenergy.ts");
 const events     = require("../core/events.ts");
 
 // Not: temp vault'ta vectors.json yok → computeSurprise deterministik 0.5 döner
@@ -191,7 +191,7 @@ test("gölge: aggregateShadowReport fep_shadow kayıtlarını sayar ve reason'ı
 
 // ── Test 8: /router shadow-report komutu hata vermez ─────────────────────────
 test("/router shadow-report: komut tanınır, hata vermez", async () => {
-  const cmd = require("../core/commands/router.js")[0];
+  const cmd = require("../core/commands/router.ts")[0];
   await assert.doesNotReject(() => cmd.exec({ args: ["shadow-report"] }), "shadow-report hata vermemeli");
   await assert.doesNotReject(() => cmd.exec({ args: ["shadow", "7"] }), "shadow kısayolu hata vermemeli");
   // Temizlik: modu kapat

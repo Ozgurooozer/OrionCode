@@ -3,7 +3,7 @@
 
 const { test } = require("node:test");
 const assert   = require("node:assert");
-const { createSlashMenu, attachSlashMenu } = require("../tui/slashmenu.js");
+const { createSlashMenu, attachSlashMenu } = require("../tui/slashmenu.ts");
 
 const CMDS = [
   { name: "model",    aliases: [],            desc: "Aktif modeli değiştir" },
@@ -17,7 +17,7 @@ const CMDS = [
 ];
 
 test("slashmenu: '/' tüm komutları açar, tam liste items içinde, pencere MAX_ITEMS ile sınırlı", () => {
-  const { MAX_ITEMS } = require("../tui/slashmenu.js");
+  const { MAX_ITEMS } = require("../tui/slashmenu.ts");
   const m = createSlashMenu(() => CMDS);
   m.update("/");
   assert.strictEqual(m.state.open, true);

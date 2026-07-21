@@ -1,0 +1,155 @@
+// @ts-nocheck
+﻿// core/commands/model.js — Model and backend management
+"use strict";
+const { C }       = require("../../tui/colors.ts");
+const { print }   = require("../../tui/output.ts");
+const { spinner } = require("../../tui/index.ts");
+const { fuzzyPicker } = require("../../tui/fuzzy-picker.ts");
+const i18n = require("../i18n.ts");
+
+// Tüm erişilebilir backend'lerin model listesini topla — arama kutusu için
+// generic detect()'in 20/50 sınırından daha geniş bir havuz çeker.
+async function _gatherSearchableModels() {
+  const backends = require("../../backends/index.ts");
+  const items = [];
+  await Promise.all(backends.all().map(async p => {
+    const ok = await p.isAvailable().catch(() => false);
+    if (!ok) return;
+    let models;
+    if (p.name === "openrouter" || p.name === "huggingface") {
+      models = await p.listModelIds(300).catch(() => []);
+    } else {
+      const m = await p.listModels().catch(() => []);
+      models = m.map(x => (typeof x === "string" ? x : x.id));
+    }
+    for (const model of models) {
+      items.push({
+        value:  { backend: p.name, model },
+        label:  model,
+        hint:   p.name,
+        search: `${p.name} ${model}`,
+      });
+    }
+  }));
+  return items;
+}
+
+module.exports = [{
+  name:    "model",
+  aliases: ["modeller", "m"],
+  group:   "Model",
+  desc:    "Show or switch active model/backend",
+  usage:   "/model [or [filter] | hf | <backend> <id> | <id>]",
+  exec: async ({ args, session, rl }) => {
+    const sub = args[0]?.toLowerCase();
+
+    // /model or [filter] → OpenRouter list
+    if (sub === "or" || sub === "openrouter") {
+      if (!process.env.OPENROUTER_API_KEY) {
+        print.warn(i18n.t("OPENROUTER_API_KEY missing — add it to credentials.json", "OPENROUTER_API_KEY eksik — credentials.json'a ekle"));
+        return;
+      }
+      const or     = require("../../backends/openrouter.ts");
+      const filter = args[1] ?? "";
+      print.info(i18n.t(`Fetching OpenRouter${filter ? ` (${filter})` : ""} list...`, `OpenRouter${filter ? ` (${filter})` : ""} listesi alınıyor...`));
+      const models = await or.listModels({ filter, limit: 50 });
+      if (!models.length) { print.warn(i18n.t("List is empty.", "Liste boş.")); return; }
+      const free = models.filter(m => m.free);
+      const paid = models.filter(m => !m.free);
+      console.log("");
+      if (free.length) {
+        console.log(`  ${C.green(i18n.t("● FREE", "● ÜCRETSİZ"))}`);
+        free.forEach(m => {
+          const ctx = m.context ? C.dim(` ${(m.context / 1000).toFixed(0)}k`) : "";
+          console.log(`    ${m.id}${ctx}  ${C.dim(m.name ?? "")}`);
+        });
+      }
+      if (paid.length) {
+        console.log(`\n  ${C.yellow(i18n.t("● PAID", "● ÜCRETLİ"))}`);
+        paid.slice(0, 20).forEach(m => {
+          const ctx = m.context ? C.dim(` ${(m.context / 1000).toFixed(0)}k`) : "";
+          console.log(`    ${m.id}${ctx}`);
+        });
+        if (paid.length > 20) console.log(`    ${C.dim(i18n.t(`+${paid.length - 20} more`, `+${paid.length - 20} daha`))}`);
+      }
+      console.log(`\n  ${C.dim(i18n.t("/model openrouter <id>  →  switch", "/model openrouter <id>  →  geç"))}\n`);
+      return;
+    }
+
+    // /model hf → HuggingFace list
+    if (sub === "hf" || sub === "huggingface") {
+      const hf = require("../../backends/huggingface.ts");
+      print.info(i18n.t("Fetching HuggingFace models...", "HuggingFace modelleri alınıyor..."));
+      const models = await hf.listModels({ limit: 20 });
+      if (!models.length) { print.warn(i18n.t("No HF access or list is empty.", "HF erişim yok ya da liste boş.")); return; }
+      console.log("");
+      models.forEach(m => console.log(`  ${m}`));
+      console.log(`\n  ${C.dim(i18n.t("/model huggingface <id>  →  switch", "/model huggingface <id>  →  geç"))}\n`);
+      return;
+    }
+
+    // /model <backend> <id>
+    if (args.length >= 2) {
+      session.backend = args[0];
+      session.model   = args.slice(1).join(" ");
+      session._manualBackend = true;
+      session._manualModel   = true;
+      print.system(i18n.t(`backend → ${session.backend}  model → ${session.model}`, `backend → ${session.backend}  model → ${session.model}`));
+      return;
+    }
+
+    // /model <id>
+    if (args.length === 1) {
+      session.model = args[0];
+      session._manualModel = true;
+      print.system(`model → ${session.model}`);
+      return;
+    }
+
+    // /model — TTY'de yazarak-ara seçici, pipe/non-TTY'de statik döküm
+    if (process.stdin.isTTY && process.stdout.isTTY) {
+      spinner.start(i18n.t("gathering models", "modeller toplanıyor"));
+      let items;
+      try { items = await _gatherSearchableModels(); }
+      finally { spinner.stop(); }
+
+      if (!items.length) {
+        print.warn(i18n.t("No available backend with models found.", "Model listesi veren erişilebilir backend bulunamadı."));
+        return;
+      }
+
+      console.log(`\n  ${C.bold(i18n.t("Active:", "Aktif:"))} ${C.cyan(session.backend)} ${C.yellow(session.model)}`);
+      try { if (rl) rl.pause(); } catch {}
+      let chosen;
+      try {
+        chosen = await fuzzyPicker(i18n.t("Search model:", "Model ara:"), items);
+      } finally {
+        // fuzzyPicker.cleanup() stdin.pause() çağırır — rl.resume() ile geri aç
+        try { if (rl) rl.resume(); } catch {}
+      }
+      if (!chosen) return;
+
+      session.backend = chosen.backend;
+      session.model   = chosen.model;
+      session._manualBackend = true;
+      session._manualModel   = true;
+      return;
+    }
+
+    // Non-TTY — statik döküm (script/CI için)
+    console.log(`\n  ${C.bold(i18n.t("Active:", "Aktif:"))} ${C.cyan(session.backend)} ${C.yellow(session.model)}\n`);
+    const backends = require("../../backends/index.ts");
+    const all      = await backends.detect();
+    for (const b of all) {
+      const tag = b.name === session.backend ? C.green(" ◀") : "";
+      console.log(`  ${C.cyan(b.name)}${tag}`);
+      for (const m of b.models ?? []) {
+        const cur = m === session.model ? C.yellow(i18n.t(" ◀ active", " ◀ aktif")) : "";
+        console.log(`    ${C.dim("·")} ${m}${cur}`);
+      }
+    }
+    console.log(`\n  ${C.dim(i18n.t("/model or [filter]   →  OpenRouter", "/model or [filtre]   →  OpenRouter"))}`);
+    console.log(`  ${C.dim(i18n.t("/model hf            →  HuggingFace", "/model hf            →  HuggingFace"))}`);
+    console.log(`  ${C.dim(i18n.t("/model <backend> <id>  →  switch", "/model <backend> <id>  →  geç"))}\n`);
+  },
+}];

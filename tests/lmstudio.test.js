@@ -7,7 +7,7 @@ const { test } = require("node:test");
 const assert   = require("node:assert");
 
 test("lmstudio: provider şekli doğru (chatRich + listModels)", () => {
-  const p = require("../backends/lmstudio.js");
+  const p = require("../backends/lmstudio.ts");
   assert.strictEqual(p.name, "lmstudio");
   assert.strictEqual(typeof p.chatRich, "function");
   assert.strictEqual(typeof p.listModels, "function");
@@ -15,7 +15,7 @@ test("lmstudio: provider şekli doğru (chatRich + listModels)", () => {
 });
 
 test("lmstudio: sunucu kapalıyken isAvailable false (anahtarsız-hep-true tuzağı yok)", async () => {
-  const p = require("../backends/lmstudio.js");
+  const p = require("../backends/lmstudio.ts");
   assert.strictEqual(await p.isAvailable(), false);
 });
 

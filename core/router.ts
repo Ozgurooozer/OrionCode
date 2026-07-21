@@ -114,7 +114,7 @@ function complexityScore(text: string): number {
 function decide(text: string, opts: DecideOpts = {}): RouteDecision {
   const decision = _decideCore(text, opts);
   // shadowHook kendi iç try/catch ile guard'lı — dış catch gereksiz.
-  require("./freeenergy.js").shadowHook(decision, text, {
+  require("./freeenergy.ts").shadowHook(decision, text, {
     tokenCount: opts.tokenCount ?? 0,
     mode:       opts.mode ?? "agent",
   });
@@ -163,7 +163,7 @@ function _decideCore(text: string, { tokenCount = 0, mode = "agent", budgetTrack
 
 function _applyThompson(decision: RouteDecision): RouteDecision {
   try {
-    const thompson = require("./thompson.js");
+    const thompson = require("./thompson.ts");
     return thompson.recommend(decision);
   } catch { return decision; }
 }

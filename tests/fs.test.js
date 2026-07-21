@@ -15,7 +15,7 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "orion-fs-"));
 process.env.ORION_WORKSPACE = TMP;
 
 // tools/fs.js'i yükle — ORION_HOME yolunun çakışmaması için
-const { execute } = require("../tools/fs.js");
+const { execute } = require("../tools/fs.ts");
 
 // ── Test 1: read_file — var olan dosya ───────────────────────────────────────
 test("read_file: var olan dosya satır numarasıyla döner", () => {

@@ -7,7 +7,7 @@ process.env.ORION_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "orion-test-"));
 
 const { test } = require("node:test");
 const assert = require("node:assert");
-const plugins = require("../core/plugins.js");
+const plugins = require("../core/plugins.ts");
 const tools   = require("../core/tools.ts");
 const backends = require("../backends/index.ts");
 
@@ -48,7 +48,7 @@ test("araç + komut + provider yüzeyi tek plugin'den yüklenir", async () => {
   assert.ok(backends.all().some(b => b.name === "plugin-servis"));
 
   // komut kayıtlı
-  const commands = require("../core/commands/index.js");
+  const commands = require("../core/commands/index.ts");
   assert.ok(commands.all().some(c => c.name === "denemekomut"));
 });
 

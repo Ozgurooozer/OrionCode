@@ -5,12 +5,12 @@
 import type { Backend } from './types.ts';
 const ollama      = require("./ollama.ts");
 const anthropic   = require("./anthropic.ts");
-const huggingface = require("./huggingface.js");
+const huggingface = require("./huggingface.ts");
 const openai      = require("./openai.ts");
 const openrouter  = require("./openrouter.ts");
-const lmstudio    = require("./lmstudio.js");
+const lmstudio    = require("./lmstudio.ts");
 const nim         = require("./nim.ts");
-const custom      = require("./custom.js");
+const custom      = require("./custom.ts");
 
 const BUILTIN = [anthropic, ollama, lmstudio, nim, openrouter, openai, huggingface];
 

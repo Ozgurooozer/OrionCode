@@ -9,7 +9,7 @@ process.env.ORION_HOME = require("os").tmpdir() + "\\orion-extract-test-" + proc
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert");
-const { extractWithOllama, stripThinking } = require("../core/extract.js");
+const { extractWithOllama, stripThinking } = require("../core/extract.ts");
 
 // Sahte Ollama: /api/tags listesinin İLK modeli embedding (hatayı yeniden üreten
 // sıralama) — doğru davranış onu atlayıp chat yapabilen modele düşmek.

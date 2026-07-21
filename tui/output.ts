@@ -2,7 +2,7 @@
 import type { Color, Theme } from "./colors.ts";
 
 const { C, T, RESET } = require("./colors.ts") as { C: Color; T: Theme; RESET: string };
-const i18n = require("../core/i18n.js") as { t(en: string, tr: string): string; locTag(): string };
+const i18n = require("../core/i18n.ts") as { t(en: string, tr: string): string; locTag(): string };
 
 const TOOL_ICONS: [RegExp, string][] = [
   [/^think$/,             "◌"],

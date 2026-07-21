@@ -13,14 +13,14 @@ process.env.ORION_HOME = TMP;
 
 // i18n module'ü require cache'ini silerek her test grubu için temiz yükle
 function freshI18n(lang) {
-  delete require.cache[require.resolve("../core/i18n.js")];
+  delete require.cache[require.resolve("../core/i18n.ts")];
   delete require.cache[require.resolve("../core/router.ts")];
   if (lang) {
     process.env.ORION_LANG = lang;
   } else {
     delete process.env.ORION_LANG;
   }
-  return require("../core/i18n.js");
+  return require("../core/i18n.ts");
 }
 
 describe("i18n: dil seçimi", () => {

@@ -5,7 +5,7 @@ const os   = require("os");
 const path = require("path");
 const { test, after } = require("node:test");
 const assert = require("node:assert");
-const hi = require("../core/harness-import.js");
+const hi = require("../core/harness-import.ts");
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "orion-hi-"));
 after(() => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {} });

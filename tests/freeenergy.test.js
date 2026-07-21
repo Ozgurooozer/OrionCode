@@ -12,7 +12,7 @@ fs.mkdirSync(path.join(HOME, ".orion"), { recursive: true });
 const { test } = require("node:test");
 const assert   = require("node:assert");
 
-const { scoreOption, shadowDecide, PRAGMATIC, epistemicValue, isEnabled, setEnabled } = require("../core/freeenergy.js");
+const { scoreOption, shadowDecide, PRAGMATIC, epistemicValue, isEnabled, setEnabled } = require("../core/freeenergy.ts");
 
 // ── Test 1: lambda=0 → saf pragmatik, tier2 her zaman kazanır ────────────────
 test("FEP: lambda=0 → tier2 her zaman kazanır (saf pragmatik)", () => {
@@ -98,28 +98,28 @@ test("FEP: isEnabled/setEnabled config'de freeEnergyMode yazar", () => {
   fs.writeFileSync(cfgPath, JSON.stringify({ freeEnergyMode: false }));
 
   delete require.cache[require.resolve("../core/router.ts")];
-  delete require.cache[require.resolve("../core/freeenergy.js")];
-  const { isEnabled: ie, setEnabled: se } = require("../core/freeenergy.js");
+  delete require.cache[require.resolve("../core/freeenergy.ts")];
+  const { isEnabled: ie, setEnabled: se } = require("../core/freeenergy.ts");
 
   assert.strictEqual(ie(), false, "başlangıçta kapalı olmalı");
   se(true);
   delete require.cache[require.resolve("../core/router.ts")];
-  delete require.cache[require.resolve("../core/freeenergy.js")];
-  const { isEnabled: ie2 } = require("../core/freeenergy.js");
+  delete require.cache[require.resolve("../core/freeenergy.ts")];
+  const { isEnabled: ie2 } = require("../core/freeenergy.ts");
   assert.strictEqual(ie2(), true, "setEnabled(true) sonrası açık olmalı");
 
   // Temizle
   try { fs.unlinkSync(cfgPath); } catch {}
   delete require.cache[require.resolve("../core/router.ts")];
-  delete require.cache[require.resolve("../core/freeenergy.js")];
+  delete require.cache[require.resolve("../core/freeenergy.ts")];
 });
 
 // ── Test 17: /router freeenergy komutu hata vermez ───────────────────────────
 test("/router freeenergy: subcommand tanınır, hata vermez", async () => {
-  delete require.cache[require.resolve("../core/commands/router.js")];
-  delete require.cache[require.resolve("../core/freeenergy.js")];
+  delete require.cache[require.resolve("../core/commands/router.ts")];
+  delete require.cache[require.resolve("../core/freeenergy.ts")];
   delete require.cache[require.resolve("../core/router.ts")];
-  const cmd = require("../core/commands/router.js")[0];
+  const cmd = require("../core/commands/router.ts")[0];
   await assert.doesNotReject(() => cmd.exec({ args: ["freeenergy"] }), "status sorgusu hata vermemeli");
   await assert.doesNotReject(() => cmd.exec({ args: ["freeenergy", "on"] }), "freeenergy on hata vermemeli");
   await assert.doesNotReject(() => cmd.exec({ args: ["freeenergy", "off"] }), "freeenergy off hata vermemeli");

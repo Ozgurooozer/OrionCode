@@ -183,24 +183,24 @@ describe("ollama.js Jinja uyumluluğu", () => {
 // ── loop fonksiyonları ─────────────────────────────────────────────────────
 describe("loop modülleri", () => {
   test("anthropic.ts async fonksiyon export eder", () => {
-    const fn = require("../core/loops/anthropic.js");
+    const fn = require("../core/loops/anthropic.ts");
     assert.equal(typeof fn, "function");
     // AsyncFunction kontrolü
     assert.ok(fn.constructor.name === "AsyncFunction" || fn.toString().includes("async"), "async fonksiyon olmalı");
   });
 
   test("openai.ts async fonksiyon export eder", () => {
-    const fn = require("../core/loops/openai.js");
+    const fn = require("../core/loops/openai.ts");
     assert.equal(typeof fn, "function");
   });
 
   test("ollama.js async fonksiyon export eder", () => {
-    const fn = require("../core/loops/ollama.js");
+    const fn = require("../core/loops/ollama.ts");
     assert.equal(typeof fn, "function");
   });
 
   test("ollama_react.js async fonksiyon export eder", () => {
-    const fn = require("../core/loops/ollama_react.js");
+    const fn = require("../core/loops/ollama_react.ts");
     assert.equal(typeof fn, "function");
   });
 });

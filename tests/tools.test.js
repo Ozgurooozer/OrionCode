@@ -73,7 +73,7 @@ test("read_many_files: birden fazla dosyayı tek turda okur", async () => {
   process.env.ORION_WORKSPACE = tmpDir;
   fs.writeFileSync(path.join(tmpDir, "a.txt"), "dosya_a içeriği\n");
   fs.writeFileSync(path.join(tmpDir, "b.txt"), "dosya_b içeriği\n");
-  const { execute } = require("../tools/fs.js");
+  const { execute } = require("../tools/fs.ts");
   const out = execute("read_many_files", { paths: [path.join(tmpDir, "a.txt"), path.join(tmpDir, "b.txt")] });
   assert.ok(out.includes("dosya_a"), `a.txt içeriği: ${out}`);
   assert.ok(out.includes("dosya_b"), `b.txt içeriği: ${out}`);

@@ -4,12 +4,12 @@ const { test } = require("node:test");
 const assert   = require("node:assert");
 
 test("fuzzyPicker: export edilmiş fonksiyon", () => {
-  const { fuzzyPicker } = require("../tui/fuzzy-picker.js");
+  const { fuzzyPicker } = require("../tui/fuzzy-picker.ts");
   assert.strictEqual(typeof fuzzyPicker, "function");
 });
 
 test("fuzzyPicker: non-TTY ortamında null resolve eder, stdout'a yazmaz", async () => {
-  const { fuzzyPicker } = require("../tui/fuzzy-picker.js");
+  const { fuzzyPicker } = require("../tui/fuzzy-picker.ts");
   const chunks = [];
   const orig = process.stdout.write.bind(process.stdout);
   process.stdout.write = (s) => { chunks.push(s); return true; };

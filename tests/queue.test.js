@@ -35,7 +35,7 @@ function freshQueue() {
   for (const k of Object.keys(require.cache)) {
     if (k.includes("queue.js") || k.includes("scheduler.js")) delete require.cache[k];
   }
-  return require("../core/queue.js");
+  return require("../core/queue.ts");
 }
 
 // ── Queue testleri ────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ describe("Queue — temel fonksiyonlar", () => {
     for (const k of Object.keys(require.cache)) {
       if (k.includes("core/queue") || k.includes("core\\queue")) delete require.cache[k];
     }
-    queue = require("../core/queue.js");
+    queue = require("../core/queue.ts");
   });
 
   test("enqueue bir job_id döndürür", async () => {
@@ -143,7 +143,7 @@ describe("Queue — temel fonksiyonlar", () => {
 
 describe("Scheduler — vramStatus ve başlatma", () => {
   test("vramStatus alanları doğru", () => {
-    const scheduler = require("../core/scheduler.js");
+    const scheduler = require("../core/scheduler.ts");
     const s = scheduler.vramStatus();
     assert.ok("currentlyLoaded" in s,  "currentlyLoaded yok");
     assert.ok("vram_used_gb"    in s,  "vram_used_gb yok");
@@ -156,7 +156,7 @@ describe("Scheduler — vramStatus ve başlatma", () => {
     for (const k of Object.keys(require.cache)) {
       if (k.includes("core/scheduler") || k.includes("core\\scheduler")) delete require.cache[k];
     }
-    const scheduler = require("../core/scheduler.js");
+    const scheduler = require("../core/scheduler.ts");
     assert.equal(scheduler.currentlyLoaded(), "none");
   });
 
@@ -164,7 +164,7 @@ describe("Scheduler — vramStatus ve başlatma", () => {
     for (const k of Object.keys(require.cache)) {
       if (k.includes("core/scheduler") || k.includes("core\\scheduler")) delete require.cache[k];
     }
-    const scheduler = require("../core/scheduler.js");
+    const scheduler = require("../core/scheduler.ts");
     assert.equal(scheduler.meanCycleMs(), null);
   });
 
@@ -173,8 +173,8 @@ describe("Scheduler — vramStatus ve başlatma", () => {
       if (k.includes("core/scheduler") || k.includes("core\\scheduler") ||
           k.includes("core/queue")     || k.includes("core\\queue")) delete require.cache[k];
     }
-    const scheduler = require("../core/scheduler.js");
-    const queue     = require("../core/queue.js");
+    const scheduler = require("../core/scheduler.ts");
+    const queue     = require("../core/queue.ts");
     assert.equal(queue._processor, null, "başlangıçta processor null");
     scheduler.start();
     assert.equal(typeof queue._processor, "function", "start() sonrası processor function");

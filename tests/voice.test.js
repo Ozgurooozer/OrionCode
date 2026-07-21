@@ -24,7 +24,7 @@ Module._load = function(req, parent, isMain) {
   return _orig(req, parent, isMain);
 };
 
-const voice = require("../core/agents/voice.js");
+const voice = require("../core/agents/voice.ts");
 
 describe("Voice Skill — manifest", () => {
   test("manifest alanları mevcut", () => {

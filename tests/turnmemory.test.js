@@ -5,8 +5,8 @@ process.env.OLLAMA_PORT = "1";
 
 const { test } = require("node:test");
 const assert   = require("node:assert");
-const { TurnMemory, buildRecallSuffix } = require("../core/turnmemory.js");
-const i18n = require("../core/i18n.js");
+const { TurnMemory, buildRecallSuffix } = require("../core/turnmemory.ts");
+const i18n = require("../core/i18n.ts");
 
 test("TurnMemory: add kayıt ekler, boş metin eklemez", async () => {
   const tm = new TurnMemory();
@@ -32,7 +32,7 @@ test("TurnMemory: recall vektörlü kayıtlarda cosine ile eşleşir (sahte vekt
   tm.entries[3].vector = new Float32Array([0, 1, 0]);
 
   // embed.embedText'i sorgu için sahtele
-  const embed = require("../core/embed.js");
+  const embed = require("../core/embed.ts");
   const orig = embed.embedText;
   embed.embedText = async () => new Float32Array([1, 0, 0]);
   try {

@@ -10,7 +10,7 @@ const path = require("path");
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "orion-persist-"));
 process.env.ORION_HOME = TMP;
 
-const persist = require("../core/persist.js");
+const persist = require("../core/persist.ts");
 
 after(() => fs.rmSync(TMP, { recursive: true, force: true }));
 

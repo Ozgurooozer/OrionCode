@@ -21,7 +21,7 @@ after(() => fs.rmSync(TMP, { recursive: true, force: true }));
 // 3. exec() çalışabilir mi (session mock + args boş)?
 
 describe("language komutu", () => {
-  const cmds = require("../../core/commands/language.js");
+  const cmds = require("../../core/commands/language.ts");
 
   test("module yüklenir ve dizi döner", () => {
     assert.ok(Array.isArray(cmds));
@@ -49,7 +49,7 @@ describe("language komutu", () => {
 });
 
 describe("help komutu", () => {
-  const cmd = require("../../core/commands/help.js");
+  const cmd = require("../../core/commands/help.ts");
 
   test("module yüklenir", () => {
     assert.ok(cmd !== null && cmd !== undefined);
@@ -62,7 +62,7 @@ describe("help komutu", () => {
 });
 
 describe("mode komutu", () => {
-  const cmds = require("../../core/commands/mode.js");
+  const cmds = require("../../core/commands/mode.ts");
 
   test("module yüklenir ve dizi döner", () => {
     assert.ok(Array.isArray(cmds));
@@ -84,7 +84,7 @@ describe("mode komutu", () => {
 });
 
 describe("stats komutu", () => {
-  const cmds = require("../../core/commands/stats.js");
+  const cmds = require("../../core/commands/stats.ts");
 
   test("module yüklenir", () => {
     assert.ok(cmds !== null);
@@ -100,7 +100,7 @@ describe("stats komutu", () => {
 });
 
 describe("budget komutu", () => {
-  const cmds = require("../../core/commands/budget.js");
+  const cmds = require("../../core/commands/budget.ts");
 
   test("module yüklenir", () => {
     assert.ok(cmds !== null);
@@ -112,7 +112,7 @@ describe("budget komutu", () => {
 });
 
 describe("tree komutu", () => {
-  const cmds = require("../../core/commands/tree.js");
+  const cmds = require("../../core/commands/tree.ts");
 
   test("module yüklenir", () => {
     assert.ok(cmds !== null && cmds !== undefined);
@@ -120,7 +120,7 @@ describe("tree komutu", () => {
 });
 
 describe("log komutu", () => {
-  const cmds = require("../../core/commands/log.js");
+  const cmds = require("../../core/commands/log.ts");
 
   test("module yüklenir", () => {
     assert.ok(cmds !== null);
@@ -128,7 +128,7 @@ describe("log komutu", () => {
 });
 
 describe("provider komutu", () => {
-  const cmds = require("../../core/commands/provider.js");
+  const cmds = require("../../core/commands/provider.ts");
 
   test("module yüklenir ve dizi döner", () => {
     assert.ok(Array.isArray(cmds));

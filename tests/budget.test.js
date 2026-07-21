@@ -2,7 +2,7 @@
 "use strict";
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { countTokens, countMessages, estimateCost, BudgetTracker } = require("../core/budget.js");
+const { countTokens, countMessages, estimateCost, BudgetTracker } = require("../core/budget.ts");
 
 test("countTokens: boş metin 0, dolu metin > 0", () => {
   assert.strictEqual(countTokens(""), 0);

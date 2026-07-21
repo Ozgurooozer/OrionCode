@@ -14,7 +14,7 @@ function fresh() {
   for (const k of Object.keys(require.cache)) {
     if (k.includes("skills-registry")) delete require.cache[k];
   }
-  return require("../core/skills-registry.js");
+  return require("../core/skills-registry.ts");
 }
 
 describe("SkillsRegistry", () => {

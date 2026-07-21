@@ -7,7 +7,7 @@ process.env.ORION_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "orion-test-"));
 
 const { test } = require("node:test");
 const assert = require("node:assert");
-const checkpoint = require("../core/checkpoint.js");
+const checkpoint = require("../core/checkpoint.ts");
 
 const WORK = fs.mkdtempSync(path.join(os.tmpdir(), "orion-work-"));
 

@@ -68,7 +68,7 @@ async function _addImpl({ category, content, tags, source }) {
   const entries = _load();
   if (entries.some(e => e.content.trim() === content.trim())) return null;
 
-  const embed = require("./embed.js");
+  const embed = require("./embed.ts");
   const vec = await embed.embedText(content);
 
   // Semantik dedup — embedding sonrası tekrar oku (mutex garanti ediyor artık aynı id yok)
@@ -108,7 +108,7 @@ async function query(text, limit = 6) {
   const entries = _load();
   if (!entries.length) return [];
 
-  const embed = require("./embed.js");
+  const embed = require("./embed.ts");
   const queryVec = await embed.embedText(text);
 
   if (queryVec) {
@@ -137,7 +137,7 @@ async function query(text, limit = 6) {
 
 function buildInjectSuffix(relevant) {
   if (!relevant.length) return "";
-  const i18n = require("./i18n.js");
+  const i18n = require("./i18n.ts");
   const byCategory = {};
   for (const e of relevant) {
     if (!byCategory[e.category]) byCategory[e.category] = [];

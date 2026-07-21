@@ -13,7 +13,7 @@ process.env.ORION_WORKSPACE = TMP;
 // autoApproveCommands olmadan headless modunda çalıştırma
 process.env.ORION_HOME = TMP;
 
-const { DEFS, execute } = require("../tools/shell.js");
+const { DEFS, execute } = require("../tools/shell.ts");
 
 test("DEFS: run_command tanımlı", () => {
   assert.ok(Array.isArray(DEFS), "DEFS dizi");

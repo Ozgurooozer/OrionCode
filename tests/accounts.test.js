@@ -10,7 +10,7 @@ process.env.ORION_HOME = TMP;
 
 const { test, after } = require("node:test");
 const assert = require("node:assert");
-const accounts = require("../core/accounts.js");
+const accounts = require("../core/accounts.ts");
 
 after(() => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {} });
 

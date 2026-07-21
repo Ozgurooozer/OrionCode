@@ -14,7 +14,7 @@ interface StatuslineInfo {
   ctxTokens: number;
 }
 
-const i18n = require("../core/i18n.js");
+const i18n = require("../core/i18n.ts");
 const { RESET, BOLD, DIM, ITALIC, rgb, rgbBg, T, C, gradient } = require("./colors.ts");
 const { print: _print, toolIcon } = require("./output.ts");
 

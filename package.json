@@ -2,15 +2,15 @@
   "name": "molp",
   "version": "1.0.0",
   "description": "BYOK CLI kodlama ajanı — yerel (Ollama) ve bulut modelleri, MCP ve kalıcı vault hafızasını tek çekirdekte birleştiren araştırma projesi.",
-  "main": "orion.js",
+  "main": "orion.ts",
   "bin": {
-    "orion": "./orion.js"
+    "orion": "./orion.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test \"tests/**/*.test.js\"",
-    "start": "node --experimental-strip-types orion.js",
-    "server": "node orion-server.js",
-    "bench": "node scripts/bench.js",
+    "start": "node --experimental-strip-types orion.ts",
+    "server": "node --experimental-strip-types orion-server.ts",
+    "bench": "node --experimental-strip-types scripts/bench.js",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [

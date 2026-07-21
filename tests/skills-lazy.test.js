@@ -11,8 +11,8 @@ process.env.OLLAMA_PORT = "1";
 
 const { test, after } = require("node:test");
 const assert = require("node:assert");
-const skills = require("../core/skills.js");
-const i18n   = require("../core/i18n.js");
+const skills = require("../core/skills.ts");
+const i18n   = require("../core/i18n.ts");
 
 after(() => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {} });
 

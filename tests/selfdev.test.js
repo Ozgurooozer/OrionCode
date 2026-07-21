@@ -4,8 +4,8 @@ const { test } = require("node:test");
 const assert   = require("node:assert");
 
 test("selfdev: buildSelfDevSuffix kaynak kökü ve akışı içerir", () => {
-  const selfdev = require("../core/selfdev.js");
-  const i18n = require("../core/i18n.js");
+  const selfdev = require("../core/selfdev.ts");
+  const i18n = require("../core/i18n.ts");
   const s = selfdev.buildSelfDevSuffix(i18n);
   assert.ok(s.includes(selfdev.ROOT), "kaynak kök yolu geçmeli");
   assert.ok(/SELF-DEV/.test(s));
@@ -13,7 +13,7 @@ test("selfdev: buildSelfDevSuffix kaynak kökü ve akışı içerir", () => {
 });
 
 test("komut kayıt defteri: reload() modülleri yeniden yükler, dispatch çalışır durumda kalır", () => {
-  const commands = require("../core/commands/index.js");
+  const commands = require("../core/commands/index.ts");
   const before = commands.all().length;
   assert.ok(before > 10, "başlangıçta komutlar kayıtlı olmalı");
   const n = commands.reload();
@@ -23,7 +23,7 @@ test("komut kayıt defteri: reload() modülleri yeniden yükler, dispatch çalı
 });
 
 test("yeni komutlar kayıtlı: /account /selfdev /import", () => {
-  const commands = require("../core/commands/index.js");
+  const commands = require("../core/commands/index.ts");
   const names = new Set(commands.all().map(c => c.name));
   for (const n of ["account", "selfdev", "import"]) {
     assert.ok(names.has(n), `/${n} kayıtlı olmalı`);
@@ -31,7 +31,7 @@ test("yeni komutlar kayıtlı: /account /selfdev /import", () => {
 });
 
 test("selfdev: runTests fonksiyonu var (çalıştırılmaz — özyineleme olur)", () => {
-  const selfdev = require("../core/selfdev.js");
+  const selfdev = require("../core/selfdev.ts");
   assert.strictEqual(typeof selfdev.runTests, "function");
   assert.strictEqual(typeof selfdev.restart, "function");
   assert.strictEqual(typeof selfdev.reloadCommands, "function");

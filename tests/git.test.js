@@ -7,7 +7,7 @@ const os     = require("os");
 const fs     = require("fs");
 
 process.env.ORION_HOME = path.join(os.tmpdir(), "orion_test_git_" + process.pid);
-const gitTools = require("../tools/git.js");
+const gitTools = require("../tools/git.ts");
 
 describe("git_status", () => {
   test("geçerli repoda string döner", async () => {

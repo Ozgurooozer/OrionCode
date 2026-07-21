@@ -68,7 +68,7 @@ test("_addCacheBreakpoints: sadece user mesajları varsa hiçbir şey değişmez
 
 // ── Test 4: estimateCost — cache_read 0.10× rate ──────────────────────────────
 test("estimateCost: cache_read_tokens 0.10× inRate ile hesaplanır", () => {
-  const { estimateCost } = require("../core/budget.js");
+  const { estimateCost } = require("../core/budget.ts");
   const model = "claude-sonnet-4-6"; // $3/MTok in, $15/MTok out
 
   // Sadece normal girdi
@@ -82,7 +82,7 @@ test("estimateCost: cache_read_tokens 0.10× inRate ile hesaplanır", () => {
 
 // ── Test 5: estimateCost — cache_write 1.25× rate ─────────────────────────────
 test("estimateCost: cache_write_tokens 1.25× inRate ile hesaplanır", () => {
-  const { estimateCost } = require("../core/budget.js");
+  const { estimateCost } = require("../core/budget.ts");
   const model = "claude-sonnet-4-6"; // $3/MTok in
 
   // Sadece cache write: 1M token × $3 × 1.25 = $3.75
@@ -118,7 +118,7 @@ test("mock: ikinci çağrıda cache_read_input_tokens > 0 beklenir", () => {
   assert.strictEqual(secondResponse.usage.cache_creation_input_tokens,     0);
 
   // Maliyet karşılaştırması: cache ile vs cache'siz
-  const { estimateCost } = require("../core/budget.js");
+  const { estimateCost } = require("../core/budget.ts");
   const model = "claude-sonnet-4-6";
 
   const costWithoutCache = estimateCost(2048 + 10, 50, model, {});
@@ -133,8 +133,8 @@ test("mock: ikinci çağrıda cache_read_input_tokens > 0 beklenir", () => {
 // ── Test 7: claude-opus-4-8 fiyatı güncellendi ───────────────────────────────
 test("PRICES: claude-opus-4-8 fiyatı $5 giriş (Opus 4.1 deprecated $15 değil)", () => {
   // budget.js modül önbelleğini temizle
-  delete require.cache[require.resolve("../core/budget.js")];
-  const { estimateCost } = require("../core/budget.js");
+  delete require.cache[require.resolve("../core/budget.ts")];
+  const { estimateCost } = require("../core/budget.ts");
 
   // 1M token girdi, claude-opus-4-8 = $5/MTok
   const cost = estimateCost(1_000_000, 0, "claude-opus-4-8", {});
