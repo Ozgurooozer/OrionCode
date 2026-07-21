@@ -1,0 +1,193 @@
+// core/agents/meissa.js — tek görev: kullanıcı mesajını kategorize et
+// Tek Ollama çağrısı → JSON → log → event. Session routing'e dokunmaz.
+"use strict";
+
+const fs   = require("fs");
+const path = require("path");
+const os   = require("os");
+const http = require("http");
+const crypto = require("crypto");
+
+// ── Şema ──────────────────────────────────────────────────────────────────────
+// kategoriler: resim, yazı, kod, analiz, sohbet, ses, 3d
+// karmasiklik: 1=basit(sohbet), 2=orta(skill), 3=yoğun(orchestration)
+// rota: "skill" | "sohbet" | "orchestration"
+// skill: "image" | "voice" | null
+
+const SYSTEM_PROMPT = `Sen Meissa'sın — Orion'un görev sınıflandırıcısı.
+Kullanıcı mesajını analiz et. YALNIZCA şu JSON'ı döndür, başka hiçbir şey yazma:
+{
+  "kategoriler": [<"resim"|"yazı"|"kod"|"analiz"|"sohbet"|"ses"|"3d">, ...],
+  "karmasiklik": <1|2|3>,
+  "rota": <"skill"|"sohbet"|"orchestration">,
+  "skill": <"image"|"voice"|null>,
+  "tahmini_butce": <0-1000>
+}
+
+Kurallar:
+- karmasiklik 1=basit/sohbet, 2=orta/skill, 3=yoğun/multi-adım
+- rota "skill" ise skill alanını doldur (image veya voice)
+- Boş, saçma veya anlamsız girdide: {"kategoriler":["sohbet"],"karmasiklik":1,"rota":"sohbet","skill":null,"tahmini_butce":0}
+- Türkçe veya İngilizce fark etmez
+- Resim/görsel/çiz/draw/image → kategoriler:["resim"], rota:"skill", skill:"image"
+- Ses/söyle/oku/seslendır/voice → kategoriler:["ses"], rota:"skill", skill:"voice"
+- Kod/debug/yaz → kategoriler:["kod"], rota:"sohbet"`;
+
+const DEFAULTS = {
+  model:          "qwen2.5-coder:7b",
+  ollamaHost:     "localhost",
+  ollamaPort:     11434,
+  timeoutMs:      15_000,
+  maxInputLength: 4_000,
+};
+
+// ── Config ────────────────────────────────────────────────────────────────────
+
+function _cfg() {
+  try {
+    const r = require("../router.ts").loadConfig();
+    return {
+      model:      r.tier1Model     ?? DEFAULTS.model,
+      ollamaHost: process.env.OLLAMA_HOST ?? DEFAULTS.ollamaHost,
+      ollamaPort: Number(process.env.OLLAMA_PORT ?? DEFAULTS.ollamaPort),
+    };
+  } catch { return { model: DEFAULTS.model, ollamaHost: DEFAULTS.ollamaHost, ollamaPort: DEFAULTS.ollamaPort }; }
+}
+
+// ── Log ───────────────────────────────────────────────────────────────────────
+
+function _logDir() {
+  const base = process.env.ORION_HOME ?? path.join(os.homedir(), ".orion");
+  return path.join(base, "meissa_runs");
+}
+
+function _logRun(entry) {
+  try {
+    const dir  = _logDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const file = path.join(dir, `${date}.jsonl`);
+    fs.appendFileSync(file, JSON.stringify(entry) + "\n", "utf8");
+  } catch {}
+}
+
+// ── Ollama tek atış ───────────────────────────────────────────────────────────
+
+function _ollamaChat(model, host, port, messages) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ model, messages, stream: false, options: { num_ctx: 2048 } });
+    const req  = http.request({
+      hostname: host, port,
+      path: "/api/chat", method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
+    }, res => {
+      let raw = "";
+      res.on("data", c => raw += c);
+      res.on("end", () => {
+        try { resolve(JSON.parse(raw).message?.content ?? ""); }
+        catch { resolve(""); }
+      });
+    });
+    req.on("error", reject);
+    req.setTimeout(DEFAULTS.timeoutMs, () => { req.destroy(); reject(new Error("meissa: timeout")); });
+    req.write(body);
+    req.end();
+  });
+}
+
+// ── JSON parse ────────────────────────────────────────────────────────────────
+
+const VALID_ROTA   = new Set(["skill", "sohbet", "orchestration"]);
+const VALID_SKILLS = new Set(["image", "voice", null]);
+
+function _parse(raw) {
+  const json = raw.match(/\{[\s\S]*?\}/)?.[0];
+  if (!json) return null;
+  const obj = JSON.parse(json);
+
+  const kategoriler  = Array.isArray(obj.kategoriler) ? obj.kategoriler.filter(k => typeof k === "string") : ["sohbet"];
+  const karmasiklik  = [1, 2, 3].includes(obj.karmasiklik) ? obj.karmasiklik : 1;
+  const rota         = VALID_ROTA.has(obj.rota) ? obj.rota : "sohbet";
+  const skill        = VALID_SKILLS.has(obj.skill) ? obj.skill : null;
+  const tahmini_butce = typeof obj.tahmini_butce === "number" ? Math.max(0, Math.min(1000, obj.tahmini_butce)) : 0;
+
+  return { kategoriler, karmasiklik, rota, skill, tahmini_butce };
+}
+
+// ── Fallback sonuç ────────────────────────────────────────────────────────────
+
+const FALLBACK = Object.freeze({
+  kategoriler: ["sohbet"], karmasiklik: 1,
+  rota: "sohbet", skill: null, tahmini_butce: 0,
+});
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Kullanıcı mesajını kategorize et.
+ * Asla exception atmaz — Ollama kapalıysa FALLBACK döner.
+ * @param {string} userMessage
+ * @param {object} [opts]
+ * @param {string} [opts.sessionId]
+ * @returns {Promise<{kategoriler, karmasiklik, rota, skill, tahmini_butce, _meta}>}
+ */
+async function run(userMessage, { sessionId = null } = {}) {
+  const t0        = Date.now();
+  const cfg       = _cfg();
+  const truncated = String(userMessage ?? "").slice(0, DEFAULTS.maxInputLength);
+  const inputHash = crypto.createHash("sha1").update(truncated).digest("hex").slice(0, 8);
+
+  let result = null;
+  let error  = null;
+  let raw    = "";
+
+  try {
+    const messages = [
+      { role: "system",  content: SYSTEM_PROMPT },
+      { role: "user",    content: truncated || "(boş)" },
+    ];
+    raw    = await _ollamaChat(cfg.model, cfg.ollamaHost, cfg.ollamaPort, messages);
+    result = _parse(raw);
+    if (!result) throw new Error("JSON parse başarısız");
+  } catch (e) {
+    error  = e instanceof Error ? e.message : String(e);
+    result = { ...FALLBACK };
+  }
+
+  const wall_time_ms = Date.now() - t0;
+
+  const logEntry = {
+    timestamp:    t0,
+    sessionId,
+    input_length: truncated.length,
+    input_hash:   inputHash,
+    model:        cfg.model,
+    output_raw:   raw.slice(0, 500),
+    output_parsed: result,
+    wall_time_ms,
+    error,
+  };
+  _logRun(logEntry);
+
+  // Event yay — meissa:done
+  try {
+    const { emit } = require("../events.ts");
+    emit("meissa:done", sessionId, {
+      input_hash:   inputHash,
+      input_length: truncated.length,
+      ...result,
+      wall_time_ms,
+      error,
+    });
+  } catch {}
+
+  return {
+    ...result,
+    _meta: { model: cfg.model, wall_time_ms, input_hash: inputHash, error },
+  };
+}
+
+/** Log dizinini döner (test yardımcısı) */
+function logPath() { return _logDir(); }
+
+module.exports = { run, logPath, DEFAULTS, FALLBACK };
