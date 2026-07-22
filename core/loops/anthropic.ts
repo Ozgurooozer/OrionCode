@@ -147,5 +147,22 @@ module.exports = async function anthropicLoop(session) {
   const finalText = resp.content.filter(b => b.type === "text").map(b => b.text).join("");
   process.stdout.write("\n");
   session.msgs.push({ role: "assistant", content: resp.content });
+  // max_tokens sırasında yanıtta tool_use blokları kalırsa bunlara karşılık
+  // tool_result olmadan history kapanır; bir sonraki API çağrısı 400 döndürür.
+  const _orphanTools = resp.stop_reason === "max_tokens"
+    ? resp.content.filter((b: any) => b.type === "tool_use")
+    : [];
+  if (_orphanTools.length > 0) {
+    session.msgs.push({
+      role: "user",
+      content: _orphanTools.map((b: any) => ({
+        type: "tool_result", tool_use_id: b.id,
+        content: i18n.t(
+          "ERROR: response truncated at max_tokens — tool was not executed.",
+          "HATA: yanıt max_tokens sınırında kesildi — araç çalıştırılmadı."
+        ),
+      })),
+    });
+  }
   return finalText;
 };
