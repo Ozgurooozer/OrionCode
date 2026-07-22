@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // @ts-nocheck
-const { McpServer }          = require("@modelcontextprotocol/sdk/server/mcp.ts");
-const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.ts");
-const { SSEServerTransport }   = require("@modelcontextprotocol/sdk/server/sse.ts");
+const { McpServer }          = require("@modelcontextprotocol/sdk/server/mcp.js");
+const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
+const { SSEServerTransport }   = require("@modelcontextprotocol/sdk/server/sse.js");
 const { z }    = require("zod");
 const fs       = require("fs");
 const https    = require("https");

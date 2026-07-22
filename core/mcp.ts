@@ -80,23 +80,23 @@ async function connect(name) {
   const spec = servers[name];
   if (!spec) throw new Error(i18n.t(`MCP server not defined: ${name} (add it to mcp.json)`, `MCP sunucusu tanımlı değil: ${name} (mcp.json'a ekle)`));
 
-  const { Client } = require("@modelcontextprotocol/sdk/client/index.ts");
+  const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
   const client = new Client({ name: "orion-cli", version: "3.0.0" });
 
   let transport;
   if (spec.url) {
     // Önce Streamable HTTP, olmazsa SSE
-    const { StreamableHTTPClientTransport } = require("@modelcontextprotocol/sdk/client/streamableHttp.ts");
+    const { StreamableHTTPClientTransport } = require("@modelcontextprotocol/sdk/client/streamableHttp.js");
     try {
       transport = new StreamableHTTPClientTransport(new URL(spec.url));
       await client.connect(transport);
     } catch (err) {
-      const { SSEClientTransport } = require("@modelcontextprotocol/sdk/client/sse.ts");
+      const { SSEClientTransport } = require("@modelcontextprotocol/sdk/client/sse.js");
       transport = new SSEClientTransport(new URL(spec.url));
       await client.connect(transport);
     }
   } else if (spec.command) {
-    const { StdioClientTransport } = require("@modelcontextprotocol/sdk/client/stdio.ts");
+    const { StdioClientTransport } = require("@modelcontextprotocol/sdk/client/stdio.js");
     transport = new StdioClientTransport({
       command: spec.command,
       args:    spec.args ?? [],
