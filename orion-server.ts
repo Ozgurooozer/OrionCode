@@ -411,7 +411,7 @@ h2{color:#58a6ff;margin-bottom:12px;font-size:15px}
 <div class="label">AKTİF / SIRA</div>
 <div id="jobs">${qStatus.processing ? '<div class="job running"><span class="icon">▶</span><span class="type">işleniyor...</span></div>' : '<div style="color:#8b949e;padding:6px">boş</div>'}</div>
 <div class="label">SON İŞLER</div>
-<div id="recent">${qStatus.recent.slice(0,5).map(j => \`<div class="job done"><span class="icon">✓</span><span class="type">\${j.type}\${j.skill ? ":" + j.skill : ""}</span><span class="time">\${j.wall_ms ?? "?"}ms</span></div>\`).join("") || '<div style="color:#8b949e;padding:6px">henüz yok</div>'}</div>
+<div id="recent">${qStatus.recent.slice(0,5).map(j => `<div class="job done"><span class="icon">✓</span><span class="type">${j.type}${j.skill ? ":" + j.skill : ""}</span><span class="time">${j.wall_ms ?? "?"}ms</span></div>`).join("") || '<div style="color:#8b949e;padding:6px">henüz yok</div>'}</div>
 <div id="metrics">döngü sayısı: ${vram.cycle_count ?? 0}</div>
 <div class="label" style="margin-top:12px">CANLI OLAYLAR</div>
 <div id="log"></div>

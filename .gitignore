@@ -34,3 +34,10 @@ kitty/
 # TUI prototipleri (izole sub-projeler, ana projeye bağlı değil)
 tui/beta2/
 tui/beta3/
+
+# 3D animasyon sub-projesi — bağımlılıklar ve derleme çıktısı
+tui/animation/node_modules/
+tui/animation/bundle/
+
+# Arşiv prototip — minified bundle'lar (beta3 babylon.js ~5MB)
+tui/arcive/beta3/bundle/

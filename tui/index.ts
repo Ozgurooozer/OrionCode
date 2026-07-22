@@ -18,17 +18,23 @@ const i18n = require("../core/i18n.ts");
 const { RESET, BOLD, DIM, ITALIC, rgb, rgbBg, T, C, gradient } = require("./colors.ts");
 const { print: _print, toolIcon } = require("./output.ts");
 
+// ── 3D Animation integration ──────────────────────────────────────
+let _animHeight = 0;
+function setAnimHeight(n: number) { _animHeight = Math.max(0, Math.min(n, 20)); }
+function getAnimHeight() { return _animHeight; }
+
 // ── Emblem: ORION wordmark + takımyıldız ─────────────────────────────────────
 // ANSI-shadow blok harfler, cyan→menekşe gradyan; sağda Orion takımyıldızı
 // (omuzlar, ✶ ✶ ✶ kuşak, ayaklar). Dar terminalde kompakt satıra düşer.
+// 3D animasyon aktifken (_animHeight > 0) daima kompakt form kullanılır.
 function emblem(model: string | null, backend: string | null): string {
   const cols = process.stdout.columns ?? 80;
   const S = T.star, N = T.nebula, B = T.belt, M = T.muted, R = RESET;
   const info1 = `${M}aethelred — ${i18n.t("coding agent", "kodlama ajanı")}${R}`;
   const info2 = `${T.accent}${model ?? ""}${R}${M}${backend ? ` (${backend})` : ""}${R}`;
 
-  if (cols < 54) {
-    // Dar terminal — kompakt başlık
+  // Dar terminal veya 3D animasyon aktif → kompakt başlık
+  if (cols < 54 || _animHeight > 0) {
     return [
       ` ${S}✦${R} ${gradient("O  R  I  O  N")} ${N}✧${R}`,
       `   ${info1}`,
@@ -175,12 +181,20 @@ function aiTurnContinue(): void {
 // ── print — temel metotlar output.ts'ten, header/statusline burada ────────────
 const print = Object.assign({}, _print, {
   header: (name: string, model: string | null, backend: string | null) => {
-    console.log("\n" + emblem(model, backend) + "\n");
-    console.log(C.muted(i18n.t(
+    let out = "\n";
+    // 3D animasyon paneli için yer ayır + scroll region kur
+    if (_animHeight > 0) {
+      out += "\n".repeat(_animHeight);
+      out += `\x1b[${_animHeight + 1};r`;   // scroll region: alt panel
+      out += `\x1b[${_animHeight + 1};1H`;  // cursor → içerik başı
+    }
+    out += emblem(model, backend) + "\n";
+    out += C.muted(i18n.t(
       "   type / to browse commands · Tab completes · Ctrl+C×2 exit",
       "   / yaz, komut listesi açılır · Tab tamamlar · Ctrl+C×2 çıkış"
-    )));
-    console.log(C.muted("  " + "─".repeat(60)));
+    ));
+    out += "\n" + C.muted("  " + "─".repeat(60));
+    console.log(out);
   },
   statusline: (info: StatuslineInfo | null) => {
     if (!info) return;
@@ -380,4 +394,4 @@ function clearMenuBelow(rl: any): void {
   process.stdout.write(`${RESET}\x1b[?25l\r\n\x1b[J\x1b[1A\x1b[${_promptCol(rl)}G${T.boxBg}${T.boxFg}\x1b[?25h`);
 }
 
-module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow, makeInputPrompt, finishUserTurn, refreshInputFill, aiTurnStart, aiTurnContinue, inputBoxTop, renderMenuBelow, clearMenuBelow, fitLine, showInputPlaceholder, clearInputPlaceholder, setInputLock, isInputLocked };
+module.exports = { C, T, print, spinner, renderMarkdown, gradient, emblem, contextWindow, makeInputPrompt, finishUserTurn, refreshInputFill, aiTurnStart, aiTurnContinue, inputBoxTop, renderMenuBelow, clearMenuBelow, fitLine, showInputPlaceholder, clearInputPlaceholder, setInputLock, isInputLocked, setAnimHeight, getAnimHeight };

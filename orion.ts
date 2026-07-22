@@ -24,7 +24,8 @@ const backends = require("./backends/index.ts");
 const { Session, interrupt, clearInterrupt } = require("./core/session.ts");
 const { C, print, renderMarkdown, makeInputPrompt, finishUserTurn, refreshInputFill,
         inputBoxTop, renderMenuBelow, clearMenuBelow,
-        showInputPlaceholder, clearInputPlaceholder } = require("./tui/index.ts");
+        showInputPlaceholder, clearInputPlaceholder, setAnimHeight } = require("./tui/index.ts");
+const anim = require("./tui/animation/controller.js");
 const { attachSlashMenu, MAX_ITEMS: MENU_MAX } = require("./tui/slashmenu.ts");
 const vaultCore = require("./core/vault.ts");
 const commands  = require("./core/commands/index.ts");
@@ -250,7 +251,12 @@ async function main() {
     }
   }
 
+  // 3D animasyon paneli: header'dan önce yükseklik belirt, header yer ayırsın
+  // (başarısız olursa sessizce yok sayılır — Puppeteer/Chromium gerekli)
+  const ANIM_HEIGHT = 8;
+  setAnimHeight(ANIM_HEIGHT);
   print.header("Orion Aethelred", model, backend.name);
+  anim.start(ANIM_HEIGHT).catch(() => {});
 
   // Plugin'ler: ~/.orion/plugins/*/orion-plugin.json
   try {
@@ -503,6 +509,9 @@ async function main() {
     console.log(C.gray("\nbye."));
     process.exit(0);
   });
+
+  // Çıkış temizliği: scroll region sıfırla, imleci göster, Chromium'u bırak
+  process.on("exit", () => anim.stopNow());
 
   // Ctrl+C: üretim varsa kes; ikinci basışta zorla çık
   let ctrlCCount = 0;
