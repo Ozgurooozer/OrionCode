@@ -26,6 +26,7 @@ logs/
 
 # MCP config (makine-spesifik absolute path içerir, .example'dan üret)
 .mcp.json
+mcp.json
 
 # Ortam değişkenleri
 .env

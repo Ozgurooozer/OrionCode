@@ -213,7 +213,17 @@ export default function App() {
           currentSessionId={currentSessionId}
           onSetView={setView}
         />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", padding: "0 32px" }}>
+        <div style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: view === "terminal3d" ? "stretch" : "center",
+          justifyContent: view === "terminal3d" ? "stretch" : "center",
+          position: "relative",
+          padding: view === "terminal3d" ? 0 : "0 32px",
+          overflow: "hidden",
+          minWidth: 0,
+        }}>
           {!online && view !== "terminal3d" && (
             <div style={{ position: "absolute", top: "10px", fontSize: "11.5px", color: c.textDim, opacity: 0.75 }}>
               orion-server'a bağlanılamıyor — sunucu başlatılıyor olabilir
@@ -232,16 +242,11 @@ export default function App() {
                   commandList={commandList}
                   onGoHome={() => setView("home")}
                   title={title} />
+          ) : view === "terminal3d" ? (
+            <Terminal3D theme={theme} onClose={() => setView("home")} />
           ) : null}
         </div>
       </div>
-
-      {/* Terminal 3D — tam ekran overlay (Titlebar üstünde değil) */}
-      {view === "terminal3d" && (
-        <div style={{ position: "fixed", top: "38px", left: 0, right: 0, bottom: 0, zIndex: 50 }}>
-          <Terminal3D theme={theme} onClose={() => setView("home")} />
-        </div>
-      )}
     </div>
   );
 }

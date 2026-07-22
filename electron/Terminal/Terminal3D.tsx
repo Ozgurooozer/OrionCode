@@ -18,9 +18,10 @@ export default function Terminal3D({ theme, onClose }: Props) {
 
   return (
     <div style={{
-      position: "absolute", inset: 0,
+      position: "relative",
+      width: "100%", height: "100%",
       backgroundColor: c.bg,
-      display: "flex", flexDirection: "column",
+      overflow: "hidden",
     }}>
       {/* Babylon.js canvas — 3D arka plan */}
       <canvas
