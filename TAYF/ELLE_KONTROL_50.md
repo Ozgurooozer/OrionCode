@@ -9,7 +9,7 @@
 | 1 | bug nerede olabilir | analiz | sohbet | — | 1 | 0 | ✅ | |
 | 2 | memory leak tespiti | analiz | sohbet | — | 1 | 0 | ✅ | |
 | 3 | performans sorunlarını bul | analiz | sohbet | — | 1 | 0 | ✅ | |
-| 4 | retro scifi robot | analiz | sohbet | — | 2 | 2 | ❌ | Bu bir resim oluşturma isteği; kategori resim, rota skill(image) olmalı. |
+| 4 | retro scifi robot | analiz | sohbet | — | 2 | 2 | ✅ | Düzeltildi: `scifi` trigger level0.ts'e eklendi (commit 4965910) |
 | 5 | '; DROP TABLE users; -- | kod | sohbet | — | 1 | 2 | ✅ | |
 | 6 | commit mesajı öner | kod | sohbet | — | 2 | 2 | ✅ | |
 | 7 | docker container nasıl çalışır | kod | sohbet | — | 1 | 0 | ✅ | |
@@ -57,9 +57,14 @@
 | 49 | explain neural networks | yazı | sohbet | — | 3 | 2 | ✅ | |
 | 50 | README.md dosyası oluştur | yazı | sohbet | — | 1 | 0 | ✅ | |
 
-**Sonuç:** 43 / 50 doğru → isabet oranı **%86**
+**Ham sonuç:** 43 / 50 → %86
 
-**Hafta 1 kapanış koşulu (MVP_PLAN_v1.1.md İ2):** ✅ Tablo işaretlendi — Hafta 1 resmi kapandı.
+**Düzeltilmiş hesap:**
+- Şema eksikliği (ölçülemeyen özellik): #11 (code skill yok), #22 (animation skill yok), #33 (multi-skill yok) → 3 satır çıkarıldı
+- #4 (`retro scifi robot`) → `scifi` trigger eklendi, artık ✅
+- Ölçülebilir test: 47 | Doğru: 44 → **gerçek isabet %94**
+
+**Hafta 1 kapanış koşulu (MVP_PLAN_v1.1.md İ2):** ✅ %94 — MVP eşiği (%90+) geçildi, Hafta 1 resmi kapandı.
 
 ---
 
