@@ -17,6 +17,10 @@ export interface ToolCall {
   id: string;
   name: string;
   input: Record<string, unknown>;
+  /** openai-compat: ham JSON string (stream'den birleştirilmiş, henüz parse edilmemiş) */
+  rawArgs?: string;
+  /** openai-compat: rawArgs JSON.parse başarısız olduysa true — loop aracı ÇALIŞTIRMAZ */
+  argsTruncated?: boolean;
 }
 
 /** chatRich sonucu — backend'den bağımsız ortak dönüş şekli. */

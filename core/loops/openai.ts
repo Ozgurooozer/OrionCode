@@ -74,7 +74,7 @@ module.exports = async function openaiFamilyLoop(session, provider) {
       tool_calls: r.toolCalls.map(c => ({
         id:   c.id,
         type: "function",
-        function: { name: c.name, arguments: c.rawArgs ?? JSON.stringify(c.input) },
+        function: { name: c.name, arguments: c.argsTruncated ? JSON.stringify(c.input) : (c.rawArgs ?? JSON.stringify(c.input)) },
       })),
     });
 
