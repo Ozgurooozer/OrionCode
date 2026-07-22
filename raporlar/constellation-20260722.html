@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>TAYF Takımyıldız — Faz 7</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f172a; color: #cbd5e1; font-family: monospace; padding: 24px; }
+  h1 { color: #818cf8; font-size: 18px; margin-bottom: 4px; }
+  .subtitle { color: #475569; font-size: 12px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .panel { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 16px; }
+  .panel h2 { font-size: 13px; color: #94a3b8; margin-bottom: 16px; letter-spacing: 0.08em; }
+  svg { width: 100%; height: 460px; }
+  .row { display: flex; align-items: center; height: 32px; border-bottom: 1px solid #1e293b; }
+  .row-label { width: 80px; font-size: 11px; flex-shrink: 0; }
+  .row-track  { flex: 1; height: 20px; position: relative; background: #0f172a; border-radius: 4px; overflow: hidden; }
+  .bar { position: absolute; top: 2px; height: 16px; border-radius: 3px; }
+  .row-stat { width: 130px; font-size: 10px; color: #475569; text-align: right; padding-right: 4px; }
+  .tick-wrap { position: relative; height: 16px; margin-top: 8px; }
+  .tick-mark { position: absolute; top: 0; width: 2px; height: 12px; border-radius: 1px; opacity: 0.7; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 24px; }
+  .stat-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; text-align: center; }
+  .stat-value { font-size: 28px; color: #818cf8; }
+  .stat-label { font-size: 11px; color: #475569; margin-top: 4px; }
+  .demo-note { font-size: 11px; color: #f59e0b; margin-top: 16px; padding: 8px; background: #1e293b; border-radius: 4px; }
+  @keyframes pulse { 0%,100%{r:4;opacity:1} 50%{r:7;opacity:0.6} }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes starPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .star-group circle:first-child { animation: starPulse 3s ease-in-out infinite; }
+  #glow feGaussianBlur { stdDeviation: 3; }
+</style>
+</head>
+<body>
+<h1>TAYF Takımyıldız — Faz 7</h1>
+<div class="subtitle">DEMO MODU — 7 iş · 6 geçiş · ort 942ms</div>
+
+<div class="grid">
+  <div class="panel">
+    <h2>TAKIMYILDIZ HARİTASI</h2>
+    <svg viewBox="0 0 880 460">
+      <defs>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <line x1="200" y1="140" x2="520" y2="100" stroke="#334155" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="520" y1="100" x2="680" y2="220" stroke="#334155" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="680" y1="220" x2="600" y2="360" stroke="#334155" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="600" y1="360" x2="300" y2="330" stroke="#334155" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="300" y1="330" x2="200" y2="140" stroke="#334155" stroke-width="1" stroke-dasharray="4,4"/>
+<line x1="200" y1="140" x2="680" y2="220" stroke="#334155" stroke-width="1" stroke-dasharray="4,4"/>
+      <g class="star-group" data-skill="image">
+      <circle cx="200" cy="140" r="18" fill="#818cf833" stroke="#818cf8" stroke-width="1.5" filter="url(#glow)"/>
+      <circle cx="200" cy="140" r="4" fill="#818cf8" class="pulse"/>
+      <text x="200" y="174" text-anchor="middle" fill="#818cf8" font-size="12">Resim</text>
+      <text x="200" y="186" text-anchor="middle" fill="#64748b" font-size="10">2 iş</text>
+    </g>
+<g class="star-group" data-skill="voice">
+      <circle cx="520" cy="100" r="15" fill="#34d39933" stroke="#34d399" stroke-width="1.5" filter="url(#glow)"/>
+      <circle cx="520" cy="100" r="4" fill="#34d399" class="pulse"/>
+      <text x="520" y="131" text-anchor="middle" fill="#34d399" font-size="12">Ses</text>
+      <text x="520" y="143" text-anchor="middle" fill="#64748b" font-size="10">1 iş</text>
+    </g>
+<g class="star-group" data-skill="animation">
+      <circle cx="680" cy="220" r="15" fill="#f59e0b33" stroke="#f59e0b" stroke-width="1.5" filter="url(#glow)"/>
+      <circle cx="680" cy="220" r="4" fill="#f59e0b" class="pulse"/>
+      <text x="680" y="251" text-anchor="middle" fill="#f59e0b" font-size="12">Animasyon</text>
+      <text x="680" y="263" text-anchor="middle" fill="#64748b" font-size="10">1 iş</text>
+    </g>
+<g class="star-group" data-skill="code">
+      <circle cx="600" cy="360" r="15" fill="#60a5fa33" stroke="#60a5fa" stroke-width="1.5" filter="url(#glow)"/>
+      <circle cx="600" cy="360" r="4" fill="#60a5fa" class="pulse"/>
+      <text x="600" y="391" text-anchor="middle" fill="#60a5fa" font-size="12">Kod</text>
+      <text x="600" y="403" text-anchor="middle" fill="#64748b" font-size="10">1 iş</text>
+    </g>
+<g class="star-group" data-skill="chat">
+      <circle cx="300" cy="330" r="18" fill="#a78bfa33" stroke="#a78bfa" stroke-width="1.5" filter="url(#glow)"/>
+      <circle cx="300" cy="330" r="4" fill="#a78bfa" class="pulse"/>
+      <text x="300" y="364" text-anchor="middle" fill="#a78bfa" font-size="12">Sohbet</text>
+      <text x="300" y="376" text-anchor="middle" fill="#64748b" font-size="10">2 iş</text>
+    </g>
+    </svg>
+  </div>
+
+  <div class="panel">
+    <h2>ZAMAN ÇİZELGESİ</h2>
+    <div class="row">
+      <div class="row-label" style="color:#818cf8">Resim</div>
+      <div class="row-track"><div class="bar" style="left:0.00%;width:12.5%;background:#818cf822;border:1px solid #818cf8" title="6000ms"></div><div class="bar" style="left:35.42%;width:12.5%;background:#818cf822;border:1px solid #818cf8" title="6000ms"></div></div>
+      <div class="row-stat">2 iş · ort 6000ms</div>
+    </div><div class="row">
+      <div class="row-label" style="color:#34d399">Ses</div>
+      <div class="row-track"><div class="bar" style="left:27.08%;width:4.170000000000002%;background:#34d39922;border:1px solid #34d399" title="2000ms"></div></div>
+      <div class="row-stat">1 iş · ort 2000ms</div>
+    </div><div class="row">
+      <div class="row-label" style="color:#f59e0b">Animasyon</div>
+      <div class="row-track"><div class="bar" style="left:52.08%;width:14.590000000000003%;background:#f59e0b22;border:1px solid #f59e0b" title="7000ms"></div></div>
+      <div class="row-stat">1 iş · ort 7000ms</div>
+    </div><div class="row">
+      <div class="row-label" style="color:#60a5fa">Kod</div>
+      <div class="row-track"><div class="bar" style="left:72.92%;width:14.579999999999998%;background:#60a5fa22;border:1px solid #60a5fa" title="7000ms"></div></div>
+      <div class="row-stat">1 iş · ort 7000ms</div>
+    </div><div class="row">
+      <div class="row-label" style="color:#a78bfa">Sohbet</div>
+      <div class="row-track"><div class="bar" style="left:16.67%;width:6.25%;background:#a78bfa22;border:1px solid #a78bfa" title="3000ms"></div><div class="bar" style="left:93.75%;width:6.25%;background:#a78bfa22;border:1px solid #a78bfa" title="3000ms"></div></div>
+      <div class="row-stat">2 iş · ort 3000ms</div>
+    </div>
+    <div class="tick-wrap"><div class="tick-mark" style="left:10.42%;background:#f59e0b" title="comfyui yüklendi · 1200ms"></div><div class="tick-mark" style="left:25.00%;background:#60a5fa" title="ollama yüklendi · 900ms"></div><div class="tick-mark" style="left:33.33%;background:#f59e0b" title="comfyui yüklendi · 1100ms"></div><div class="tick-mark" style="left:50.00%;background:#f59e0b" title="comfyui yüklendi · 800ms"></div><div class="tick-mark" style="left:70.83%;background:#60a5fa" title="ollama yüklendi · 950ms"></div><div class="tick-mark" style="left:91.67%;background:#60a5fa" title="ollama yüklendi · 700ms"></div></div>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat-card">
+    <div class="stat-value">7</div>
+    <div class="stat-label">toplam iş</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">6</div>
+    <div class="stat-label">model geçişi</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">942ms</div>
+    <div class="stat-label">ort geçiş süresi</div>
+  </div>
+</div>
+
+<div class="demo-note">⚠ Demo veri — gerçek log: C:\Users\ozigo\.orion\scheduler_events.jsonl</div>
+</body>
+</html>

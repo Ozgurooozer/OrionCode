@@ -105,11 +105,20 @@ node scripts/tayf_distill.js
 
 ---
 
-## Sonraki Faz (Faz 7)
+## Faz 7 — Takımyıldız Görselleştirme ✅
 
-Takımyıldız görseli — kuyruk ritim imzasından:
-- `scheduler_events.jsonl` → load/unload süreleri → kalp atışı animasyonu
-- Her skill başlangıç-bitiş → yıldız doğum-ölüm
+```bash
+node scripts/tayf_constellation.js
+# → raporlar/constellation-YYYYMMDD.html
+```
+
+`~/.orion/scheduler_events.jsonl` → HTML yıldız haritası:
+- Her skill tipi (image/voice/animation/code/chat) → sabit yıldız konumu
+- `job_start`/`job_done` → yıldız parlaklığı + pulse animasyonu
+- `tick`/`tack` (model geçişleri) → zaman çizelgesinde işaret
+- Log yoksa demo veri ile çalışır
+
+Çıktılar: konstellasyon SVG haritası + Gantt zaman çizelgesi + geçiş istatistikleri
 
 ---
 
