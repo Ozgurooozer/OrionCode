@@ -11,6 +11,11 @@ const os     = require("os");
 const http   = require("http");
 const { spawn } = require("child_process");
 
+// node-pty — ana process'te çalışır (sandbox renderer'da native module yok)
+let nodePty = null;
+try { nodePty = require("node-pty"); } catch (e) { console.warn("[pty] node-pty yüklenemedi:", e.message); }
+const ptyMap = new Map(); // ptyId → IPty instance
+
 const REPO_ROOT = path.join(__dirname, "..");       // molp/
 const TOKEN_FILE = path.join(os.homedir(), ".orion", "server-token");
 
@@ -271,6 +276,38 @@ ipcMain.handle("orion:command", (_e, { name, args, sessionId }) =>
 ipcMain.handle("orion:config", () => apiRequest("GET", "/config"));
 ipcMain.handle("orion:sessionDetail", (_e, id) =>
   apiRequest("GET", `/sessions/${id}`));
+
+// ── PTY — gerçek shell oturumları ─────────────────────────────────────────
+ipcMain.handle("pty:create", (_, { cols, rows, cwd }) => {
+  if (!nodePty) throw new Error("node-pty kurulu değil");
+  const shell = process.env.COMSPEC || "powershell.exe";
+  const id = crypto.randomUUID();
+  const p = nodePty.spawn(shell, [], {
+    cols: cols || 80,
+    rows: rows || 24,
+    cwd: cwd || os.homedir(),
+    env: process.env,
+    useConpty: true,
+  });
+  p.onData(data => mainWindow?.webContents.send("pty:data", { ptyId: id, data }));
+  p.onExit(e => {
+    mainWindow?.webContents.send("pty:exit", { ptyId: id, code: e.exitCode });
+    ptyMap.delete(id);
+  });
+  ptyMap.set(id, p);
+  return id;
+});
+
+ipcMain.handle("pty:write",  (_, { ptyId, data })       => ptyMap.get(ptyId)?.write(data));
+ipcMain.handle("pty:resize", (_, { ptyId, cols, rows }) => {
+  const p = ptyMap.get(ptyId);
+  if (p) p.resize(Math.max(1, cols), Math.max(1, rows));
+});
+ipcMain.handle("pty:kill", (_, { ptyId }) => {
+  const p = ptyMap.get(ptyId);
+  if (p) { try { p.kill(); } catch {} }
+  ptyMap.delete(ptyId);
+});
 
 app.whenReady().then(createWindow);
 

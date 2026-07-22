@@ -40,4 +40,22 @@ contextBridge.exposeInMainWorld("orion", {
 
   // SSE — sub(sessionId, onEvent) → unsubscribe fonksiyonu döner
   subscribeEvents,
+
+  // PTY — gerçek shell oturumları (main.js'te node-pty çalışır)
+  pty: {
+    create:  (cols, rows, cwd) => ipcRenderer.invoke("pty:create", { cols, rows, cwd }),
+    write:   (ptyId, data)     => ipcRenderer.invoke("pty:write",  { ptyId, data }),
+    resize:  (ptyId, cols, rows) => ipcRenderer.invoke("pty:resize", { ptyId, cols, rows }),
+    kill:    (ptyId)           => ipcRenderer.invoke("pty:kill",   { ptyId }),
+    onData: (cb) => {
+      const fn = (_, p) => cb(p);
+      ipcRenderer.on("pty:data", fn);
+      return () => ipcRenderer.removeListener("pty:data", fn);
+    },
+    onExit: (cb) => {
+      const fn = (_, p) => cb(p);
+      ipcRenderer.on("pty:exit", fn);
+      return () => ipcRenderer.removeListener("pty:exit", fn);
+    },
+  },
 });

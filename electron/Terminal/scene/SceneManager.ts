@@ -18,14 +18,14 @@ export class SceneManager {
 
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas, true, {
-      preserveDrawingBuffer: true,
+      preserveDrawingBuffer: false,
       stencil: true,
-      alpha: false,
+      alpha: true,          // canvas şeffaf — HTML katmanlarıyla blend
     });
 
     const scene = new Scene(this.engine);
     this.scene  = scene;
-    scene.clearColor = new Color4(0.031, 0.031, 0.051, 1.0); // gece default
+    scene.clearColor = new Color4(0.020, 0.060, 0.130, 1.0); // siber default
 
     // ── Kamera — sabit, terminale odaklı ────────────────────────────────
     const cam = new FreeCamera("cam", new Vector3(0, 2.5, -14), scene);
@@ -34,12 +34,12 @@ export class SceneManager {
 
     // ── Işıklar ──────────────────────────────────────────────────────────
     const ambient = new HemisphericLight("ambient", new Vector3(0, 1, 0), scene);
-    ambient.intensity = 0.25;
+    ambient.intensity = 0.6;
     ambient.diffuse   = new Color3(0.6, 0.65, 1.0);
 
     const accent = new PointLight("accent", new Vector3(0, 4, -4), scene);
-    accent.intensity = 1.8;
-    accent.diffuse   = new Color3(0.55, 0.6, 1.0);
+    accent.intensity = 2.8;
+    accent.diffuse   = new Color3(0.00, 0.90, 1.0); // siber cyan default
 
     // ── Sahne geometrisi ─────────────────────────────────────────────────
     this._buildTestLevel(scene);
@@ -57,7 +57,7 @@ export class SceneManager {
     const ground = MeshBuilder.CreateGround("ground",
       { width: 60, height: 60, subdivisions: 30 }, scene);
     const gMat = new StandardMaterial("gMat", scene);
-    gMat.emissiveColor = new Color3(0.18, 0.2, 0.55);
+    gMat.emissiveColor = new Color3(0.08, 0.45, 0.85);
     gMat.wireframe = true;
     ground.material = gMat;
     ground.position.y = -3.5;
@@ -85,7 +85,7 @@ export class SceneManager {
       const mesh = MeshBuilder.CreateBox(`cube${i}`, { size }, scene);
       mesh.position = new Vector3(pos[0], pos[1], pos[2]);
       const mat = new StandardMaterial(`cubeMat${i}`, scene);
-      mat.emissiveColor = new Color3(0.4 + i * 0.05, 0.45, 1.0);
+      mat.emissiveColor = new Color3(0.1 + i * 0.04, 0.7 + i * 0.03, 1.0);
       mat.wireframe = true;
       mesh.material = mat;
 
@@ -105,7 +105,7 @@ export class SceneManager {
         { height: 8, diameterTop: 0.04, diameterBottom: 0.04, tessellation: 6 }, scene);
       col.position = new Vector3(x, 0.5, 14);
       const mat = new StandardMaterial(`colMat${i}`, scene);
-      mat.emissiveColor = new Color3(0.3, 0.35, 0.9);
+      mat.emissiveColor = new Color3(0.0, 0.8, 1.0);
       col.material = mat;
     });
 
@@ -115,7 +115,7 @@ export class SceneManager {
         { width: 40, height: 0.01, depth: 0.02 }, scene);
       line.position = new Vector3(0, -3.48, z - 6);
       const mat = new StandardMaterial(`hLineMat${z}`, scene);
-      mat.emissiveColor = new Color3(0.2, 0.22, 0.7);
+      mat.emissiveColor = new Color3(0.0, 0.55, 0.95);
       line.material = mat;
     }
   }

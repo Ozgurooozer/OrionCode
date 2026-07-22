@@ -7,6 +7,8 @@ export default function Titlebar({ c }) {
     <div style={{
       height: "38px", display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: "0 16px", WebkitAppRegion: "drag", boxSizing: "border-box", position: "relative", zIndex: 10,
+      background: "rgba(8,8,13,0.72)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+      borderBottom: "1px solid rgba(255,255,255,0.055)",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
         <svg width="15" height="15" viewBox="0 0 24 24">

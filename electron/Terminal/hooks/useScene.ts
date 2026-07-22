@@ -10,7 +10,7 @@ export function useScene(canvasRef: RefObject<HTMLCanvasElement | null>) {
 
     const sm = new SceneManager(canvas);
     const lm = new LevelManager(sm);
-    lm.load("gece"); // varsayılan level
+    lm.load("siber"); // varsayılan level — daha canlı cyan
 
     const onLevel = (e: Event) => {
       lm.load((e as CustomEvent<string>).detail);
