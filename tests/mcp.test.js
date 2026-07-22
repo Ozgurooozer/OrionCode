@@ -9,6 +9,7 @@ const assert = require("node:assert");
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "orion-mcp-"));
 process.env.ORION_HOME = TMP;
+process.env.ORION_MCP_PROJECT = path.join(TMP, "mcp-project.json");
 fs.mkdirSync(path.join(TMP, ".orion"), { recursive: true });
 
 // ── Mock enjeksiyonları ───────────────────────────────────────────────────────

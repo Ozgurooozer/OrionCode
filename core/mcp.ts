@@ -12,7 +12,7 @@ const tools = require("./tools.ts");
 const i18n  = require("./i18n.ts");
 
 const GLOBAL_FILE  = path.join(process.env.ORION_HOME || os.homedir(), ".orion", "mcp.json");
-const PROJECT_FILE = path.join(__dirname, "..", "mcp.json");
+const PROJECT_FILE = process.env.ORION_MCP_PROJECT || path.join(__dirname, "..", "mcp.json");
 
 // name → { client, transport, tools: [defs], spec }
 const _connections = {};
