@@ -17,6 +17,8 @@ const EXTRACT_EVERY = 5;
 const DEDUP_THRESHOLD = 0.92; // cosine sim eşiği
 
 function _load() {
+  // Bekleyen tampon diskten daha güncel — flushed olmadan üstüne yazılmasını önler.
+  if (_pendingEntries !== null) return [..._pendingEntries];
   try { return JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8")); }
   catch { return []; }
 }
