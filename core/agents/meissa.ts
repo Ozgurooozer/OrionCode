@@ -12,44 +12,54 @@ const crypto = require("crypto");
 const level0 = require("./level0.ts");
 
 // ── Şema ──────────────────────────────────────────────────────────────────────
-// kategoriler: resim, yazı, kod, analiz, sohbet, ses, 3d
+// kategoriler: resim, yazı, kod, analiz, sohbet, ses, 3d, animasyon
 // karmasiklik: 1=basit(sohbet), 2=orta(skill), 3=yoğun(orchestration)
 // rota: "skill" | "sohbet" | "orchestration"
-// skill: "image" | "voice" | null
+// skill: "image" | "voice" | "animation" | "code" | null
+// skills: string[] | null  (multi-skill için — resim+ses gibi)
 
 const SYSTEM_PROMPT = `Sen Meissa'sın — Orion'un görev sınıflandırıcısı.
 Kullanıcı mesajını analiz et. YALNIZCA şu JSON'ı döndür, başka hiçbir şey yazma:
 {
-  "kategoriler": [<"resim"|"yazı"|"kod"|"analiz"|"sohbet"|"ses"|"3d">, ...],
+  "kategoriler": [<"resim"|"yazı"|"kod"|"analiz"|"sohbet"|"ses"|"3d"|"animasyon">, ...],
   "karmasiklik": <1|2|3>,
   "rota": <"skill"|"sohbet"|"orchestration">,
-  "skill": <"image"|"voice"|null>,
+  "skill": <"image"|"voice"|"animation"|"code"|null>,
+  "skills": <["image","voice"] veya null>,
   "tahmini_butce": 150
 }
 
-ROTA KARARI — önce bu üç soruyu sırayla sor:
-  1. Resim/görsel üretmek istiyor mu?  → EVET: rota:"skill", skill:"image"
-  2. Ses/okuma istiyor mu?             → EVET: rota:"skill", skill:"voice"
-  3. İkisi birden veya başka çok-adım? → rota:"orchestration", skill:null
-  4. Diğer her şey (kod, analiz, soru, açıklama, yazı, sohbet) → rota:"sohbet", skill:null
+ROTA KARARI — bu soruları sırayla sor:
+  1. Resim/görsel üretmek istiyor mu?              → rota:"skill", skill:"image", skills:null
+  2. Ses/okuma istiyor mu?                         → rota:"skill", skill:"voice", skills:null
+  3. Animasyon üretmek/kaydetmek istiyor mu?       → rota:"skill", skill:"animation", skills:null
+  4. Karmaşık kod görevi (review+test+PR+deploy)?  → rota:"skill", skill:"code", skills:null
+  5. Resim VE ses birlikte?                        → rota:"orchestration", skill:null, skills:["image","voice"]
+  6. Başka çok-adım birden fazla skill?            → rota:"orchestration", skill:null, skills:[...]
+  7. Diğer her şey (kod, analiz, soru, sohbet)    → rota:"sohbet", skill:null, skills:null
 
 SKİLL KURALI — kesin:
-  skill:"image"  → SADECE resim/görsel/çiz/draw/pixel/portrait/render/scifi/cyberpunk/fantasy
-  skill:"voice"  → SADECE ses/oku/seslendir/speak/voice/tts
-  skill:null     → kod yazmak/test/dokümantasyon/analiz/açıklama DAIMA null — kod≠resim
+  skill:"image"     → resim/görsel/çiz/draw/pixel/portrait/render/scifi/cyberpunk/fantasy
+  skill:"voice"     → ses/oku/seslendir/speak/voice/tts
+  skill:"animation" → animasyon/animate/hareketli/gif/motion/kaydet+animasyon
+  skill:"code"      → kod review+fix+test+PR gibi çok-adımlı KOD görevleri (sadece "kod yaz" DEĞİL)
+  skill:null        → basit kod/analiz/soru/açıklama/sohbet — DAIMA null
 
 Diğer kurallar:
 - tahmini_butce HER ZAMAN tek tam sayı (0-1000), asla aralık ("50-200" yasak)
 - karmasiklik: 1=basit(tek adım), 2=orta(birkaç adım), 3=yoğun(çok-adım/koordinasyon)
-- Boş/anlamsız: {"kategoriler":["sohbet"],"karmasiklik":1,"rota":"sohbet","skill":null,"tahmini_butce":0}
-- Soru/açıklama ("nasıl çalışır","nedir","explain","how does") → rota:"sohbet", skill:null
+- Boş/anlamsız: {"kategoriler":["sohbet"],"karmasiklik":1,"rota":"sohbet","skill":null,"skills":null,"tahmini_butce":0}
+- Soru/açıklama ("nasıl çalışır","nedir","explain","how does") → rota:"sohbet", skill:null, skills:null
 
-Örnekler (bu üç durumu özellikle ezberle):
-  "bu kodu analiz et: for(i=0;i<10;i++){}" → {"kategoriler":["kod","analiz"],"karmasiklik":1,"rota":"sohbet","skill":null,"tahmini_butce":50}
-  "how does TCP/IP work"                   → {"kategoriler":["analiz"],"karmasiklik":1,"rota":"sohbet","skill":null,"tahmini_butce":50}
-  "kod yaz test et ve dokümante et"        → {"kategoriler":["kod","yazı"],"karmasiklik":2,"rota":"sohbet","skill":null,"tahmini_butce":100}
-  "bana bir cyberpunk kız çiz"             → {"kategoriler":["resim"],"karmasiklik":1,"rota":"skill","skill":"image","tahmini_butce":150}
-  "sesli oku şunu"                         → {"kategoriler":["ses"],"karmasiklik":1,"rota":"skill","skill":"voice","tahmini_butce":100}`;
+Örnekler:
+  "bu kodu analiz et: for(i=0;i<10;i++){}" → {"kategoriler":["kod","analiz"],"karmasiklik":1,"rota":"sohbet","skill":null,"skills":null,"tahmini_butce":50}
+  "how does TCP/IP work"                   → {"kategoriler":["analiz"],"karmasiklik":1,"rota":"sohbet","skill":null,"skills":null,"tahmini_butce":50}
+  "kod yaz test et ve dokümante et"        → {"kategoriler":["kod","yazı"],"karmasiklik":2,"rota":"sohbet","skill":null,"skills":null,"tahmini_butce":100}
+  "bana bir cyberpunk kız çiz"             → {"kategoriler":["resim"],"karmasiklik":1,"rota":"skill","skill":"image","skills":null,"tahmini_butce":150}
+  "sesli oku şunu"                         → {"kategoriler":["ses"],"karmasiklik":1,"rota":"skill","skill":"voice","skills":null,"tahmini_butce":100}
+  "animasyon oluştur ve kaydet"            → {"kategoriler":["animasyon"],"karmasiklik":2,"rota":"skill","skill":"animation","skills":null,"tahmini_butce":200}
+  "kod review yap, test yaz, PR aç"        → {"kategoriler":["kod"],"karmasiklik":3,"rota":"skill","skill":"code","skills":null,"tahmini_butce":300}
+  "bir karakter çiz ve ardından seslendir" → {"kategoriler":["resim","ses"],"karmasiklik":3,"rota":"orchestration","skill":null,"skills":["image","voice"],"tahmini_butce":250}`;
 
 const DEFAULTS = {
   model:          "qwen2.5-coder:7b",
@@ -116,7 +126,8 @@ function _ollamaChat(model, host, port, messages) {
 // ── JSON parse ────────────────────────────────────────────────────────────────
 
 const VALID_ROTA   = new Set(["skill", "sohbet", "orchestration"]);
-const VALID_SKILLS = new Set(["image", "voice", null]);
+const VALID_SKILLS = new Set(["image", "voice", "animation", "code", null]);
+const VALID_SKILL_LIST = new Set(["image", "voice", "animation", "code"]);
 
 // İlk dengeli { ... } bloğunu çıkarır — string içindeki { } karakterlerini
 // saymaz, böylece iç içe obje (skill:{...}) ile takip eden metin (kod bloğu vb.)
@@ -157,9 +168,12 @@ function _parse(raw) {
   const karmasiklik  = [1, 2, 3].includes(obj.karmasiklik) ? obj.karmasiklik : 1;
   const rota         = VALID_ROTA.has(obj.rota) ? obj.rota : "sohbet";
   const skill        = VALID_SKILLS.has(obj.skill) ? obj.skill : null;
+  const skills       = Array.isArray(obj.skills)
+    ? obj.skills.filter(s => VALID_SKILL_LIST.has(s))
+    : null;
   const tahmini_butce = typeof obj.tahmini_butce === "number" ? Math.max(0, Math.min(1000, obj.tahmini_butce)) : 0;
 
-  return { kategoriler, karmasiklik, rota, skill, tahmini_butce };
+  return { kategoriler, karmasiklik, rota, skill, skills: skills?.length ? skills : null, tahmini_butce };
 }
 
 // ── Edimsöz (Speech Act) Labeling ────────────────────────────────────────────
@@ -196,7 +210,7 @@ function _isContextDependent(input) {
 
 const FALLBACK = Object.freeze({
   kategoriler: ["sohbet"], karmasiklik: 1,
-  rota: "sohbet", skill: null, tahmini_butce: 0,
+  rota: "sohbet", skill: null, skills: null, tahmini_butce: 0,
 });
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -262,6 +276,7 @@ async function run(userMessage, { sessionId = null } = {}) {
     error,
     edim:              _labelEdim(truncated),
     context_dependent: _isContextDependent(truncated),
+    skills_used:       result.skills ?? null,
   };
   _logRun(logEntry);
 
@@ -269,8 +284,8 @@ async function run(userMessage, { sessionId = null } = {}) {
   try {
     const { emit } = require("../events.ts");
     emit("meissa:done", sessionId, {
-      input_hash:   inputHash,
-      input_length: truncated.length,
+      input_hash:    inputHash,
+      input_length:  truncated.length,
       ...result,
       wall_time_ms,
       level,
@@ -279,6 +294,7 @@ async function run(userMessage, { sessionId = null } = {}) {
   } catch {}
 
   return {
+    skills: null,    // default — level0 bu alanı üretmez; LLM sonucu üstüne yazar
     ...result,
     _meta: { model: cfg.model, wall_time_ms, input_hash: inputHash, level, error },
   };

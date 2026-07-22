@@ -59,17 +59,41 @@ describe("meissa — FALLBACK şeması", () => {
     assert.equal(fb.karmasiklik, 1);
     assert.equal(fb.rota, "sohbet");
     assert.equal(fb.skill, null);
+    assert.equal(fb.skills, null);
     assert.equal(fb.tahmini_butce, 0);
   });
 
   test("run() FALLBACK döndürdüğünde şema tam", async () => {
     const r = await meissa.run("test");
-    const keys = ["kategoriler", "karmasiklik", "rota", "skill", "tahmini_butce", "_meta"];
+    const keys = ["kategoriler", "karmasiklik", "rota", "skill", "skills", "tahmini_butce", "_meta"];
     for (const k of keys) {
       assert.ok(k in r, `'${k}' alanı eksik`);
     }
     assert.ok(typeof r._meta.wall_time_ms === "number", "wall_time_ms number");
     assert.ok(typeof r._meta.input_hash   === "string", "input_hash string");
+  });
+});
+
+// ── Faz 3: yeni skill tipleri (level0 — LLM gerektirmez) ──────────────────
+
+describe("meissa — Faz 3 skill tipleri (level0 path)", () => {
+  test("animasyon oluştur → level0 skill:animation", async () => {
+    const r = await meissa.run("animasyon oluştur");
+    assert.equal(r.rota, "skill");
+    assert.equal(r.skill, "animation");
+    assert.equal(r._meta.level, 0);
+  });
+
+  test("animate this → level0 skill:animation", async () => {
+    const r = await meissa.run("animate this");
+    assert.equal(r.rota, "skill");
+    assert.equal(r.skill, "animation");
+    assert.equal(r._meta.level, 0);
+  });
+
+  test("skills alanı null veya dizi döner", async () => {
+    const r = await meissa.run("merhaba");
+    assert.ok(r.skills === null || Array.isArray(r.skills), "skills null ya da dizi olmalı");
   });
 });
 

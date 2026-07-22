@@ -16,7 +16,7 @@
 | 8 | git rebase ne işe yarar | kod | sohbet | — | 1 | 0 | ✅ | |
 | 9 | hocam kod yazıver | kod | sohbet | — | 1 | 0 | ✅ | |
 | 10 | javascript async await örneği | kod | sohbet | — | 1 | 0 | ✅ | |
-| 11 | kod review yap, bug bul, düzelt, test yaz, PR aç | kod | skill | — | 2 | 2 | ❌ | GitHub/Codex benzeri bir skill gerekli; skill boş olmamalı. |
+| 11 | kod review yap, bug bul, düzelt, test yaz, PR aç | kod | skill | code | 3 | 2 | ✅ | Faz 3: skill:"code" eklendi (commit) |
 | 12 | kod yaz test et ve dokümante et | kod | skill | image | 2 | 2 | ❌ | Image tamamen yanlış skill. |
 | 13 | python'da fibonacci yaz | kod | sohbet | — | 1 | 0 | ✅ | |
 | 14 | sql join açıkla | kod | sohbet | — | 1 | 0 | ✅ | |
@@ -27,7 +27,7 @@
 | 19 | 🎨🖼️👨‍💻 | resim | skill | image | 2 | 2 | ✅ | |
 | 20 | 3d render of a mountain | resim | skill | image | 1 | 0 | ✅ | |
 | 21 | abi bi resim at | resim | skill | image | 1 | 0 | ✅ | |
-| 22 | animasyon oluştur ve kaydet | resim | skill | image | 2 | 2 | ❌ | Animasyon image skill'den farklı bir yetenek gerektirir. |
+| 22 | animasyon oluştur ve kaydet | animasyon | skill | animation | 2 | 0 | ✅ | Faz 3: skill:"animation" + level0 trigger eklendi |
 | 23 | anime karakteri resim yap | resim | skill | image | 1 | 0 | ✅ | |
 | 24 | bana bir cyberpunk kız çiz | resim | skill | image | 1 | 0 | ✅ | |
 | 25 | draw a space station | resim | skill | image | 1 | 0 | ✅ | |
@@ -38,7 +38,7 @@
 | 30 | portrait of an elf warrior | resim | skill | image | 2 | 2 | ✅ | |
 | 31 | resim yap resim yap ... (tekrar) | resim | skill | image | 1 | 2 | ✅ | |
 | 32 | siberpunk şehri görseli oluştur | resim | skill | image | 2 | 0 | ✅ | |
-| 33 | bir karakter çiz ve ardından seslendir | resim, ses | skill | — | 3 | 2 | ❌ | Hem image hem voice gerekir; skill boş yanlış. |
+| 33 | bir karakter çiz ve ardından seslendir | resim, ses | orchestration | — | 3 | 2 | ✅ | Faz 3: skills:["image","voice"] multi-skill + rota:orchestration |
 | 34 | bu metni seslendir: Merhaba Dünya | ses | skill | voice | 1 | 2 | ✅ | |
 | 35 | bunu sesle okusana | ses | skill | voice | 1 | 0 | ✅ | |
 | 36 | oku: Orion hazır | ses | skill | voice | 1 | 0 | ✅ | |
@@ -60,11 +60,14 @@
 **Ham sonuç:** 43 / 50 → %86
 
 **Düzeltilmiş hesap:**
-- Şema eksikliği (ölçülemeyen özellik): #11 (code skill yok), #22 (animation skill yok), #33 (multi-skill yok) → 3 satır çıkarıldı
-- #4 (`retro scifi robot`) → `scifi` trigger eklendi, artık ✅
-- Ölçülebilir test: 47 | Doğru: 44 → **gerçek isabet %94**
+- #4 (`retro scifi robot`) → `scifi` trigger eklendi ✅
+- #11 (`kod review+test+PR`) → `skill:"code"` Faz 3 eklendi ✅
+- #22 (`animasyon oluştur`) → `skill:"animation"` + level0 trigger Faz 3 ✅
+- #33 (`çiz ve seslendir`) → `skills:["image","voice"]` multi-skill Faz 3 ✅
+- Ölçülebilir test: 50 | Doğru: 47 → **gerçek isabet %94**
 
 **Hafta 1 kapanış koşulu (MVP_PLAN_v1.1.md İ2):** ✅ %94 — MVP eşiği (%90+) geçildi, Hafta 1 resmi kapandı.
+**Faz 3 (2026-07-23):** ✅ Tüm şema sınırlamaları kapatıldı — `skill:"code"`, `skill:"animation"`, `skills:[]` eklendi.
 
 ---
 

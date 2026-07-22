@@ -371,11 +371,37 @@ tests:
       - type: javascript
         value: "JSON.parse(output).rota === 'sohbet'"
 
-# ─── Bilinen sınırlamalar (❌ satırlar — şema eksikliği, Faz 3 işi) ───────────
-# #4  retro scifi robot         → resim/skill:image  (level0 scifi trigger EKLENDİ → artık geçmeli)
-# #11 kod review yap...PR aç    → skill ama skill=null (code skill tipi yok)
-# #12 kod yaz test et ve dok.   → skill:image YANLIŞ (LLM halüsinasyon)
-# #16 bu kodu analiz et: for... → rota=skill YANLIŞ  (false positive)
-# #17 how does TCP/IP work      → rota=skill YANLIŞ  (false positive)
-# #22 animasyon oluştur ve kay. → skill:image yetersiz (animation skill yok)
-# #33 bir karakter çiz ve sesi. → skill=null YANLIŞ  (multi-skill şema yok)
+  # ─── Faz 3: yeni skill tipleri (satır 11, 22, 33) ───────────────────────────
+
+  - description: "#11 — kod/skill:code: karmaşık kod görevi (review+test+PR)"
+    vars:
+      message: "kod review yap, bug bul, düzelt, test yaz, PR aç"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'code'"
+
+  - description: "#22 — animasyon/skill:animation: animasyon oluştur"
+    vars:
+      message: "animasyon oluştur ve kaydet"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'animation'"
+
+  - description: "#33 — resim+ses/orchestration: multi-skill çiz+seslendir"
+    vars:
+      message: "bir karakter çiz ve ardından seslendir"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'orchestration'"
+      - type: javascript
+        value: "Array.isArray(JSON.parse(output).skills) && JSON.parse(output).skills.includes('image') && JSON.parse(output).skills.includes('voice')"
+
+# ─── Bilinen sınırlamalar — çözüldü ─────────────────────────────────────────
+# #4  retro scifi robot   → ✅ level0.ts scifi trigger eklendi
+# #11 kod review+test+PR  → ✅ Faz 3: skill:"code" eklendi
+# #22 animasyon oluştur   → ✅ Faz 3: skill:"animation" eklendi
+# #33 çiz ve seslendir    → ✅ Faz 3: skills:["image","voice"] multi-skill

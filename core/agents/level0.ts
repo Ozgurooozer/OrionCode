@@ -20,6 +20,11 @@ const CATEGORIES = {
     exact:  ["sesli", "sesle", "voice", "speak", "tts", "oku", "okusana"],
     rota: "skill", skill: "voice", budget: 100,
   },
+  animasyon: {
+    prefix: ["animasyon", "animation", "animate", "hareketli"],
+    exact:  ["gif", "motion"],
+    rota: "skill", skill: "animation", budget: 200,
+  },
   kod: {
     prefix: ["kod", "python", "javascript", "typescript", "debug", "refactor"],
     exact:  ["sql", "git", "docker", "js", "fonksiyon", "function"],
