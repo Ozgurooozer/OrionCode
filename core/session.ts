@@ -169,6 +169,7 @@ class Session {
     } catch {}
 
     if (this.budget.isExceeded()) {
+      this.msgs.pop(); // 161'de eklenen kullanıcı mesajını geri al — yanıtsız kalırsa bir sonraki send() art arda user msg yaratır
       throw new Error(i18n.t(
         `Session budget exceeded ($${this.budget.totalCostUSD.toFixed(4)} / $${this.budget.limitUSD}). ` +
         `Use /budget to increase the limit, or /reset to start fresh.`,
