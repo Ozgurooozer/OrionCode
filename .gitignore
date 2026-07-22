@@ -24,3 +24,13 @@ logs/
 # Ortam değişkenleri
 .env
 .env.local
+
+# Test çıktıları (binary terminal verisi içerebilir)
+*-test-output.txt
+
+# Harici git repo (Kitty terminal — sadece geliştirme için clone)
+kitty/
+
+# TUI prototipleri (izole sub-projeler, ana projeye bağlı değil)
+tui/beta2/
+tui/beta3/

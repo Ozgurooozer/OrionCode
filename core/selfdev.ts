@@ -56,7 +56,7 @@ function reloadCommands() {
 // Tam yeniden başlatma: oturumu kaydet, yeni süreç --resume ile devralsın, bu süreç çıksın
 function restart(session) {
   session._save();
-  const child = spawn(process.execPath, [path.join(ROOT, "orion.js"), "--resume", session.id], {
+  const child = spawn(process.execPath, ["--experimental-strip-types", path.join(ROOT, "orion.ts"), "--resume", session.id], {
     cwd: process.cwd(),
     stdio: "inherit",
     windowsHide: false,

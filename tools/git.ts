@@ -100,11 +100,11 @@ function _cwd(input) {
   return path.resolve(input?.cwd ?? process.env.ORION_WORKSPACE ?? ".");
 }
 
-function _run(args, cwd) {
+function _run(args, cwd, maxBuffer = 2 * 1024 * 1024) {
   const r = spawnSync("git", args, {
     cwd,
     encoding: "utf8",
-    maxBuffer: 2 * 1024 * 1024,
+    maxBuffer,
     timeout: 15_000,
     windowsHide: true,
   });
@@ -184,12 +184,23 @@ async function execute(name, input) {
 
     case "git_show": {
       const ref = input?.ref ?? "HEAD";
-      const args = ["show", "--stat", "-p", ref];
-      const { stdout, stderr, code } = _run(args, cwd);
-      if (code !== 0) return `git show hatası:\n${stderr}`;
-      const out = stdout.trim();
-      if (!out) return "(çıktı yok)";
-      return out.length > 8000 ? out.slice(0, 8000) + "\n… [kırpıldı]" : out;
+      let result;
+      try {
+        const { stdout, stderr, code } = _run(["show", "--stat", "-p", ref], cwd, 10 * 1024 * 1024);
+        if (code !== 0) return `git show hatası:\n${stderr}`;
+        result = stdout.trim();
+      } catch (err) {
+        // Output too large — fall back to stat-only
+        if (err.message?.includes("ENOBUFS")) {
+          const { stdout, stderr, code } = _run(["show", "--stat", ref], cwd);
+          if (code !== 0) return `git show hatası:\n${stderr}`;
+          result = stdout.trim() + "\n… [diff kırpıldı: çıktı çok büyük]";
+        } else {
+          throw err;
+        }
+      }
+      if (!result) return "(çıktı yok)";
+      return result.length > 8000 ? result.slice(0, 8000) + "\n… [kırpıldı]" : result;
     }
 
     case "git_blame": {

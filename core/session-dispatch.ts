@@ -61,7 +61,7 @@ async function _callWithFallback(session) {
       session._usedFallback = true;
     }
   }
-  return undefined;
+  throw new Error("unreachable: fallback loop exited without returning or throwing");
 }
 
 function _dispatchLoop(session, backend, model) {

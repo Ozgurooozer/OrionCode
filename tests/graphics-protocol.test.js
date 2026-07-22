@@ -82,44 +82,47 @@ test("kittySequence: single chunk when payload fits", () => {
   assert.ok(chunks[0].match(/[ ,]m=0;/), "Single chunk should have m=0");
 });
 
-test("detectKittyProtocol: Kitty terminal", () => {
+test("detectTerminalProtocol: Kitty terminal → 'kitty'", () => {
   const prevTerm = process.env.TERM;
   const prevPgm = process.env.TERM_PROGRAM;
   process.env.TERM = "xterm-kitty";
   process.env.TERM_PROGRAM = "";
-  assert.strictEqual(gp.detectKittyProtocol(), true);
+  assert.strictEqual(gp.detectTerminalProtocol(), "kitty");
   process.env.TERM = prevTerm;
   process.env.TERM_PROGRAM = prevPgm;
 });
 
-test("detectKittyProtocol: WezTerm", () => {
+test("detectTerminalProtocol: WezTerm → 'kitty'", () => {
   const prevTerm = process.env.TERM;
   const prevPgm = process.env.TERM_PROGRAM;
   process.env.TERM = "";
   process.env.TERM_PROGRAM = "WezTerm";
-  assert.strictEqual(gp.detectKittyProtocol(), true);
+  assert.strictEqual(gp.detectTerminalProtocol(), "kitty");
   process.env.TERM = prevTerm;
   process.env.TERM_PROGRAM = prevPgm;
 });
 
-test("detectKittyProtocol: Ghostty", () => {
+test("detectTerminalProtocol: Ghostty → 'kitty'", () => {
   const prevTerm = process.env.TERM;
   const prevPgm = process.env.TERM_PROGRAM;
   process.env.TERM = "";
   process.env.TERM_PROGRAM = "ghostty";
-  assert.strictEqual(gp.detectKittyProtocol(), true);
+  assert.strictEqual(gp.detectTerminalProtocol(), "kitty");
   process.env.TERM = prevTerm;
   process.env.TERM_PROGRAM = prevPgm;
 });
 
-test("detectKittyProtocol: Windows Terminal → false", () => {
+test("detectTerminalProtocol: unknown terminal → null", () => {
   const prevTerm = process.env.TERM;
   const prevPgm = process.env.TERM_PROGRAM;
+  const prevWT = process.env.WT_SESSION;
   process.env.TERM = "";
   process.env.TERM_PROGRAM = "";
-  assert.strictEqual(gp.detectKittyProtocol(), false);
+  process.env.WT_SESSION = "";
+  assert.strictEqual(gp.detectTerminalProtocol(), null);
   process.env.TERM = prevTerm;
   process.env.TERM_PROGRAM = prevPgm;
+  process.env.WT_SESSION = prevWT;
 });
 
 test("kittySequence: z-index is negative for behind-text placement", () => {
