@@ -146,6 +146,16 @@ describe("_buildFallbackChain", () => {
     }
   });
 
+  test("tier2Backend=openrouter ve tier2Model=openai/gpt-4o-mini olunca zincirde aynı çift tekrar etmez", () => {
+    // Mock config: tier2Backend=openrouter, tier2Model=openai/gpt-4o-mini (hardcoded fallback'le aynı)
+    // Eski bug: ikisi de zincire giriyordu → aynı backend+model çifti iki kez deneniyor
+    const session = makeSession("ollama", "qwen2.5:7b");
+    const chain = sd._buildFallbackChain(session);
+    const keys = chain.map(s => `${s.backend}::${s.model}`);
+    const uniq = [...new Set(keys)];
+    assert.deepStrictEqual(keys, uniq, "zincirde tekrarlayan backend+model çifti olmamalı");
+  });
+
 });
 
 // ── _callWithFallback ─────────────────────────────────────────────────────────

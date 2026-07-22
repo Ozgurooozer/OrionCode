@@ -10,11 +10,15 @@ function _buildFallbackChain(session) {
   const primaryBackend = session._routedBackend ?? session.backend;
   const primaryModel   = session._routedModel   ?? session.model;
   const primary = { backend: primaryBackend, model: primaryModel };
-  const fallbacks = [
+  const _seen = new Set<string>();
+  const _dedup = (arr: { backend: string; model: string }[]) =>
+    arr.filter(f => { const k = `${f.backend}::${f.model}`; if (_seen.has(k)) return false; _seen.add(k); return true; });
+
+  const fallbacks = _dedup([
     { backend: cfg.tier2Backend, model: cfg.tier2Model },
     { backend: "openrouter",     model: "openai/gpt-4o-mini" },
     { backend: "ollama",         model: cfg.tier1Model },
-  ].filter(f => f.backend !== primaryBackend);
+  ].filter(f => f.backend !== primaryBackend));
   return [primary, ...fallbacks];
 }
 
