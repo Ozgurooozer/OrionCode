@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 
 const CHIPS = ["Kod tabanını özetle", "Test yaz", "Hata ayıkla", "Refactor öner"];
 
-export default function Home({ c, styles, model, modelDot, backendsList, onPickModel, onSend, onOpenTerminal }) {
+export default function Home({ c, styles, model, modelDot, backendsList, onPickModel, onSend, onOpenTerminal, onOpenLevelViewer }) {
   const [text, setText] = useState("");
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const modelMenuRef = useRef(null);
@@ -90,9 +90,10 @@ export default function Home({ c, styles, model, modelDot, backendsList, onPickM
         ))}
       </div>
 
-      {/* 3D Terminal butonu */}
-      <div style={{ display: "flex", justifyContent: "center", marginTop: "28px" }}>
+      {/* 3D butonlar */}
+      <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginTop: "28px" }}>
         <TerminalBtn c={c} onClick={onOpenTerminal} />
+        <LevelViewerBtn c={c} onClick={onOpenLevelViewer} />
       </div>
     </div>
   );
@@ -121,6 +122,40 @@ function TerminalBtn({ c, onClick }) {
       </svg>
       <span style={{ fontSize: "13.5px", fontWeight: 600, color: h ? c.accent : c.textDim }}>
         3D Terminal
+      </span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.5 }}>
+        <path d="M7 17L17 7M17 7H7M17 7v10" stroke={h ? c.accent : c.textDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </div>
+  );
+}
+
+function LevelViewerBtn({ c, onClick }) {
+  const [h, setH] = useState(false);
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: "10px",
+        padding: "10px 20px", borderRadius: "14px", cursor: "pointer",
+        border: `1px solid ${h ? c.accent : c.border}`,
+        background: h ? `${c.accent}18` : c.elevated,
+        transition: "border-color .15s, background .15s",
+        boxShadow: h ? `0 0 16px ${c.accentGlow}` : "none",
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+          stroke={h ? c.accent : c.textDim} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"
+          stroke={h ? c.accent : c.textDim} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <line x1="12" y1="22.08" x2="12" y2="12"
+          stroke={h ? c.accent : c.textDim} strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+      <span style={{ fontSize: "13.5px", fontWeight: 600, color: h ? c.accent : c.textDim }}>
+        Level Viewer
       </span>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.5 }}>
         <path d="M7 17L17 7M17 7H7M17 7v10" stroke={h ? c.accent : c.textDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>

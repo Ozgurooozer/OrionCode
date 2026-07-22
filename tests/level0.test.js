@@ -23,6 +23,9 @@ describe("level0 — net tek-kategori eşleşmeleri", () => {
     ["draw a space station",           "resim",  "skill",  "image"],
     ["3d render of a mountain",        "resim",  "skill",  "image"],
     ["abi bi resim at",                "resim",  "skill",  "image"],
+    ["retro scifi robot",              "resim",  "skill",  "image"],
+    ["portrait of an elf warrior",     "resim",  "skill",  "image"],
+    ["generate an image of a dragon",  "resim",  "skill",  "image"],
     ["sesli oku şunu",                 "ses",    "skill",  "voice"],
     ["bunu sesle okusana",             "ses",    "skill",  "voice"],
     ["python'da fibonacci yaz",        "kod",    "sohbet", null],
@@ -59,7 +62,6 @@ describe("level0 — belirsizde LLM'e bırakma (null)", () => {
     ["bu metni seslendir: Merhaba Dünya",      "ses + sohbet çakışması"],
     ["bu kodu analiz et: for(let i=0;i<10;i++){}", "kod + analiz çakışması"],
     // trigger yok
-    ["retro scifi robot",       "trigger kelime yok"],
     ["bugün hava nasıl",        "trigger kelime yok"],
     ["ne yapabilirim",          "trigger kelime yok"],
     ["what is quantum computing", "trigger kelime yok"],

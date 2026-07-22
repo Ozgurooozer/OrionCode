@@ -7,6 +7,7 @@ import Rail from "./components/Rail.jsx";
 import Home from "./components/Home.jsx";
 import Chat from "./components/Chat.jsx";
 import { Terminal3D } from "../Terminal/index";
+import LevelViewer3D from "../LevelViewer/LevelViewer3D";
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
@@ -217,14 +218,14 @@ export default function App() {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          alignItems: view === "terminal3d" ? "stretch" : "center",
-          justifyContent: view === "terminal3d" ? "stretch" : "center",
+          alignItems: (view === "terminal3d" || view === "levelviewer") ? "stretch" : "center",
+          justifyContent: (view === "terminal3d" || view === "levelviewer") ? "stretch" : "center",
           position: "relative",
-          padding: view === "terminal3d" ? 0 : "0 32px",
+          padding: (view === "terminal3d" || view === "levelviewer") ? 0 : "0 32px",
           overflow: "hidden",
           minWidth: 0,
         }}>
-          {!online && view !== "terminal3d" && (
+          {!online && view !== "terminal3d" && view !== "levelviewer" && (
             <div style={{ position: "absolute", top: "10px", fontSize: "11.5px", color: c.textDim, opacity: 0.75 }}>
               orion-server'a bağlanılamıyor — sunucu başlatılıyor olabilir
             </div>
@@ -235,7 +236,8 @@ export default function App() {
                   backendsList={backendsList}
                   onPickModel={(b, m) => { setBackend(b); setModel(m); }}
                   onSend={handleSend}
-                  onOpenTerminal={() => setView("terminal3d")} />
+                  onOpenTerminal={() => setView("terminal3d")}
+                  onOpenLevelViewer={() => setView("levelviewer")} />
           ) : view === "chat" ? (
             <Chat c={c} styles={styles} model={model ?? "model seçilmedi"} statusOnline={online}
                   messages={messages} onSend={handleSend} onCommand={handleCommand}
@@ -244,6 +246,8 @@ export default function App() {
                   title={title} />
           ) : view === "terminal3d" ? (
             <Terminal3D theme={theme} onClose={() => setView("home")} />
+          ) : view === "levelviewer" ? (
+            <LevelViewer3D theme={theme} onClose={() => setView("home")} />
           ) : null}
         </div>
       </div>

@@ -10,7 +10,8 @@
 // "gitmek"i yutardı). prefix: token kökle başlayabilir ("çiz" → "çizer misin").
 const CATEGORIES = {
   resim: {
-    prefix: ["resim", "görsel", "çiz", "draw", "image", "anime", "pixel", "render"],
+    prefix: ["resim", "görsel", "çiz", "draw", "image", "anime", "pixel", "render",
+             "portrait", "generate", "cyberpunk", "fantasy", "scifi"],
     exact:  ["3d"],
     rota: "skill", skill: "image", budget: 150,
   },

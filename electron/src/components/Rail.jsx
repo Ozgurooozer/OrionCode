@@ -5,12 +5,17 @@ import { THEMES, FONTS, ICONS } from "../theme.js";
 // terminal3d ikon — monospace ekran simgesi
 const ICON_TERMINAL = '<rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M7 9l4 3-4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><line x1="13" y1="15" x2="17" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>';
 
+// level viewer ikon — küp
+const ICON_CUBE = '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="3.27 6.96 12 12.01 20.73 6.96" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="22.08" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>';
+
 const NAV_ITEMS = [
   { key: "sessions",   label: "Oturumlar",         icon: ICONS.clock,   view: false },
   { key: "vault",      label: "Hafıza Kasası",      icon: ICONS.vault,   view: false },
   { key: "router",     label: "Model Yönlendirici", icon: ICONS.router,  view: false },
   { key: "mcp",        label: "MCP Sunucuları",     icon: ICONS.mcp,     view: false },
-  { key: "terminal3d", label: "3D Terminal",         icon: ICON_TERMINAL, view: true  },
+  { key: "_sep" },  // ayraç
+  { key: "terminal3d",  label: "3D Terminal",    icon: ICON_TERMINAL, view: true },
+  { key: "levelviewer", label: "Level Viewer",   icon: ICON_CUBE,     view: true },
 ];
 
 const SETTINGS_ITEMS = [
@@ -67,26 +72,33 @@ export default function Rail({
 
         {/* Navigasyon */}
         <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-          {NAV_ITEMS.map(nav => (
-            <RailRow key={nav.key} style={{
-              ...styles.railItem,
-              ...(activeNav === nav.key ? { background: c.hover } : {}),
-            }} hover={c.hover} onClick={() => {
-              if (nav.view && onSetView) {
-                onSetView(nav.key);
-              } else {
-                toggleNav(nav.key);
-              }
-            }}>
-              <Icon path={nav.icon} size={19} />
-              {railOpen && <span style={styles.railLabel}>{nav.label}</span>}
-              {railOpen && nav.view && (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ marginLeft: "auto", opacity: 0.45 }}>
-                  <path d="M7 17L17 7M17 7H7M17 7v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              )}
-            </RailRow>
-          ))}
+          {NAV_ITEMS.map(nav => {
+            // ── ayraç ──────────────────────────────────────────────────────
+            if (nav.key === "_sep") return (
+              <div key="_sep" style={{ height: "1px", background: c.border, margin: "6px 4px" }} />
+            );
+            return (
+              <RailRow key={nav.key} style={{
+                ...styles.railItem,
+                ...(activeNav === nav.key ? { background: c.hover } : {}),
+              }} hover={c.hover} onClick={() => {
+                if (nav.view && onSetView) {
+                  setActiveNav(null);  // açık panel varsa kapat
+                  onSetView(nav.key);
+                } else {
+                  toggleNav(nav.key);
+                }
+              }}>
+                <Icon path={nav.icon} size={19} />
+                {railOpen && <span style={styles.railLabel}>{nav.label}</span>}
+                {railOpen && nav.view && (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ marginLeft: "auto", opacity: 0.45 }}>
+                    <path d="M7 17L17 7M17 7H7M17 7v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </RailRow>
+            );
+          })}
         </div>
 
         {/* Oturum paneli */}
