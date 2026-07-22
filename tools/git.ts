@@ -145,11 +145,25 @@ async function execute(name, input) {
       const args = ["diff", "--stat", "-p"];
       if (input?.staged) args.splice(1, 0, "--cached");
       if (input?.path)   args.push("--", input.path);
-      const { stdout, stderr, code } = _run(args, cwd);
-      if (code !== 0) return `git diff hatası:\n${stderr}`;
-      const out = stdout.trim();
-      if (!out) return "(değişiklik yok)";
-      return out.length > 8000 ? out.slice(0, 8000) + "\n… [kırpıldı]" : out;
+      let diffOut;
+      try {
+        const { stdout, stderr, code } = _run(args, cwd, 10 * 1024 * 1024);
+        if (code !== 0) return `git diff hatası:\n${stderr}`;
+        diffOut = stdout.trim();
+      } catch (err) {
+        if (err.message?.includes("ENOBUFS")) {
+          const statArgs = ["diff", "--stat"];
+          if (input?.staged) statArgs.splice(1, 0, "--cached");
+          if (input?.path)   statArgs.push("--", input.path);
+          const { stdout, stderr, code } = _run(statArgs, cwd);
+          if (code !== 0) return `git diff hatası:\n${stderr}`;
+          diffOut = stdout.trim() + "\n… [diff kırpıldı: çıktı çok büyük]";
+        } else {
+          throw err;
+        }
+      }
+      if (!diffOut) return "(değişiklik yok)";
+      return diffOut.length > 8000 ? diffOut.slice(0, 8000) + "\n… [kırpıldı]" : diffOut;
     }
 
     case "git_log": {

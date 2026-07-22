@@ -3,9 +3,9 @@ const { test } = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
 
-// Point require to beta2 source
-const gp = require(path.resolve(__dirname, "..", "tui/beta2/src/landing/graphics-protocol.ts"));
-const { Canvas } = require(path.resolve(__dirname, "..", "tui/beta2/src/landing/renderer.ts"));
+// Point require to arcive/beta2 source (moved from tui/beta2/)
+const gp = require(path.resolve(__dirname, "..", "tui/arcive/beta2/src/landing/graphics-protocol.ts"));
+const { Canvas } = require(path.resolve(__dirname, "..", "tui/arcive/beta2/src/landing/renderer.ts"));
 
 test("kittySequence: 2×2 canvas produces valid APC escape", () => {
   const c = new Canvas(2, 2);
