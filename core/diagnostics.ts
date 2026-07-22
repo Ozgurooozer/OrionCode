@@ -39,17 +39,58 @@ function checkJSON(abs) {
   catch (e) { return e.message; }
 }
 
+function _tscBin() {
+  // Önce proje-yerel tsc'yi dene; yoksa PATH'e düş.
+  const local = path.resolve(__dirname, "..", "node_modules", ".bin", "tsc");
+  if (fs.existsSync(local + ".cmd")) return local + ".cmd"; // Windows
+  if (fs.existsSync(local))          return local;           // Unix
+  return "tsc";
+}
+
+function _tsconfigDir(abs) {
+  // Dosyadan üste doğru tsconfig.json ara; bulamazsa null.
+  let dir = path.dirname(abs);
+  for (let i = 0; i < 8; i++) {
+    if (fs.existsSync(path.join(dir, "tsconfig.json"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
 function checkTypeScript(abs) {
   const { spawnSync } = require("child_process");
-  // tsc kurulu değilse atla — bağımlılığı yoksa sessizce geç
-  const r = spawnSync("tsc", ["--noEmit", "--skipLibCheck", abs], {
-    encoding: "utf8", timeout: 15_000, stdio: ["ignore", "pipe", "pipe"],
+  const tsc     = _tscBin();
+  const projDir = _tsconfigDir(abs);
+
+  let args, cwd;
+  if (projDir) {
+    // Proje context'iyle tüm projeyi kontrol et, sonra bu dosyaya ait satırları filtrele.
+    args = ["--noEmit", "--skipLibCheck", "--project", path.join(projDir, "tsconfig.json")];
+    cwd  = projDir;
+  } else {
+    args = ["--noEmit", "--skipLibCheck", abs];
+    cwd  = undefined;
+  }
+
+  const r = spawnSync(tsc, args, {
+    encoding: "utf8", timeout: 20_000, cwd,
+    stdio: ["ignore", "pipe", "pipe"],
+    shell: process.platform === "win32",
   });
-  if (r.error) return null; // tsc yok — atla
+  if (r.error || r.status === null) return null; // tsc yok veya timeout — atla
+
   if (r.status === 0) return null;
-  const msg = (r.stdout || r.stderr || "")
-    .split("\n").filter(l => l.trim()).slice(0, 5).join("\n");
-  return msg || "TypeScript hata";
+
+  // Proje modunda yalnızca bu dosyayı ilgilendiren satırları döndür.
+  const relName = path.basename(abs);
+  const lines   = (r.stdout || r.stderr || "").split("\n").filter(l => l.trim());
+  const relevant = projDir
+    ? lines.filter(l => l.includes(relName))
+    : lines;
+
+  return relevant.slice(0, 5).join("\n") || null;
 }
 
 function checkPython(abs) {

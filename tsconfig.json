@@ -29,6 +29,7 @@
     "scripts",
     "tui/beta2",
     "tui/beta3",
+    "tui/arcive",
     "orion-server.ts"
   ]
 }

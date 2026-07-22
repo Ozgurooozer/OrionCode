@@ -10,13 +10,16 @@ const path = require("path");
 const AGENTS_DIR = path.join(__dirname, "agents");
 
 let _cache = null;
+let _cacheTs = 0;
+const CACHE_TTL = 60_000; // orion-server gibi uzun-ömürlü süreçler için
 
 /**
- * Tüm skill manifestlerini yükle (cache'li).
+ * Tüm skill manifestlerini yükle (cache'li, 60s TTL).
  * @returns {Array<{name, version, cost_class, vram_needed_gb, triggers, input_schema, output_schema}>}
  */
 function loadAll() {
-  if (_cache) return _cache;
+  const now = Date.now();
+  if (_cache && now - _cacheTs < CACHE_TTL) return _cache;
 
   const skills = [];
   let files;
@@ -33,6 +36,7 @@ function loadAll() {
   }
 
   _cache = skills;
+  _cacheTs = Date.now();
   return skills;
 }
 
@@ -61,6 +65,6 @@ function match(text) {
 /**
  * Cache'i temizle (test yardımcısı).
  */
-function clearCache() { _cache = null; }
+function clearCache() { _cache = null; _cacheTs = 0; }
 
 module.exports = { loadAll, match, clearCache };
