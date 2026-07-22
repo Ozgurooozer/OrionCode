@@ -1,6 +1,8 @@
 // @ts-nocheck
-﻿// core/coordinator.js — Multi-agent koordinatör: plan → execute → review
+// core/coordinator.js — Multi-agent koordinatör: plan → execute → review
 "use strict";
+
+const crypto = require("crypto");
 
 /**
  * Full options accepted by subagent.run() — subagent.js JSDoc omits role and
@@ -192,7 +194,7 @@ async function execute(subtasks, parentSession, sequential = true, blackboard = 
 
   // previousOutputs: sequential modda tamamlanan subtask çıktıları sonraki subtask'a geçer
   // forceTier: null → roleTiers'dan oku; 2 → her zaman tier2 (Ollama yokken fallback için)
-  const runOne = async (s, previousOutputs = [], forceTier = null) => {
+  const runOne = async (s, previousOutputs = [], forceTier = null, responseId = null) => {
     const tier    = forceTier ?? (roleTiers[s.role] ?? 1);
     const model   = tier === 1 ? cfg.tier1Model                     : (cfg.tier2Model   ?? parentSession.model);
     const backend = tier === 1 ? (cfg.tier1Backend ?? "ollama")     : (cfg.tier2Backend ?? parentSession.backend);
@@ -216,7 +218,11 @@ async function execute(subtasks, parentSession, sequential = true, blackboard = 
 
     // coder + reviewer: headless modda run_command'e izin ver (test/build için)
     const allowCommands = s.role === "coder" || s.role === "reviewer";
-    return subagent.run(/** @type {SubagentRunOpts} */ ({
+    const rId = responseId ?? crypto.randomUUID();
+    require("./events.ts").emit("coordinator:subtask:start", parentSession?.id ?? null, {
+      responseId: rId, subtaskId: s.id, role: s.role,
+    });
+    const result = await subagent.run(/** @type {SubagentRunOpts} */ ({
       task:          taskWithContext,
       model,
       backend,
@@ -225,8 +231,13 @@ async function execute(subtasks, parentSession, sequential = true, blackboard = 
       workspace:     process.env.ORION_WORKSPACE ?? process.cwd(),
       allowCommands,
       timeout:       ROLE_TIMEOUT_MS[s.role] ?? 300_000,
-      streamToParent: !process.argv.includes("--headless"), // headless içinde parent yok
+      streamToParent: !process.argv.includes("--headless"),
     }));
+    require("./events.ts").emit("coordinator:subtask:done", parentSession?.id ?? null, {
+      responseId: rId, subtaskId: s.id, role: s.role,
+      timedOut: result.timedOut ?? false, code: result.code,
+    });
+    return { ...result, responseId: rId };
   };
 
   // Subtask çıktısının anlamlı olup olmadığını kontrol et
@@ -253,6 +264,7 @@ async function execute(subtasks, parentSession, sequential = true, blackboard = 
 
       let out = "";
       let succeeded = false;
+      let subtaskResponseId = crypto.randomUUID();
       // Attempt 0: configured tier. Attempt 1: tier2 fallback (Ollama yokken researcher/reviewer kurtarır).
       for (let attempt = 0; attempt < 2; attempt++) {
         const forceTier = attempt === 1 ? 2 : null;
@@ -263,7 +275,7 @@ async function execute(subtasks, parentSession, sequential = true, blackboard = 
           ));
         }
         try {
-          const r = await runOne(s, results, forceTier);
+          const r = await runOne(s, results, forceTier, subtaskResponseId);
           out = r.stdout ?? "";
           if (r.timedOut) {
             print.warn(i18n.t(`[${s.role}] timed out (attempt ${attempt + 1})`, `[${s.role}] zaman aşıldı (deneme ${attempt + 1})`));
@@ -296,14 +308,16 @@ async function execute(subtasks, parentSession, sequential = true, blackboard = 
       } else if (!succeeded) {
         print.warn(i18n.t(`[${s.role}] produced no output`, `[${s.role}] çıktı üretemedi`));
       }
-      results.push({ ...s, output: out });
+      results.push({ ...s, output: out, responseId: subtaskResponseId });
     }
   } else {
     print.info(i18n.t(`starting ${subtasks.length} tasks in parallel...`, `${subtasks.length} görev paralel başlatılıyor...`));
-    const settled = await Promise.allSettled(subtasks.map(s => runOne(s, [])));
+    const parallelIds = subtasks.map(() => crypto.randomUUID());
+    const settled = await Promise.allSettled(subtasks.map((s, i) => runOne(s, [], null, parallelIds[i])));
     results = subtasks.map((s, i) => ({
       ...s,
       output: settled[i].status === "fulfilled" ? (settled[i].value?.stdout ?? "") : "",
+      responseId: parallelIds[i],
     }));
     for (let i = 0; i < settled.length; i++) {
       if (settled[i].status === "rejected") {

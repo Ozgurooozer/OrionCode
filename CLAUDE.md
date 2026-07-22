@@ -179,3 +179,18 @@ fabrikasının dışında ayrı bir backend dosyası olarak eklendi.
 **Yeni komutlar:** `core/commands/` altında `compact.js` (bağlam sıkıştırma),
 `entropy.js` (statik analiz), `log.js`, `moltbook.js`, `workflow.js` —
 `core/commands/index.js` üzerinden dispatch edilir.
+
+---
+
+## TypeScript Stil Kuralları (TS geçişinde zorunlu)
+
+Traycer kaynak incelemesinden alınan kurallar — `@ts-nocheck` kaldırılırken uygulanır:
+
+- **Optional param yasak:** `param?: T` yerine `param: T | null` kullan; caller her argümanı explicit geçer
+- **Default param değeri yok:** `param = defaultVal` yerine caller explicit değer gönderir
+- **`any` yasak:** `@ts-nocheck` kaldırılan dosyalarda `any` ve `as unknown as` kullanma
+- **`ReturnType<...>` kullanma:** Concrete tip yaz (örn. `Promise<string>` doğrudan)
+- **try/catch sadece boundary'de:** Stack ortasında `log + rethrow` yapma
+- **Log şema versiyonu:** Her yeni log formatı alanına `schema_version: N` ekle (meissa log = 1)
+- **A2A responseId:** `coordinator.ts`'teki gibi her subagent çağrısı `responseId` (UUID) taşır;
+  `coordinator:subtask:start` / `coordinator:subtask:done` event'leri bu ID ile eşleştirilir

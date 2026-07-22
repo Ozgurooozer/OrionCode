@@ -249,6 +249,7 @@ async function run(userMessage, { sessionId = null } = {}) {
   const wall_time_ms = Date.now() - t0;
 
   const logEntry = {
+    schema_version: 1,
     timestamp:    t0,
     sessionId,
     input_length: truncated.length,
