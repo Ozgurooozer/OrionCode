@@ -11,6 +11,12 @@ electron/release/
 # graphify analiz çıktıları
 graphify-out/
 
+# CodeGraph index (yeniden oluşturulabilir)
+.codegraph/
+
+# Orion server çalışma zamanı state
+.orion-server-run.ts
+
 # Çalışma zamanı çıktıları
 logs/
 *.log
