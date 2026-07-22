@@ -214,5 +214,14 @@ export function buildStyles(c, theme, railOpen) {
     sessionCardMeta: {
       fontSize: "10.5px", color: c.textDim, whiteSpace: "nowrap",
     },
+
+    // ── Terminal 3D view ──────────────────────────────────────────────────
+    terminalBtn: {
+      display: "flex", alignItems: "center", gap: "8px",
+      padding: "8px 12px", borderRadius: "10px",
+      border: `1px solid ${c.border}`, background: c.elevated,
+      color: c.textDim, cursor: "pointer", fontSize: "13px",
+      transition: "background .15s",
+    },
   };
 }

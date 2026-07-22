@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 
 const CHIPS = ["Kod tabanını özetle", "Test yaz", "Hata ayıkla", "Refactor öner"];
 
-export default function Home({ c, styles, model, modelDot, backendsList, onPickModel, onSend }) {
+export default function Home({ c, styles, model, modelDot, backendsList, onPickModel, onSend, onOpenTerminal }) {
   const [text, setText] = useState("");
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const modelMenuRef = useRef(null);
@@ -89,6 +89,42 @@ export default function Home({ c, styles, model, modelDot, backendsList, onPickM
           <div key={chip} style={styles.chip} onClick={() => submit(chip)}>{chip}</div>
         ))}
       </div>
+
+      {/* 3D Terminal butonu */}
+      <div style={{ display: "flex", justifyContent: "center", marginTop: "28px" }}>
+        <TerminalBtn c={c} onClick={onOpenTerminal} />
+      </div>
+    </div>
+  );
+}
+
+function TerminalBtn({ c, onClick }) {
+  const [h, setH] = useState(false);
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: "10px",
+        padding: "10px 20px", borderRadius: "14px", cursor: "pointer",
+        border: `1px solid ${h ? c.accent : c.border}`,
+        background: h ? `${c.accent}18` : c.elevated,
+        transition: "border-color .15s, background .15s",
+        boxShadow: h ? `0 0 16px ${c.accentGlow}` : "none",
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="4" width="18" height="16" rx="3" stroke={h ? c.accent : c.textDim} strokeWidth="1.5"/>
+        <path d="M7 9l4 3-4 3" stroke={h ? c.accent : c.textDim} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <line x1="13" y1="15" x2="17" y2="15" stroke={h ? c.accent : c.textDim} strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+      <span style={{ fontSize: "13.5px", fontWeight: 600, color: h ? c.accent : c.textDim }}>
+        3D Terminal
+      </span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.5 }}>
+        <path d="M7 17L17 7M17 7H7M17 7v10" stroke={h ? c.accent : c.textDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
     </div>
   );
 }

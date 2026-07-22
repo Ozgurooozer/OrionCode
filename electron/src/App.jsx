@@ -6,6 +6,7 @@ import Titlebar from "./components/Titlebar.jsx";
 import Rail from "./components/Rail.jsx";
 import Home from "./components/Home.jsx";
 import Chat from "./components/Chat.jsx";
+import { Terminal3D } from "../Terminal/index";
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
@@ -210,9 +211,10 @@ export default function App() {
           sessions={sessionsList}
           onLoadSession={handleLoadSession}
           currentSessionId={currentSessionId}
+          onSetView={setView}
         />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", padding: "0 32px" }}>
-          {!online && (
+          {!online && view !== "terminal3d" && (
             <div style={{ position: "absolute", top: "10px", fontSize: "11.5px", color: c.textDim, opacity: 0.75 }}>
               orion-server'a bağlanılamıyor — sunucu başlatılıyor olabilir
             </div>
@@ -222,16 +224,24 @@ export default function App() {
                   modelDot={backend === "ollama" ? "#5dbb7a" : c.accent}
                   backendsList={backendsList}
                   onPickModel={(b, m) => { setBackend(b); setModel(m); }}
-                  onSend={handleSend} />
-          ) : (
+                  onSend={handleSend}
+                  onOpenTerminal={() => setView("terminal3d")} />
+          ) : view === "chat" ? (
             <Chat c={c} styles={styles} model={model ?? "model seçilmedi"} statusOnline={online}
                   messages={messages} onSend={handleSend} onCommand={handleCommand}
                   commandList={commandList}
                   onGoHome={() => setView("home")}
                   title={title} />
-          )}
+          ) : null}
         </div>
       </div>
+
+      {/* Terminal 3D — tam ekran overlay (Titlebar üstünde değil) */}
+      {view === "terminal3d" && (
+        <div style={{ position: "fixed", top: "38px", left: 0, right: 0, bottom: 0, zIndex: 50 }}>
+          <Terminal3D theme={theme} onClose={() => setView("home")} />
+        </div>
+      )}
     </div>
   );
 }

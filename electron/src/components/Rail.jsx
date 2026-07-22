@@ -2,11 +2,15 @@ import { useState } from "react";
 import Icon from "./Icon.jsx";
 import { THEMES, FONTS, ICONS } from "../theme.js";
 
+// terminal3d ikon — monospace ekran simgesi
+const ICON_TERMINAL = '<rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M7 9l4 3-4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><line x1="13" y1="15" x2="17" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>';
+
 const NAV_ITEMS = [
-  { key: "sessions", label: "Oturumlar",         icon: ICONS.clock },
-  { key: "vault",    label: "Hafıza Kasası",      icon: ICONS.vault },
-  { key: "router",   label: "Model Yönlendirici", icon: ICONS.router },
-  { key: "mcp",      label: "MCP Sunucuları",     icon: ICONS.mcp },
+  { key: "sessions",   label: "Oturumlar",         icon: ICONS.clock,   view: false },
+  { key: "vault",      label: "Hafıza Kasası",      icon: ICONS.vault,   view: false },
+  { key: "router",     label: "Model Yönlendirici", icon: ICONS.router,  view: false },
+  { key: "mcp",        label: "MCP Sunucuları",     icon: ICONS.mcp,     view: false },
+  { key: "terminal3d", label: "3D Terminal",         icon: ICON_TERMINAL, view: true  },
 ];
 
 const SETTINGS_ITEMS = [
@@ -19,6 +23,7 @@ export default function Rail({
   c, styles, theme, setTheme, font, setFont, railOpen,
   onRailEnter, onRailLeave, onTogglePin, pinned,
   onNewSession, sessions, onLoadSession, currentSessionId,
+  onSetView,
 }) {
   const [settingsOpen, setSettingsOpen]   = useState(false);
   const [themeSubOpen, setThemeSubOpen]   = useState(false);
@@ -66,9 +71,20 @@ export default function Rail({
             <RailRow key={nav.key} style={{
               ...styles.railItem,
               ...(activeNav === nav.key ? { background: c.hover } : {}),
-            }} hover={c.hover} onClick={() => toggleNav(nav.key)}>
+            }} hover={c.hover} onClick={() => {
+              if (nav.view && onSetView) {
+                onSetView(nav.key);
+              } else {
+                toggleNav(nav.key);
+              }
+            }}>
               <Icon path={nav.icon} size={19} />
               {railOpen && <span style={styles.railLabel}>{nav.label}</span>}
+              {railOpen && nav.view && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ marginLeft: "auto", opacity: 0.45 }}>
+                  <path d="M7 17L17 7M17 7H7M17 7v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
             </RailRow>
           ))}
         </div>

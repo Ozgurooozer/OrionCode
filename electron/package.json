@@ -8,23 +8,39 @@
     "build:renderer": "node build.js",
     "dev": "node build.js --watch & electron . ",
     "start": "npm run build:renderer && electron .",
-    "dist": "npm run build:renderer && electron-builder"
+    "dist": "npm run build:renderer && electron-builder",
+    "typecheck": "tsc --noEmit"
   },
   "author": "Ozyn",
   "license": "MIT",
   "dependencies": {
+    "@babylonjs/core": "^9.17.1",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "electron": "^43.1.1",
     "electron-builder": "^25.1.8",
-    "esbuild": "^0.28.1"
+    "esbuild": "^0.28.1",
+    "typescript": "^7.0.2"
   },
   "build": {
     "appId": "com.ozyn.orion-desktop",
     "productName": "Orion",
-    "files": ["main.js", "preload.js", "index.html", "dist/**", "assets/**"],
-    "directories": { "output": "release" }
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "dist/**",
+      "assets/**"
+    ],
+    "directories": {
+      "output": "release"
+    }
   }
 }

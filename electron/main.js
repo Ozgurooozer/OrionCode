@@ -11,9 +11,17 @@ const os     = require("os");
 const http   = require("http");
 const { spawn } = require("child_process");
 
-const REPO_ROOT   = path.join(__dirname, "..");       // molp/
-const SERVER_FILE = path.join(REPO_ROOT, "orion-server.js");
-const TOKEN_FILE  = path.join(os.homedir(), ".orion", "server-token");
+const REPO_ROOT = path.join(__dirname, "..");       // molp/
+const TOKEN_FILE = path.join(os.homedir(), ".orion", "server-token");
+
+// TypeScript geçişine uyumlu: .js yoksa .ts'e bak
+function resolveServerFile() {
+  const js = path.join(REPO_ROOT, "orion-server.js");
+  if (fs.existsSync(js)) return { file: js, ts: false };
+  const ts = path.join(REPO_ROOT, "orion-server.ts");
+  if (fs.existsSync(ts)) return { file: ts, ts: true };
+  return null;
+}
 
 let serverProc = null;
 let mainWindow = null;
@@ -53,23 +61,67 @@ function ping(port) {
 // ÖNEMLİ: process.execPath burada electron.exe'yi gösterir, düz node'u değil.
 // ELECTRON_RUN_AS_NODE olmadan spawn edilirse orion-server.js bir Electron
 // app'i gibi açılmaya çalışılır ve düzgün çalışmaz — bu daha önceki bir bug'dı.
+// Sistem node'unu PATH üzerinden bul (Electron'un kendi node'u .ts'i doğru işlemiyor)
+function findSystemNode() {
+  const { execSync } = require("child_process");
+  try {
+    const out = execSync("where node", { encoding: "utf8", timeout: 2000 }).trim();
+    // İlk satırı al; Electron'un kendi yolunu atla
+    const lines = out.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const systemNode = lines.find(l => !l.toLowerCase().includes("electron"));
+    return systemNode ?? lines[0] ?? "node";
+  } catch {
+    return "node"; // PATH'te bulunur umarız
+  }
+}
+
 async function ensureServer(port) {
   if (await ping(port)) return true; // zaten ayakta
+
+  const server = resolveServerFile();
+  if (!server) {
+    console.error("[orion-server] orion-server.js / orion-server.ts bulunamadı — sunucu başlatılamıyor");
+    return false;
+  }
+
   return new Promise(resolve => {
-    serverProc = spawn(process.execPath, [SERVER_FILE, "--port", String(port)], {
+    let nodeExe, args, tmpFile = null;
+    if (server.ts) {
+      // orion-server.ts: BOM + satır 2 shebang → parser hatası.
+      // Aynı dizinde temiz bir kopyasını yaz, spawn et, sonra sil.
+      try {
+        const raw = fs.readFileSync(server.file, "utf8");
+        const cleaned = raw
+          .replace(/﻿/g, "")          // tüm BOM karakterlerini temizle
+          .replace(/^#![^\n]*\n?/m, "");   // shebang satırını kaldır
+        tmpFile = path.join(REPO_ROOT, ".orion-server-run.ts");
+        fs.writeFileSync(tmpFile, cleaned, "utf8");
+      } catch (e) {
+        console.error("[orion-server] temp dosya oluşturulamadı:", e.message);
+        resolve(false); return;
+      }
+      nodeExe = findSystemNode();
+      args = ["--experimental-strip-types", tmpFile, "--port", String(port)];
+    } else {
+      nodeExe = process.execPath;
+      args = [server.file, "--port", String(port)];
+    }
+
+    serverProc = spawn(nodeExe, args, {
       cwd: REPO_ROOT,
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+      env: { ...process.env, ...(server.ts ? {} : { ELECTRON_RUN_AS_NODE: "1" }) },
     });
     serverProc.stdout.on("data", d => process.stdout.write(`[orion-server] ${d}`));
     serverProc.stderr.on("data", d => process.stderr.write(`[orion-server] ${d}`));
+    const cleanupTmp = () => { if (tmpFile) { try { fs.unlinkSync(tmpFile); } catch {} tmpFile = null; } };
     serverProc.on("error", err => {
       console.error(`[orion-server] başlatılamadı: ${err.message}`);
-      serverProc = null;
+      serverProc = null; cleanupTmp();
     });
     serverProc.on("exit", code => {
       if (code !== 0) console.error(`[orion-server] çıktı, kod: ${code}`);
-      serverProc = null;
+      serverProc = null; cleanupTmp();
     });
 
     // Sunucu ayağa kalkana kadar bekle (maks 8sn, 250ms aralık)
@@ -150,12 +202,15 @@ async function createWindow() {
   const started = await ensureServer(connPort);
   connToken = readToken(); // sunucu ilk çalıştırmada token'ı burada üretmiş olabilir
   if (!started) {
-    console.error("orion-server.js başlatılamadı — /health yanıt vermedi");
+    const srvFile = resolveServerFile();
+    const srvPath = srvFile ? srvFile.file : path.join(REPO_ROOT, "orion-server.ts");
+    console.error("orion-server başlatılamadı — /health yanıt vermedi");
     dialog.showErrorBox(
       "Orion sunucusu başlatılamadı",
-      `orion-server.js ayağa kalkmadı (port ${connPort}).\n\n` +
-      `Terminalde elle deneyin: node "${SERVER_FILE}" --port ${connPort}\n` +
-      `Hata çıktısını görmek için bu pencereyi DevTools (Ctrl+Shift+I) ile açık tutun.`
+      `orion-server ayağa kalkmadı (port ${connPort}).\n\n` +
+      `Terminalde elle deneyin:\n  node --experimental-strip-types "${srvPath}" --port ${connPort}\n\n` +
+      `Hata çıktısını görmek için DevTools (Ctrl+Shift+I) açık tutun.\n` +
+      `3D Terminal /level komutları sunucusuz da çalışır.`
     );
   }
 
