@@ -27,7 +27,9 @@ Her satır: `{ kategoriler[], rota, skill, karmasiklik, tahmini_butce, wall_time
 
 > ⚠️ Bu tablo ve aşağıdaki sözdizim şeması, 300 satırlık gerçek log analizi çalıştırılmadan önce yazıldı. Fırça'nın ilkesi ("dil canlı bir şey, spec'e yazmak ölü iş") burada ihlal edilmiş olabilir. Damıtıma başlamadan önce `node scripts/tayf_distill.js` çalıştırılıp gerçek dağılım bu taslakla karşılaştırılmalı — fark varsa veri kazanır, taslak silinir/güncellenir.
 
-> **Kod karşılığı:** Bu paletin Seviye 0 (kural/anahtar-kelime, LLM'siz) uygulaması `core/agents/level0.js` — Meissa artık net tek-kategori eşleşmelerde LLM'e hiç gitmiyor. Log satırlarındaki `level` alanı (0=kural, 2=LLM) hangi katmanın karar verdiğini gösterir. Fırça damıtım yaparken palet güncellenirse level0.js de senkron güncellenmeli. Seviye 1 (embedding, nomic-embed-text) Faz 6/7'ye ertelendi — MVP'yi bloklamaz.
+> **Kod karşılığı:** Bu paletin Seviye 0 (kural/anahtar-kelime, LLM'siz) uygulaması `core/agents/level0.ts` — Meissa artık net tek-kategori eşleşmelerde LLM'e hiç gitmiyor. Log satırlarındaki `level` alanı (0=kural, 2=LLM) hangi katmanın karar verdiğini gösterir. Seviye 1 (embedding, nomic-embed-text) Faz 6/7'ye ertelendi — MVP'yi bloklamaz.
+>
+> **Tamamlanma kriteri (bağlayıcı):** Palet iki yerde yaşıyor — bu tablo ve `level0.ts`. "TAYF v0.1 damıtımı tamamlandı" durumu, yalnızca **level0.ts yeni paletle güncellenip `tests/level0.test.js`'in tamamı (38 test) tekrar yeşil olduğunda** gerçekleşir. level0.ts güncellemesi ayrı, sonraya bırakılabilir bir görev değil — damıtımın kendisinin bir parçası. Aradaki boşlukta iki kaynağın sapması sessizce bozulan hafıza sınıfında bir hatadır.
 
 | Kategori | Trigger Örnekleri | Rota |
 |----------|-------------------|------|

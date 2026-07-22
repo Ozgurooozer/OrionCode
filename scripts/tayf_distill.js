@@ -32,10 +32,23 @@ success.forEach(e => {
   for (const k of e.output_parsed?.kategoriler ?? []) kat[k] = (kat[k] ?? 0) + 1;
 });
 
+// level × kategori çapraz tablo — hangi kategori hep LLM'e mi düşüyor,
+// hangisi Seviye 0'da rahatça çözülüyor (level alanı olmayan eski satırlar
+// için level "pre-level0" kovasına düşer, ayrı tutulur).
+const levelByKat = {};
+success.forEach(e => {
+  const lvl = "level" in e ? String(e.level) : "pre-level0";
+  for (const k of e.output_parsed?.kategoriler ?? []) {
+    levelByKat[k] = levelByKat[k] ?? {};
+    levelByKat[k][lvl] = (levelByKat[k][lvl] ?? 0) + 1;
+  }
+});
+
 console.log("=== BAŞARILI DAĞILIM ===");
 console.log("Toplam başarılı:", success.length, "/", entries.length);
 console.log("Rota:", JSON.stringify(rota, null, 2));
 console.log("Kategoriler:", JSON.stringify(kat, null, 2));
+console.log("Kategori × Seviye:", JSON.stringify(levelByKat, null, 2));
 
 console.log("\n=== HATA/FALLBACK LİSTESİ (" + failed.length + " satır) ===");
 failed.forEach(e => {
