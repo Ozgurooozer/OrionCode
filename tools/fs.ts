@@ -565,9 +565,19 @@ function execute(name, input) {
       const gTo   = _guardPath(input.to,   "move_file");
       if (gTo.error)   return gTo.error;
       if (!fs.existsSync(gFrom.abs)) return `HATA: Kaynak bulunamadı: ${input.from}`;
+      const cp = checkpoint.snapshot(gFrom.abs, "move_file");
       fs.mkdirSync(path.dirname(gTo.abs), { recursive: true });
-      fs.renameSync(gFrom.abs, gTo.abs);
-      return `Taşındı: ${input.from} → ${input.to}`;
+      try {
+        fs.renameSync(gFrom.abs, gTo.abs);
+      } catch (err) {
+        // EXDEV: farklı disk/filesystem arası taşıma — kopyala+sil ile düzelt
+        if (err.code === "EXDEV") {
+          fs.copyFileSync(gFrom.abs, gTo.abs);
+          fs.unlinkSync(gFrom.abs);
+        } else { throw err; }
+      }
+      const cpNote = cp ? ` [checkpoint ${cp}]` : "";
+      return `Taşındı: ${input.from} → ${input.to}${cpNote}`;
     }
 
     case "file_info": {
