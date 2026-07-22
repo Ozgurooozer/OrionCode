@@ -148,6 +148,36 @@ function _parse(raw) {
   return { kategoriler, karmasiklik, rota, skill, tahmini_butce };
 }
 
+// ── Edimsöz (Speech Act) Labeling ────────────────────────────────────────────
+// Dört tip: TALEP (eylem isteği), SORU (bilgi/açıklama), SELAMLı (sosyal),
+// ZİNCİR (bağlaçlı çok-adım). Kategori ve rotadan bağımsız ikinci bir eksen.
+
+const _SOCIAL_WORDS = ["merhaba", "selam", "teşekkür", "günaydın", "naber",
+                       "hello", "thanks", "eyvallah", "sağol", "tamam", "anladım"];
+const _Q_STARTS    = ["ne ", "neden", "nasıl", "nerede", "ne zaman", "hangi ",
+                       "kaç ", "kim ", "what ", "why ", "how ", "when ", "where ",
+                       "which ", "who "];
+const _CONNECTORS  = [" ve ", " sonra ", " ardından ", " and ", " then "];
+const _CTX_MARKERS = ["bu ", "bunu", "bunun", "şunu", "şunun", "onu ", "onun ",
+                       "dediğin", "bahsettiğin", "yukardaki", "aşağıdaki", "önceki"];
+
+function _labelEdim(input) {
+  const t  = String(input ?? "").trim();
+  const tl = t.toLowerCase();
+  if (!tl) return "SELAMLı";
+  // emoji-only
+  if (!tl.replace(/[\u{1F000}-\u{1FFFF}☀-⟿\u{1F300}-\u{1F9FF}]+/gu, "").trim()) return "SELAMLı";
+  if (_SOCIAL_WORDS.some(w => tl.includes(w))) return "SELAMLı";
+  if (tl.endsWith("?") || _Q_STARTS.some(w => tl.startsWith(w) || tl.includes(" " + w))) return "SORU";
+  if (tl.length > 20 && _CONNECTORS.some(c => tl.includes(c))) return "ZİNCİR";
+  return "TALEP";
+}
+
+function _isContextDependent(input) {
+  const tl = String(input ?? "").trim().toLowerCase();
+  return _CTX_MARKERS.some(p => tl.startsWith(p) || tl.includes(" " + p));
+}
+
 // ── Fallback sonuç ────────────────────────────────────────────────────────────
 
 const FALLBACK = Object.freeze({
@@ -215,6 +245,8 @@ async function run(userMessage, { sessionId = null } = {}) {
     wall_time_ms,
     level,
     error,
+    edim:              _labelEdim(truncated),
+    context_dependent: _isContextDependent(truncated),
   };
   _logRun(logEntry);
 

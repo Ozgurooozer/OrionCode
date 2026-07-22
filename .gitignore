@@ -35,6 +35,10 @@ mcp.json
 # Test çıktıları (binary terminal verisi içerebilir)
 *-test-output.txt
 
+# promptfoo çıktıları
+.promptfoo/
+promptfoo-cache/
+
 # Harici git repo (Kitty terminal — sadece geliştirme için clone)
 kitty/
 

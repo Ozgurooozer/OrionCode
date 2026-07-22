@@ -50,6 +50,50 @@ console.log("Rota:", JSON.stringify(rota, null, 2));
 console.log("Kategoriler:", JSON.stringify(kat, null, 2));
 console.log("Kategori × Seviye:", JSON.stringify(levelByKat, null, 2));
 
+// ── Level0 kapsama (kategori başına) ─────────────────────────────────────────
+// Yeni format kayıtlarda level=0 veya level=2; eski format level alanı yok.
+const newFormatSuccess = success.filter(e => "level" in e);
+if (newFormatSuccess.length > 0) {
+  const level0Count = newFormatSuccess.filter(e => e.level === 0).length;
+  const level2Count = newFormatSuccess.filter(e => e.level === 2).length;
+  console.log("\n=== LEVEL0 KAPSAMA (" + newFormatSuccess.length + " yeni kayıt) ===");
+  console.log(`Level 0 (kural/LLM'siz): ${level0Count} (${Math.round(level0Count/newFormatSuccess.length*100)}%)`);
+  console.log(`Level 2 (LLM kararı):    ${level2Count} (${Math.round(level2Count/newFormatSuccess.length*100)}%)`);
+}
+
+// ── Edimsöz dağılımı ─────────────────────────────────────────────────────────
+// Yalnızca meissa.ts güncellenmesinden sonra yazılan kayıtlarda edim alanı var.
+const edimEntries = entries.filter(e => e.edim != null);
+if (edimEntries.length > 0) {
+  const edimDist  = {};
+  const edimByKat = {};
+  let ctxDep = 0;
+  edimEntries.forEach(e => {
+    edimDist[e.edim] = (edimDist[e.edim] ?? 0) + 1;
+    if (e.context_dependent) ctxDep++;
+    for (const k of e.output_parsed?.kategoriler ?? []) {
+      edimByKat[k] = edimByKat[k] ?? {};
+      edimByKat[k][e.edim] = (edimByKat[k][e.edim] ?? 0) + 1;
+    }
+  });
+  console.log("\n=== EDİMSÖZ DAĞILIMI (" + edimEntries.length + " kayıt) ===");
+  console.log("Edimsöz tipi:", JSON.stringify(edimDist, null, 2));
+  console.log(`Bağlam-bağımlı: ${ctxDep} / ${edimEntries.length} (${Math.round(ctxDep/edimEntries.length*100)}%)`);
+  console.log("Kategori × Edimsöz:", JSON.stringify(edimByKat, null, 2));
+
+  // Rota × edimsöz — "sohbet isteği" skill'e gitmiş mi?
+  const rotaByEdim = {};
+  edimEntries.filter(e => e.output_parsed?.rota).forEach(e => {
+    const r = e.output_parsed.rota;
+    rotaByEdim[e.edim] = rotaByEdim[e.edim] ?? {};
+    rotaByEdim[e.edim][r] = (rotaByEdim[e.edim][r] ?? 0) + 1;
+  });
+  console.log("Edimsöz × Rota (false skill routing tespiti):", JSON.stringify(rotaByEdim, null, 2));
+} else {
+  console.log("\n=== EDİMSÖZ: eski format kayıtlar, meissa.ts güncellenmesinden önceki log ===");
+  console.log("    Yeni sınıflandırmalar başladıkça burada edimsöz dağılımı görünecek.");
+}
+
 console.log("\n=== HATA/FALLBACK LİSTESİ (" + failed.length + " satır) ===");
 failed.forEach(e => {
   console.log("---");

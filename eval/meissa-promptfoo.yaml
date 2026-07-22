@@ -1,0 +1,383 @@
+# eval/meissa-promptfoo.yaml
+# Meissa TAYF sınıflandırıcı — otomatik isabet testi
+# Kaynak: TAYF/ELLE_KONTROL_50.md (43 ✅ satır, 7 ❌ bilinen sınırlama)
+#
+# Çalıştırmak için:
+#   npx promptfoo@latest eval -c eval/meissa-promptfoo.yaml
+#
+# NOT: Level2 (LLM) kararları Ollama çalışıyorsa tam değerlendirme yapar.
+#      Ollama kapalıysa level0 eşleşmeleri (yaklaşık %40) hâlâ çalışır,
+#      geri kalanlar FALLBACK (sohbet/sohbet) döner — rota=sohbet assertleri geçer,
+#      resim/ses assertleri başarısız olur.
+
+description: "Meissa TAYF Sınıflandırıcı — Elle Kontrol 50 İsabet Testi"
+
+providers:
+  - file://scripts/meissa-promptfoo-provider.js
+
+prompts:
+  - "{{message}}"
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: |
+        // output geçerli JSON olmalı
+        try { JSON.parse(output); return true; } catch { return false; }
+
+tests:
+
+  # ─── ANALİZ / sohbet (satır 1-3) ──────────────────────────────────────────
+
+  - description: "#1 — analiz/sohbet: bug nerede olabilir"
+    vars:
+      message: "bug nerede olabilir"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+      - type: javascript
+        value: "JSON.parse(output).kategoriler.includes('analiz')"
+
+  - description: "#2 — analiz/sohbet: memory leak tespiti"
+    vars:
+      message: "memory leak tespiti"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+      - type: javascript
+        value: "JSON.parse(output).kategoriler.includes('analiz')"
+
+  - description: "#3 — analiz/sohbet: performans sorunlarını bul"
+    vars:
+      message: "performans sorunlarını bul"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+      - type: javascript
+        value: "JSON.parse(output).kategoriler.includes('analiz')"
+
+  # ─── KOD / sohbet (satır 5-10, 13-15) ──────────────────────────────────────
+
+  - description: "#5 — kod/sohbet: SQL injection girdisi"
+    vars:
+      message: "'; DROP TABLE users; --"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+      - type: javascript
+        value: "JSON.parse(output).kategoriler.includes('kod')"
+
+  - description: "#6 — kod/sohbet: commit mesajı öner"
+    vars:
+      message: "commit mesajı öner"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  - description: "#7 — kod/sohbet: docker container nasıl çalışır"
+    vars:
+      message: "docker container nasıl çalışır"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+      - type: javascript
+        value: "JSON.parse(output).kategoriler.includes('kod')"
+
+  - description: "#8 — kod/sohbet: git rebase ne işe yarar"
+    vars:
+      message: "git rebase ne işe yarar"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+      - type: javascript
+        value: "JSON.parse(output).kategoriler.includes('kod')"
+
+  - description: "#9 — kod/sohbet: hocam kod yazıver"
+    vars:
+      message: "hocam kod yazıver"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+      - type: javascript
+        value: "JSON.parse(output).kategoriler.includes('kod')"
+
+  - description: "#10 — kod/sohbet: javascript async await örneği"
+    vars:
+      message: "javascript async await örneği"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+      - type: javascript
+        value: "JSON.parse(output).kategoriler.includes('kod')"
+
+  - description: "#13 — kod/sohbet: python fibonacci"
+    vars:
+      message: "python'da fibonacci yaz"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+      - type: javascript
+        value: "JSON.parse(output).kategoriler.includes('kod')"
+
+  - description: "#14 — kod/sohbet: sql join açıkla"
+    vars:
+      message: "sql join açıkla"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  - description: "#15 — kod/sohbet: typescript interface nedir"
+    vars:
+      message: "typescript interface nedir"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  # ─── KARMA / sohbet (satır 18) ───────────────────────────────────────────────
+
+  - description: "#18 — karma/sohbet: proje planı oluştur"
+    vars:
+      message: "proje planı oluştur, milestone'ları belirle, takıma dağıt"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  # ─── RESİM / skill:image (satır 19-32) ──────────────────────────────────────
+
+  - description: "#19 — resim/skill:image: emoji girdi"
+    vars:
+      message: "🎨🖼️👨‍💻"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  - description: "#20 — resim/skill:image: 3d render of a mountain"
+    vars:
+      message: "3d render of a mountain"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  - description: "#21 — resim/skill:image: abi bi resim at"
+    vars:
+      message: "abi bi resim at"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  - description: "#23 — resim/skill:image: anime karakteri resim yap"
+    vars:
+      message: "anime karakteri resim yap"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  - description: "#24 — resim/skill:image: cyberpunk kız çiz"
+    vars:
+      message: "bana bir cyberpunk kız çiz"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  - description: "#25 — resim/skill:image: draw a space station"
+    vars:
+      message: "draw a space station"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  - description: "#26 — resim/skill:image: fantasy ortam görsel"
+    vars:
+      message: "fantasy ortam görsel"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  - description: "#27 — resim/skill:image: generate an image of a dragon"
+    vars:
+      message: "generate an image of a dragon"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  - description: "#28 — resim/skill:image: kanka anime çiz"
+    vars:
+      message: "kanka anime çiz"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  - description: "#29 — resim/skill:image: pixel art knight sprite"
+    vars:
+      message: "pixel art knight sprite"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  - description: "#30 — resim/skill:image: portrait of an elf warrior"
+    vars:
+      message: "portrait of an elf warrior"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  - description: "#32 — resim/skill:image: siberpunk şehri görseli oluştur"
+    vars:
+      message: "siberpunk şehri görseli oluştur"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'image'"
+
+  # ─── SES / skill:voice (satır 34-38) ─────────────────────────────────────────
+
+  - description: "#34 — ses/skill:voice: bu metni seslendir"
+    vars:
+      message: "bu metni seslendir: Merhaba Dünya"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'voice'"
+
+  - description: "#35 — ses/skill:voice: bunu sesle okusana"
+    vars:
+      message: "bunu sesle okusana"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'voice'"
+
+  - description: "#36 — ses/skill:voice: oku: Orion hazır"
+    vars:
+      message: "oku: Orion hazır"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'voice'"
+
+  - description: "#37 — ses/skill:voice: sesli oku şunu"
+    vars:
+      message: "sesli oku şunu"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'voice'"
+
+  - description: "#38 — ses/skill:voice: speak this: hello world"
+    vars:
+      message: "speak this: hello world"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'skill'"
+      - type: javascript
+        value: "JSON.parse(output).skill === 'voice'"
+
+  # ─── SOHBET / sohbet (satır 39-47) ──────────────────────────────────────────
+
+  - description: "#39 — sohbet/sohbet: skull emoji"
+    vars:
+      message: "💀💀💀💀💀"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  - description: "#41 — sohbet/sohbet: bugün hava nasıl"
+    vars:
+      message: "bugün hava nasıl"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  - description: "#42 — sohbet/sohbet: merhaba nasılsın"
+    vars:
+      message: "merhaba nasılsın"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  - description: "#43 — sohbet/sohbet: ne yapabilirim"
+    vars:
+      message: "ne yapabilirim"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  - description: "#44 — sohbet/sohbet: tamam anladım"
+    vars:
+      message: "tamam anladım"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  - description: "#45 — sohbet/sohbet: teşekkürler"
+    vars:
+      message: "teşekkürler"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  - description: "#47 — sohbet/sohbet: yardım et"
+    vars:
+      message: "yardım et"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  # ─── YAZI / sohbet (satır 48-50) ─────────────────────────────────────────────
+
+  - description: "#48 — yazı/sohbet: blog yazısı yaz"
+    vars:
+      message: "bir blog yazısı yaz yapay zeka hakkında"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  - description: "#49 — yazı/sohbet: explain neural networks"
+    vars:
+      message: "explain neural networks"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+  - description: "#50 — yazı/sohbet: README.md dosyası oluştur"
+    vars:
+      message: "README.md dosyası oluştur"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).rota === 'sohbet'"
+
+# ─── Bilinen sınırlamalar (❌ satırlar — şema eksikliği, Faz 3 işi) ───────────
+# #4  retro scifi robot         → resim/skill:image  (level0 scifi trigger EKLENDİ → artık geçmeli)
+# #11 kod review yap...PR aç    → skill ama skill=null (code skill tipi yok)
+# #12 kod yaz test et ve dok.   → skill:image YANLIŞ (LLM halüsinasyon)
+# #16 bu kodu analiz et: for... → rota=skill YANLIŞ  (false positive)
+# #17 how does TCP/IP work      → rota=skill YANLIŞ  (false positive)
+# #22 animasyon oluştur ve kay. → skill:image yetersiz (animation skill yok)
+# #33 bir karakter çiz ve sesi. → skill=null YANLIŞ  (multi-skill şema yok)

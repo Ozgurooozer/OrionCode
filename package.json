@@ -11,7 +11,8 @@
     "start": "node --experimental-strip-types orion.ts",
     "server": "node --experimental-strip-types orion-server.ts",
     "bench": "node --experimental-strip-types scripts/bench.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "eval": "npx promptfoo@latest eval -c eval/meissa-promptfoo.yaml"
   },
   "keywords": [
     "cli",
