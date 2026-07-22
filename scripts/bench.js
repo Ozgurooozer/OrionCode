@@ -10,7 +10,7 @@ const RUNS  = parseInt(process.argv[2] ?? "3", 10);
 const results = [];
 
 for (let i = 0; i < RUNS; i++) {
-  const r = spawnSync(process.execPath, [path.join(ROOT, "orion.js"), "--bench"], {
+  const r = spawnSync(process.execPath, ["--experimental-strip-types", path.join(ROOT, "orion.ts"), "--bench"], {
     cwd: ROOT, encoding: "utf8", timeout: 60_000,
   });
   const m = (r.stdout ?? "").match(/BENCH (\{.*\})/);
