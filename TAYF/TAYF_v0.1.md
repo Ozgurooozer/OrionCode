@@ -1,46 +1,69 @@
 # TAYF v0.1 — Çerçeve (Fırça Sorumluluğunda)
 
-**Durum:** Damıtım bekleniyor — Meissa'nın ilk 3x100 koşusundan (300 satır, 2026-07-21) çıkarılacak
-**Tetikleyici:** `node scripts/meissa_batch.js --count 100` çalıştırıldıktan sonra
-**Context (damıtımdan önce oku):** [MEISSA_GURULTU_NOTLARI.md](MEISSA_GURULTU_NOTLARI.md) — 300 satırdaki gürültünün hangi kısmı dilin parçası, hangisi altyapının parçası, önceden ayrıştırılmış
+**Durum:** ✅ Damıtım tamamlandı — 608 satır, 553 başarılı (%91), 2026-07-22
+**Kaynak:** `~/.orion/meissa_runs/20260721.jsonl` + `20260722.jsonl`
+**Context:** [MEISSA_GURULTU_NOTLARI.md](MEISSA_GURULTU_NOTLARI.md)
 
 ---
 
-## Fırça'nın Damıtım Protokolü
+## Damıtım Sonuçları (2026-07-22, `node scripts/tayf_distill.js`)
 
-> "Dil canlı bir şey. Spec'e yazmak ölü iş. TAYF loglardan doğacak."
+### Rota Dağılımı (553 başarılı)
 
-Ham loglar: `~/.orion/meissa_runs/YYYYMMDD.jsonl`  
-Her satır: `{ kategoriler[], rota, skill, karmasiklik, tahmini_butce, wall_time_ms }`
+| Rota | Sayı | % |
+|------|------|---|
+| sohbet | 286 | 52% |
+| skill | 255 | 46% |
+| orchestration | 12 | 2% |
 
-### Damıtım Adımları (Batch tamamlandıktan sonra)
+### Kategori Dağılımı
 
-1. Tüm log dosyalarını birleştir
-2. `kategoriler` dağılımını çiz — hangi kategori kaç kez çıktı?
-3. `rota` → `skill` eşlemelerini çıkar
-4. Tetikleyici kelimeleri bağlamıyla tablo yap
-5. Hata/fallback olan girdilerin ortak paternini bul
+| Kategori | Sayı | Notlar |
+|----------|------|--------|
+| kod | 167 | — |
+| resim | 152 | — |
+| sohbet | 122 | — |
+| yazı | 63 | — |
+| analiz | 63 | — |
+| ses | 57 | — |
+| 3d | 3 | Kategori gerçek, palet'e eklendi |
+| typo'lar | 5 | sohabet/sohbetes/sohchet/speech/read — model tutarsızlığı |
+
+### Level Dağılımı (kategori × seviye)
+
+Pre-level0 (eski log formatı, level alanı yok) büyük çoğunluk. Yeni format:
+- **Level 0** (kural/LLM'siz): kod:14, resim:23, sohbet:8, ses:6, analiz:6, yazı:6 → toplam ~63
+- **Level 2** (LLM kararı): kod:11, resim:7, sohbet:12, ses:6, analiz:4, yazı:5 → toplam ~45
+
+### Hata Analizi (55 başarısız)
+
+| Hata Türü | Sayı | Kök Neden |
+|-----------|------|-----------|
+| JSON parse | ~30 | `tahmini_butce: 50-100` (range değeri, string olmalı) |
+| empty_input | ~12 | Boş/çok kısa girdi (da39a3ee tekrar ediyor) |
+| timeout | ~6 | Model timeout |
+| Metin dönüşü | ~7 | Model JSON yerine Türkçe metin üretti |
+
+**Kritik bug:** `tahmini_butce` alanı `500-1000`, `50-200`, `<0-50>` gibi değerler üretiyor → JSON.parse patlıyor. Router prompt'u `"tahmini_butce": 150` (tek sayı, tam tamsayı) örneklemeli.
 
 ---
 
-## Mevcut Trigger Paleti (ÖNCEKİ TAHMİN — veriyle karşılaştırılmadan güvenilmez)
+## Gerçek Trigger Paleti (Damıtımdan, Veri Kazandı)
 
-> ⚠️ Bu tablo ve aşağıdaki sözdizim şeması, 300 satırlık gerçek log analizi çalıştırılmadan önce yazıldı. Fırça'nın ilkesi ("dil canlı bir şey, spec'e yazmak ölü iş") burada ihlal edilmiş olabilir. Damıtıma başlamadan önce `node scripts/tayf_distill.js` çalıştırılıp gerçek dağılım bu taslakla karşılaştırılmalı — fark varsa veri kazanır, taslak silinir/güncellenir.
-
-> **Kod karşılığı:** Bu paletin Seviye 0 (kural/anahtar-kelime, LLM'siz) uygulaması `core/agents/level0.ts` — Meissa artık net tek-kategori eşleşmelerde LLM'e hiç gitmiyor. Log satırlarındaki `level` alanı (0=kural, 2=LLM) hangi katmanın karar verdiğini gösterir. Seviye 1 (embedding, nomic-embed-text) Faz 6/7'ye ertelendi — MVP'yi bloklamaz.
+> **Kod karşılığı:** Bu paletin Seviye 0 uygulaması `core/agents/level0.ts`. Log `level` alanı: 0=kural/LLM'siz, 2=LLM kararı. Seviye 1 (embedding) Faz 6/7'ye ertelendi.
 >
-> **Tamamlanma kriteri (bağlayıcı):** Palet iki yerde yaşıyor — bu tablo ve `level0.ts`. "TAYF v0.1 damıtımı tamamlandı" durumu, yalnızca **level0.ts yeni paletle güncellenip `tests/level0.test.js`'in tamamı (38 test) tekrar yeşil olduğunda** gerçekleşir. level0.ts güncellemesi ayrı, sonraya bırakılabilir bir görev değil — damıtımın kendisinin bir parçası. Aradaki boşlukta iki kaynağın sapması sessizce bozulan hafıza sınıfında bir hatadır.
+> **Tamamlanma kriteri:** Palet iki yerde yaşıyor — bu tablo ve `level0.ts`. "TAYF v0.1 damıtımı tamamlandı" = level0.ts yeni paletle güncellenip `tests/level0.test.js` (38 test) yeşil.
 
-| Kategori | Trigger Örnekleri | Rota |
-|----------|-------------------|------|
-| resim | resim, görsel, çiz, draw, anime, pixel, render | skill:image |
-| ses | seslendir, oku, söyle, voice, speak, tts | skill:voice |
-| kod | yaz, debug, fix, refactor, python, js, typescript | sohbet |
-| analiz | analiz, inceleme, kontrol, performance | sohbet |
-| yazı | yaz, oluştur, taslak, belge, README | sohbet |
-| sohbet | merhaba, teşekkür, nasıl, tamam | sohbet |
-| 3d | 3d, mesh, texture, render, model | skill:image |
-| orchestration | ve, ardından, sonra + birden fazla kategori | orchestration |
+| Kategori | Trigger Örnekleri (gerçek loglardan) | Rota | Gerçek Sayı |
+|----------|--------------------------------------|------|-------------|
+| resim | resim, görsel, çiz, draw, anime, pixel, render, portrait, cyberpunk | skill:image | 152 |
+| ses | seslendir, oku, söyle, voice, speak, tts, oku: | skill:voice | 57 |
+| kod | yaz, debug, fix, refactor, python, js, typescript, sql, git, docker | sohbet | 167 |
+| analiz | analiz, inceleme, kontrol, performance, bug, memory leak | sohbet | 63 |
+| yazı | blog yazısı, README, açıkla, explain | sohbet | 63 |
+| sohbet | merhaba, teşekkür, nasıl, tamam, yardım, emoji-only, aaaa... | sohbet | 122 |
+| 3d | 3d render, animasyon + kaydet | skill:image | 3 ✅ |
+| orchestration | ve/ardından/sonra + birden fazla kategori | orchestration | 12 |
 
 ---
 
@@ -54,7 +77,7 @@ Her satır: `{ kategoriler[], rota, skill, karmasiklik, tahmini_butce, wall_time
 
 ---
 
-## Sözdizim Şeması v0.1 (ÖNCEKİ TAHMİN — aynı uyarı geçerli)
+## Sözdizim Şeması v0.1
 
 ```
 TAYF_message ::= trigger* content context?

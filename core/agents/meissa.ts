@@ -126,10 +126,18 @@ function _extractJson(raw) {
   return null;
 }
 
+function _sanitizeBudget(json) {
+  // "tahmini_butce": 500-1000  → "tahmini_butce": 500   (model range bug)
+  // "tahmini_butce": <0-50>    → "tahmini_butce": 0
+  return json
+    .replace(/"tahmini_butce"\s*:\s*<[^>]*>/g, '"tahmini_butce": 0')
+    .replace(/"tahmini_butce"\s*:\s*(\d+)\s*-\s*\d+/g, '"tahmini_butce": $1');
+}
+
 function _parse(raw) {
   const json = _extractJson(raw);
   if (!json) return null;
-  const obj = JSON.parse(json);
+  const obj = JSON.parse(_sanitizeBudget(json));
 
   const kategoriler  = Array.isArray(obj.kategoriler) ? obj.kategoriler.filter(k => typeof k === "string") : ["sohbet"];
   const karmasiklik  = [1, 2, 3].includes(obj.karmasiklik) ? obj.karmasiklik : 1;
