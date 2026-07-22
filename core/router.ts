@@ -124,7 +124,7 @@ function decide(text: string, opts: DecideOpts = {}): RouteDecision {
 function _decideCore(text: string, { tokenCount = 0, mode = "agent", budgetTracker = null }: DecideOpts = {}): RouteDecision {
   const cfg = loadConfig();
 
-  const tier1: RouteDecision = { backend: "ollama",         model: cfg.tier1Model, tier: 1 };
+  const tier1: RouteDecision = { backend: cfg.tier1Backend ?? "ollama", model: cfg.tier1Model, tier: 1 };
   const tier2: RouteDecision = { backend: cfg.tier2Backend, model: cfg.tier2Model, tier: 2 };
 
   // Quality: budget dolmadıysa tier2, dolduysa tier1

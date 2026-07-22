@@ -44,3 +44,19 @@ test("decide: quality modunda → tier2", () => {
   assert.strictEqual(r.tier, 2);
   router.saveConfig({ budgetMode: "balanced" });
 });
+
+test("decide: tier1Backend config'i kullanılır — ollama hardcode değil", () => {
+  router.saveConfig({ tier1Backend: "lmstudio" });
+  const r = router.decide("selam", { tokenCount: 10, mode: "agent" });
+  assert.strictEqual(r.tier, 1);
+  assert.strictEqual(r.backend, "lmstudio", "tier1Backend config değeri dikkate alınmalı");
+  router.saveConfig({ tier1Backend: "ollama" }); // geri al
+});
+
+test("decide: tier2Backend config'i kullanılır", () => {
+  router.saveConfig({ tier2Backend: "openrouter", tier2Model: "meta-llama/llama-3.1-8b" });
+  const r = router.decide("debug this complex bug fix test", { tokenCount: 10, mode: "agent" });
+  assert.strictEqual(r.tier, 2);
+  assert.strictEqual(r.backend, "openrouter");
+  router.saveConfig({ tier2Backend: "anthropic", tier2Model: "claude-sonnet-4-6" }); // geri al
+});
