@@ -28,6 +28,8 @@ describe("level0 — net tek-kategori eşleşmeleri", () => {
     ["generate an image of a dragon",  "resim",  "skill",  "image"],
     ["sesli oku şunu",                 "ses",       "skill",  "voice"],
     ["bunu sesle okusana",             "ses",       "skill",  "voice"],
+    ["bu metni seslendir: Merhaba Dünya", "ses",   "skill",  "voice"],
+    ["speak this: hello world",        "ses",       "skill",  "voice"],
     ["animasyon oluştur",              "animasyon", "skill",  "animation"],
     ["animate this",                   "animasyon", "skill",  "animation"],
     ["hareketli sahne",                "animasyon", "skill",  "animation"],
@@ -62,7 +64,6 @@ describe("level0 — belirsizde LLM'e bırakma (null)", () => {
   const CASES = [
     // çok-kategori çakışması
     ["bir karakter çiz ve ardından seslendir", "iki kategori + bağlaç"],
-    ["bu metni seslendir: Merhaba Dünya",      "ses + sohbet çakışması"],
     ["bu kodu analiz et: for(let i=0;i<10;i++){}", "kod + analiz çakışması"],
     // trigger yok
     ["bugün hava nasıl",        "trigger kelime yok"],

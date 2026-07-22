@@ -95,7 +95,13 @@ function classify(input) {
     return { kategoriler: ["resim"], karmasiklik: 2, rota: "skill", skill: "image", tahmini_butce: 150 };
   }
 
-  const tokens = _tokenize(trimmed);
+  // "seslendir: <içerik>" veya "speak this: <içerik>" gibi TTS komutlarında
+  // içerik kısmı (`:` sonrası) yanlış kategori tetikleyebilir; sadece komut
+  // kısmını (`:` öncesi) sınıflandırmak için kullan.
+  const colonIdx = trimmed.indexOf(": ");
+  const classifyText = colonIdx >= 5 ? trimmed.slice(0, colonIdx) : trimmed;
+
+  const tokens = _tokenize(classifyText);
 
   const hits = [];
   for (const [name, cat] of Object.entries(CATEGORIES)) {

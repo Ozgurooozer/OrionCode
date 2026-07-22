@@ -27,7 +27,7 @@
 | 19 | 🎨🖼️👨‍💻 | resim | skill | image | 2 | 2 | ✅ | |
 | 20 | 3d render of a mountain | resim | skill | image | 1 | 0 | ✅ | |
 | 21 | abi bi resim at | resim | skill | image | 1 | 0 | ✅ | |
-| 22 | animasyon oluştur ve kaydet | animasyon | skill | animation | 2 | 0 | ✅ | Faz 3: skill:"animation" + level0 trigger eklendi |
+| 22 | animasyon oluştur ve kaydet | animasyon | skill | animation | 2 | 2 | ✅ | Faz 3: skill:"animation" eklendi; "ve kaydet" bağlacı level0'ı engeller → LLM |
 | 23 | anime karakteri resim yap | resim | skill | image | 1 | 0 | ✅ | |
 | 24 | bana bir cyberpunk kız çiz | resim | skill | image | 1 | 0 | ✅ | |
 | 25 | draw a space station | resim | skill | image | 1 | 0 | ✅ | |
@@ -68,6 +68,7 @@
 
 **Hafta 1 kapanış koşulu (MVP_PLAN_v1.1.md İ2):** ✅ %94 — MVP eşiği (%90+) geçildi, Hafta 1 resmi kapandı.
 **Faz 3 (2026-07-23):** ✅ Tüm şema sınırlamaları kapatıldı — `skill:"code"`, `skill:"animation"`, `skills:[]` eklendi.
+**Faz 3.1 (2026-07-23):** ✅ Level0 colon-split — `"seslendir: <içerik>"` ve `"speak this: <içerik>"` kalıpları artık level0'da yakalanır; içerik token'ları yanlış kategori tetiklemez. Promptfoo: 40/43 (%93) — kalan 3 Ollama gerektirir (#11 skill:code, #22 animasyon LLM path, #33 orchestration).
 
 ---
 
