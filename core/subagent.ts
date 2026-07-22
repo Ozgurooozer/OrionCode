@@ -3,7 +3,7 @@
 const { spawn } = require("child_process");
 const path = require("path");
 
-const ORION = path.join(__dirname, "..", "orion.js");
+const ORION = path.join(__dirname, "..", "orion.ts");
 
 /**
  * Tek bir görevi headless modda çalıştır.
@@ -34,7 +34,7 @@ function run({ task, model, backend, role, memoryScope, workspace, allowCommands
     if (model)   args.push("--model", model);
     if (role)    args.push("--role", role);
 
-    const child = spawn("node", [ORION, ...args], {
+    const child = spawn("node", ["--experimental-strip-types", ORION, ...args], {
       env,
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
