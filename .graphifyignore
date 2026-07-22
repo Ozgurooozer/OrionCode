@@ -1,0 +1,8 @@
+# Graphify ignore — minified/bundled JS dosyalarını hariç tut
+# Bunlar god node kirliliği yaratır (babylon.js tek başına 584 edge)
+
+tui/arcive/
+tui/animation/bundle/
+electron/node_modules/
+node_modules/
+graphify-out/
