@@ -86,7 +86,19 @@ function _trim(session) {
   const MAX_HISTORY = 60;
   if (session.msgs.length <= MAX_HISTORY) return;
   const { print } = require("../tui/output.ts");
-  const keep   = Math.floor(MAX_HISTORY / 2);
+  let keep = Math.floor(MAX_HISTORY / 2);
+  // Bölme noktası tool_use/tool_result çiftinin ortasına düşmemeli.
+  // Anthropic: role="user", content=[{type:"tool_result"}]
+  // OpenAI/Ollama: role="tool"
+  // Bu mesajlar recent'in başı olamaz — önceki tool_use bağlamı old'a (özete) gidiyor.
+  while (keep > 1) {
+    const first = session.msgs[session.msgs.length - keep];
+    if (!first) break;
+    const isOrphan = first.role === "tool" ||
+      (Array.isArray(first.content) && first.content.some((b) => b.type === "tool_result"));
+    if (!isOrphan) break;
+    keep--;
+  }
   const old    = session.msgs.slice(0, session.msgs.length - keep);
   const recent = session.msgs.slice(session.msgs.length - keep);
   const summary = _flattenMsgs(old).map(m => {
