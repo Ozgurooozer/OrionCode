@@ -75,9 +75,20 @@ function _matches(tokens, cat) {
  * @param {string} input
  * @returns {{kategoriler, karmasiklik, rota, skill, tahmini_butce}|null}
  */
+// Görsel sanat emojileri → resim (LLM emoji-only girdide JSON üretemez)
+const _ART_EMOJI    = /\p{Emoji}/u;
+const _ART_PATTERNS = /🎨|🖼|🖌|🎭|🎬|🎥|🎞|🖍/u;
+
 function classify(input) {
   const trimmed = String(input ?? "").trim();
   if (!trimmed || trimmed.length > MAX_INPUT_LENGTH) return null;
+
+  // Emoji-ağırlıklı, görsel sanat emojisi içeren kısa girdi → doğrudan resim
+  // ‍ = ZWJ, ️ = variation selector — bunlar emoji'den ayrışmaz
+  const textOnly = trimmed.replace(/\p{Emoji}+/gu, "").replace(/[‍️⃣]+/g, "").trim();
+  if (!textOnly && _ART_PATTERNS.test(trimmed)) {
+    return { kategoriler: ["resim"], karmasiklik: 2, rota: "skill", skill: "image", tahmini_butce: 150 };
+  }
 
   const tokens = _tokenize(trimmed);
 

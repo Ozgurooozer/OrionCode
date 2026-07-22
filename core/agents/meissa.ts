@@ -27,15 +27,29 @@ Kullanıcı mesajını analiz et. YALNIZCA şu JSON'ı döndür, başka hiçbir 
   "tahmini_butce": 150
 }
 
-Kurallar:
-- tahmini_butce HER ZAMAN tek bir tam sayıdır (0 ile 1000 arası), asla aralık (ör. "50-200") yazma
-- karmasiklik 1=basit/sohbet, 2=orta/skill, 3=yoğun/multi-adım
-- rota "skill" ise skill alanını doldur (image veya voice)
-- Boş, saçma veya anlamsız girdide: {"kategoriler":["sohbet"],"karmasiklik":1,"rota":"sohbet","skill":null,"tahmini_butce":0}
-- Türkçe veya İngilizce fark etmez
-- Resim/görsel/çiz/draw/image → kategoriler:["resim"], rota:"skill", skill:"image"
-- Ses/söyle/oku/seslendır/voice → kategoriler:["ses"], rota:"skill", skill:"voice"
-- Kod/debug/yaz → kategoriler:["kod"], rota:"sohbet"`;
+ROTA KARARI — önce bu üç soruyu sırayla sor:
+  1. Resim/görsel üretmek istiyor mu?  → EVET: rota:"skill", skill:"image"
+  2. Ses/okuma istiyor mu?             → EVET: rota:"skill", skill:"voice"
+  3. İkisi birden veya başka çok-adım? → rota:"orchestration", skill:null
+  4. Diğer her şey (kod, analiz, soru, açıklama, yazı, sohbet) → rota:"sohbet", skill:null
+
+SKİLL KURALI — kesin:
+  skill:"image"  → SADECE resim/görsel/çiz/draw/pixel/portrait/render/scifi/cyberpunk/fantasy
+  skill:"voice"  → SADECE ses/oku/seslendir/speak/voice/tts
+  skill:null     → kod yazmak/test/dokümantasyon/analiz/açıklama DAIMA null — kod≠resim
+
+Diğer kurallar:
+- tahmini_butce HER ZAMAN tek tam sayı (0-1000), asla aralık ("50-200" yasak)
+- karmasiklik: 1=basit(tek adım), 2=orta(birkaç adım), 3=yoğun(çok-adım/koordinasyon)
+- Boş/anlamsız: {"kategoriler":["sohbet"],"karmasiklik":1,"rota":"sohbet","skill":null,"tahmini_butce":0}
+- Soru/açıklama ("nasıl çalışır","nedir","explain","how does") → rota:"sohbet", skill:null
+
+Örnekler (bu üç durumu özellikle ezberle):
+  "bu kodu analiz et: for(i=0;i<10;i++){}" → {"kategoriler":["kod","analiz"],"karmasiklik":1,"rota":"sohbet","skill":null,"tahmini_butce":50}
+  "how does TCP/IP work"                   → {"kategoriler":["analiz"],"karmasiklik":1,"rota":"sohbet","skill":null,"tahmini_butce":50}
+  "kod yaz test et ve dokümante et"        → {"kategoriler":["kod","yazı"],"karmasiklik":2,"rota":"sohbet","skill":null,"tahmini_butce":100}
+  "bana bir cyberpunk kız çiz"             → {"kategoriler":["resim"],"karmasiklik":1,"rota":"skill","skill":"image","tahmini_butce":150}
+  "sesli oku şunu"                         → {"kategoriler":["ses"],"karmasiklik":1,"rota":"skill","skill":"voice","tahmini_butce":100}`;
 
 const DEFAULTS = {
   model:          "qwen2.5-coder:7b",
