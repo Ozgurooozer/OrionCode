@@ -9,7 +9,7 @@ describe("loops/shared.ts", () => {
 
   test("sabitleri doğru ihraç eder", () => {
     assert.equal(shared.MAX_ITERS, 40);
-    assert.equal(shared.TIER1_TOOLS.size, 12);
+    assert.equal(shared.TIER1_TOOLS.size, 13);
     assert.ok(shared.TIER1_TOOLS.has("read_file"));
     assert.ok(shared.TIER1_TOOLS.has("run_command"));
     assert.equal(shared.PARALLEL_SAFE.size, 18);

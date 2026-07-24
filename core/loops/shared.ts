@@ -9,11 +9,13 @@ const { print }   = require("../../tui/output.ts");
 const { aiTurnStart, aiTurnContinue } = require("../../tui/index.ts");
 
 const MAX_ITERS = 40;
+const MAX_ERROR_STREAK   = 5;  // art arda bu kadar araç hatası → kullanıcıya sor
+const STUCK_AFTER_REPEATS = 2; // repeat uyarısı bu kadar görmezden gelinirse → kullanıcıya sor
 
 const TIER1_TOOLS = new Set([
   "think", "read_file", "write_file", "edit_file", "multi_edit",
   "list_files", "glob_files", "search", "file_info", "file_outline",
-  "read_many_files", "run_command",
+  "read_many_files", "run_command", "generate_image",
 ]);
 
 const PARALLEL_SAFE = new Set([
@@ -32,6 +34,24 @@ const _WRITE_TOOLS  = new Set(["write_file","edit_file","multi_edit","apply_patc
 // "cyclical"  — aynı imza son historySize çağrının en az minRepeats'inde
 //               tekrar ediyor ama art arda değil (A-B-A-B gibi 2+ adımlı döngü).
 // Her iki durumda da modelin aracı yeniden çalıştırmadan uyarılması gerekir.
+// Art arda araç hatası takip eder; eşik aşılınca { stuck, lastErr } döner.
+function makeErrorStreakDetector(maxStreak = MAX_ERROR_STREAK) {
+  let streak = 0, lastErr = null;
+  return (toolOut) => {
+    const err = _toolCallError(toolOut);
+    if (err) { streak++; lastErr = err; } else streak = 0;
+    return { stuck: streak >= maxStreak, streak, lastErr };
+  };
+}
+
+// Takıldı mesajı — finalText olarak döner, kullanıcı okuyup yanıtlayabilir.
+function _stuckMessage(reason, lastErr) {
+  return i18n.t(
+    `I'm stuck and need your input. Reason: ${reason}.${lastErr ? ` Last error: ${lastErr}` : ""} What should I do?`,
+    `Takıldım, yardımına ihtiyacım var. Neden: ${reason}.${lastErr ? ` Son hata: ${lastErr}` : ""} Ne yapmalıyım?`
+  );
+}
+
 function makeRepeatDetector(historySize = 6, minRepeats = 3) {
   const hist = [];
   return sig => {
@@ -163,10 +183,10 @@ function makeThinkFilter(onVisible) {
 }
 
 module.exports = {
-  MAX_ITERS, TIER1_TOOLS, PARALLEL_SAFE,
+  MAX_ITERS, MAX_ERROR_STREAK, STUCK_AFTER_REPEATS, TIER1_TOOLS, PARALLEL_SAFE,
   _DIFF_RE, _DIFF_STAT_RE, _WRITE_TOOLS,
   _toolCallError, _cleanResponse,
   _callToolCached, _sweepSpeculexMisses, _emitDiff, _flattenMsgs,
-  makeThinkFilter, makeRepeatDetector,
+  makeThinkFilter, makeRepeatDetector, makeErrorStreakDetector, _stuckMessage,
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
 };

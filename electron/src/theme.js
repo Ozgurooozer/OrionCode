@@ -66,4 +66,5 @@ export const ICONS = {
   user: '<circle cx="12" cy="8" r="3.4" stroke="currentColor" stroke-width="1.5"/><path d="M5 20c1.2-4 4-6 7-6s5.8 2 7 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
   lock: '<rect x="4" y="10" width="16" height="10" rx="2.6" stroke="currentColor" stroke-width="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.5"/>',
   gauge: '<path d="M4 15a8 8 0 1 1 16 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12 15l3.5-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  image: '<rect x="3" y="5" width="18" height="14" rx="2.6" stroke="currentColor" stroke-width="1.5"/><circle cx="8.5" cy="10" r="1.5" fill="currentColor" opacity="0.7"/><path d="M3 16l5-5 4 4 3-3 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
 };

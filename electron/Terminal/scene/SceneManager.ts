@@ -9,28 +9,31 @@ import {
   Color4,
   MeshBuilder,
   StandardMaterial,
-  ActionManager,
+  GlowLayer,
 } from "@babylonjs/core";
 
 export class SceneManager {
   readonly engine: Engine;
   readonly scene:  Scene;
 
+  // Hedef renk (smooth transition için)
+  private _targetClear: Color4 | null = null;
+  private _targetAccent: Color3 | null = null;
+
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas, true, {
       preserveDrawingBuffer: false,
       stencil: true,
-      alpha: true,          // canvas şeffaf — HTML katmanlarıyla blend
+      alpha: true,
     });
 
     const scene = new Scene(this.engine);
     this.scene  = scene;
-    scene.clearColor = new Color4(0.020, 0.060, 0.130, 1.0); // siber default
+    scene.clearColor = new Color4(0.020, 0.060, 0.130, 1.0);
 
-    // ── Kamera — sabit, terminale odaklı ────────────────────────────────
+    // ── Kamera ──────────────────────────────────────────────────────────
     const cam = new FreeCamera("cam", new Vector3(0, 2.5, -14), scene);
     cam.setTarget(new Vector3(0, 0, 0));
-    // attachControl çağrılmıyor — kullanıcı kamerayı hareket ettiremez
 
     // ── Işıklar ──────────────────────────────────────────────────────────
     const ambient = new HemisphericLight("ambient", new Vector3(0, 1, 0), scene);
@@ -39,17 +42,49 @@ export class SceneManager {
 
     const accent = new PointLight("accent", new Vector3(0, 4, -4), scene);
     accent.intensity = 2.8;
-    accent.diffuse   = new Color3(0.00, 0.90, 1.0); // siber cyan default
+    accent.diffuse   = new Color3(0.00, 0.90, 1.0);
+
+    // ── Glow katmanı ─────────────────────────────────────────────────────
+    const glow = new GlowLayer("glow", scene);
+    glow.intensity = 0.7;
 
     // ── Sahne geometrisi ─────────────────────────────────────────────────
     this._buildTestLevel(scene);
 
-    // ── Render döngüsü ───────────────────────────────────────────────────
-    this.engine.runRenderLoop(() => scene.render());
+    // ── Render döngüsü + smooth renk geçişi ─────────────────────────────
+    this.engine.runRenderLoop(() => {
+      this._tickTransition();
+      scene.render();
+    });
 
     const onResize = () => this.engine.resize();
     window.addEventListener("resize", onResize);
     (this as unknown as { _onResize: () => void })._onResize = onResize;
+  }
+
+  // Her frame'de clearColor ve accent ışığını hedefe doğru lerp et
+  private _tickTransition() {
+    const speed = 0.04;
+    if (this._targetClear) {
+      const c = this.scene.clearColor;
+      c.r += (this._targetClear.r - c.r) * speed;
+      c.g += (this._targetClear.g - c.g) * speed;
+      c.b += (this._targetClear.b - c.b) * speed;
+      if (Math.abs(c.r - this._targetClear.r) < 0.001 &&
+          Math.abs(c.g - this._targetClear.g) < 0.001 &&
+          Math.abs(c.b - this._targetClear.b) < 0.001) {
+        this.scene.clearColor = this._targetClear.clone();
+        this._targetClear = null;
+      }
+    }
+    if (this._targetAccent) {
+      const light = this.scene.getLightByName("accent") as PointLight | null;
+      if (light) {
+        light.diffuse.r += (this._targetAccent.r - light.diffuse.r) * speed;
+        light.diffuse.g += (this._targetAccent.g - light.diffuse.g) * speed;
+        light.diffuse.b += (this._targetAccent.b - light.diffuse.b) * speed;
+      }
+    }
   }
 
   private _buildTestLevel(scene: Scene) {
@@ -120,12 +155,10 @@ export class SceneManager {
     }
   }
 
-  /** LevelManager'ın sahneyi yeniden konfigüre etmesi için erişim noktası */
+  /** LevelManager'ın sahneyi animasyonlu geçişle yeniden konfigüre etmesi */
   setLevelVisuals(color: Color4, accentColor: Color3) {
-    this.scene.clearColor = color;
-    // Accent ışığını level rengine uyarla
-    const light = this.scene.getLightByName("accent");
-    if (light) (light as PointLight).diffuse = accentColor;
+    this._targetClear  = color;
+    this._targetAccent = accentColor;
   }
 
   dispose() {

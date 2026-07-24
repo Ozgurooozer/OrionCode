@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, Fragment } from "react";
 
 // "/" ile başlayan girdiyi komut adı + args olarak ayrıştır
 function parseCommand(text) {
@@ -18,6 +18,102 @@ function fuzzyMatch(query, target) {
   return qi === query.length;
 }
 
+// ── Basit Markdown renderer (harici bağımlılık yok) ───────────────────────────
+// Desteklenen: ```code block```, `inline code`, **bold**, *italic*, # heading, - list
+function MarkdownText({ text, styles, c }) {
+  if (!text) return null;
+
+  // Önce code block'ları ayır
+  const codeBlockRe = /```(?:\w+)?\n?([\s\S]*?)```/g;
+  const parts = [];
+  let last = 0, m;
+
+  while ((m = codeBlockRe.exec(text)) !== null) {
+    if (m.index > last) parts.push({ type: "inline", text: text.slice(last, m.index) });
+    parts.push({ type: "code", text: m[1].trimEnd() });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push({ type: "inline", text: text.slice(last) });
+
+  return (
+    <div style={styles.aiText}>
+      {parts.map((p, i) => {
+        if (p.type === "code") {
+          return (
+            <pre key={i} style={styles.code}>{p.text}</pre>
+          );
+        }
+        // Inline formatting: satır satır işle
+        return (
+          <div key={i}>
+            {p.text.split("\n").map((line, j, arr) => (
+              <Fragment key={j}>
+                <InlineLine line={line} c={c} styles={styles} />
+                {j < arr.length - 1 && <br />}
+              </Fragment>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function InlineLine({ line, c, styles }) {
+  // Heading
+  if (/^#{1,3}\s/.test(line)) {
+    const lvl = line.match(/^(#{1,3})/)[1].length;
+    const txt = line.replace(/^#{1,3}\s/, "");
+    const sz = lvl === 1 ? "16px" : lvl === 2 ? "14.5px" : "13.5px";
+    return <div style={{ fontSize: sz, fontWeight: 700, color: c.text, marginTop: "8px", marginBottom: "3px" }}>{txt}</div>;
+  }
+  // List item
+  if (/^[-*+]\s/.test(line)) {
+    const txt = line.replace(/^[-*+]\s/, "");
+    return (
+      <div style={{ display: "flex", gap: "7px", marginLeft: "4px" }}>
+        <span style={{ color: c.textDim, flexShrink: 0 }}>·</span>
+        <span><InlineSpans text={txt} c={c} /></span>
+      </div>
+    );
+  }
+  return <span><InlineSpans text={line} c={c} /></span>;
+}
+
+function InlineSpans({ text, c }) {
+  // **bold** | *italic* | `inline code`
+  const tokens = [];
+  const re = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+  let last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) tokens.push({ type: "text", t: text.slice(last, m.index) });
+    const raw = m[1];
+    if (raw.startsWith("**")) tokens.push({ type: "bold",   t: raw.slice(2, -2) });
+    else if (raw.startsWith("*")) tokens.push({ type: "italic", t: raw.slice(1, -1) });
+    else tokens.push({ type: "code",   t: raw.slice(1, -1) });
+    last = m.index + raw.length;
+  }
+  if (last < text.length) tokens.push({ type: "text", t: text.slice(last) });
+
+  return (
+    <>
+      {tokens.map((tok, i) => {
+        if (tok.type === "bold")   return <strong key={i} style={{ color: c.text, fontWeight: 700 }}>{tok.t}</strong>;
+        if (tok.type === "italic") return <em key={i} style={{ color: c.text }}>{tok.t}</em>;
+        if (tok.type === "code")   return <code key={i} style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: "12.5px", padding: "1px 5px", borderRadius: "4px", background: "rgba(255,255,255,0.08)", color: c.accent }}>{tok.t}</code>;
+        return <span key={i}>{tok.t}</span>;
+      })}
+    </>
+  );
+}
+
+// ComfyUI görsel URL'i tespit et
+function extractImageUrl(text) {
+  const m = text?.match(/URL:\s*(http:\/\/127\.0\.0\.1:8188[^\s]+)/);
+  return m ? m[1] : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function Chat({ c, styles, model, statusOnline, messages, onSend, onCommand, commandList, onGoHome, title }) {
   const [text, setText] = useState("");
   const [paletteIdx, setPaletteIdx] = useState(0);
@@ -112,7 +208,7 @@ export default function Chat({ c, styles, model, statusOnline, messages, onSend,
   };
 
   return (
-    <div style={{ width: "100%", maxWidth: "760px", height: "100%", display: "flex", flexDirection: "column", padding: "10px 0 22px", boxSizing: "border-box", animation: "orionRise .4s ease both" }}>
+    <div style={{ width: "100%", maxWidth: "840px", height: "100%", margin: "0 auto", display: "flex", flexDirection: "column", padding: "0 20px 20px", boxSizing: "border-box" }}>
 
       {/* Başlık */}
       <div style={styles.chatHead}>
@@ -136,6 +232,7 @@ export default function Chat({ c, styles, model, statusOnline, messages, onSend,
             return <CommandBlock key={msg.id} msg={msg} styles={styles} c={c} />;
           }
           // assistant
+          const imgUrl = extractImageUrl(msg.text);
           return (
             <div key={msg.id} style={styles.aiRow}>
               <div style={styles.aiBadge}>
@@ -144,10 +241,21 @@ export default function Chat({ c, styles, model, statusOnline, messages, onSend,
               <div style={{ minWidth: 0, flex: 1 }}>
                 {msg.tools?.map((t, i) => (
                   <div key={i} style={styles.toolLine}>
-                    {t.done ? (t.ok ? "→" : "✕") : "*"} {t.tool}{t.input ? ` "${t.input}"` : ""}
+                    <span style={{ color: t.done ? (t.ok ? c.accent : "#f87171") : c.textDim }}>
+                      {t.done ? (t.ok ? "✓" : "✕") : "○"}
+                    </span>
+                    {" "}{t.tool}{t.input ? <span style={{ color: c.textDim }}> {t.input}</span> : ""}
                   </div>
                 ))}
-                <div style={styles.aiText}>{msg.text}{msg.streaming ? "▍" : ""}</div>
+                {imgUrl && (
+                  <div style={{ marginTop: "8px", marginBottom: "6px" }}>
+                    <img src={imgUrl} alt="generated" style={{ maxWidth: "100%", maxHeight: "320px", borderRadius: "10px", border: `1px solid ${c.border}`, cursor: "pointer", display: "block" }} onClick={() => window.open(imgUrl, "_blank")} onError={e => e.currentTarget.style.display = "none"} />
+                  </div>
+                )}
+                {msg.streaming
+                  ? <div style={styles.aiText}>{msg.text || ""}▍</div>
+                  : <MarkdownText text={msg.text} styles={styles} c={c} />
+                }
               </div>
             </div>
           );
