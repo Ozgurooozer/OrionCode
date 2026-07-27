@@ -30,38 +30,57 @@ denetimi ve bulunan gerçek hataları (yol-traversal, sandbox eksikliği,
 sessizce bozulan hafıza altyapısı) belgeliyor — "çalışıyor" ile "çalışıyor
 gibi görünüyor" arasındaki farkın somut örnekleri için oraya bakın.
 
+Çekirdek TypeScript'e taşındı (`--experimental-strip-types` ile derlemesiz
+çalışır); `.js` giriş noktaları `.ts` ile değiştirildi.
+
 ```
 npm test
-# 185/185 test geçiyor (node --test)
+# 623/623 test geçiyor (node --test)
 ```
 
 ## Mimari (özet)
 
 ```
-orion.js (CLI, TUI)        orion-server.js (HTTP + SSE)
-         │                          │
-         └────────── core/session.js ───────── (tier1/tier2 döngüsü)
-                          │
-     ┌────────────────────┼─────────────────────┐
-     │                    │                      │
-backends/            core/router.js         core/tools.js
-(anthropic, ollama,   (Thompson sampling     (fs, memory, vault,
- openai, openrouter,   + FEP gölge log)       shell, moltbook, MCP)
- huggingface, custom)
+orion.ts (CLI, TUI)        orion-server.ts (HTTP + SSE)    orion-mcp.ts (MCP sunucu)
+         │                          │                              │
+         └──────────────── core/session.ts ─────────────────────────┘
+                                   │
+          ┌────────────────────────┼──────────────────────────┐
+          │                        │                           │
+    backends/               core/router.ts              core/tools.ts
+    (anthropic, ollama,      (tier1/tier2 karar)         (fs, memory, vault,
+     openai-compat fabrika:   + Thompson sampling         shell, moltbook, MCP)
+     openai, openrouter,      + FEP gölge log)
+     huggingface, lmstudio,
+     nim, özel BYOK)
 ```
 
 - **Backends** — Anthropic (native), Ollama (native tool calling + ReAct
   düşüşü), OpenAI-uyumlu tek fabrika (OpenAI, OpenRouter, HuggingFace, LM
-  Studio, özel BYOK uç noktaları).
+  Studio, NVIDIA NIM, özel BYOK uç noktaları).
 - **Router** — basit/karmaşık görev sınıflandırması + bütçe moduna göre
   yerel/bulut arası geçiş; Thompson sampling ile zamanla öğrenir.
+- **Çalışma modları** — `chat` (araçsız), `plan` (salt-okunur), `build`
+  (yazar, komutları otomatik onaylar), `agent` (varsayılan, tüm araçlar +
+  komut onayı), `tayf` (KUŞ-SU mimarisi davranış eki). `/mode` komutuyla
+  değiştirilir, `~/.orion/modes/*.js` üzerinden plugin mod eklenebilir.
 - **Vault** — konuşmalardan çıkarılan bilgiyi `~/.orion/vault/` altında HTML
   olarak biriktirir; embedding kuruluysa semantik arama, kurulu değilse
   anahtar-kelime yedeğine düşer.
 - **MCP** — hem istemci (`mcp.json`'daki sunuculara bağlanır, araçlarını
-  `mcp__sunucu__araç` adıyla köprüler) hem sunucu (`orion-mcp.js`) rolünü
+  `mcp__sunucu__araç` adıyla köprüler) hem sunucu (`orion-mcp.ts`) rolünü
   oynar.
-- **TUI** — bağımlılıksız (readline tabanlı), truecolor render, akış modeli.
+- **Multi-agent koordinatör** — `core/coordinator.ts`, bir görevi plan →
+  execute → review aşamalarına böler; researcher/coder/reviewer rolleri
+  `core/subagent.ts` ile ayrı LLM çağrılarında çalışır (`/swarm`).
+- **TUI** — bağımlılıksız (readline tabanlı), truecolor render, akış modeli
+  (`tui/`).
+- **Electron masaüstü uygulaması** (`electron/`) — ayrı `package.json`;
+  Babylon.js 3D sahne + floating panel sistemi (chat, sessions, vault,
+  terminal) üzerinden `orion-server.ts`'e SSE ile bağlanır.
+- **TAYF** (`TAYF/`) — çok ajanlı mesajlaşma protokolü deneyi: paylaşılan
+  bir kanal üzerinden birbirinin kanıtını denetleyen iki ajan; her mesaj
+  kanıt etiketi taşır ve karşı taraf onu terfi ettiremez.
 
 ## Kurulum
 
@@ -69,16 +88,22 @@ backends/            core/router.js         core/tools.js
 npm install
 ```
 
-Node.js 20+ gerekir (test edilen sürüm: v26).
+Node.js 22+ gerekir (`--experimental-strip-types` için; test edilen sürüm: v26).
 
 ## Kullanım
 
 ```bash
-node orion.js                 # etkileşimli CLI
-node orion.js -p "soru"        # tek atış, headless (CI/pipe için)
+node orion.ts                  # etkileşimli CLI
+node orion.ts -p "soru"        # tek atış, headless (CI/pipe için)
+node orion.ts --resume <id>    # kayıtlı oturumu devam ettir
 npm run server                 # HTTP + SSE sunucusu (127.0.0.1)
-npm test                       # test paketi
+node orion-mcp.ts              # MCP sunucu modu
+npm test                       # test paketi (623/623)
+npm run typecheck              # tip kontrolü (derleme yapmaz)
 npm run bench                  # başlangıç süresi / RSS ölçümü
+npm run eval                   # TAYF/Meissa sınıflandırıcı eval (promptfoo)
+
+cd electron && npm start       # Electron masaüstü uygulaması
 ```
 
 İlk çalıştırmada bir backend gerekir:
