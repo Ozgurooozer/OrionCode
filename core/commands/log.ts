@@ -39,20 +39,42 @@ module.exports = [{
   aliases: ["gunluk"],
   group:   "Session",
   desc:    "Show recent session events (tool calls, routing, errors)",
-  usage:   "/log [N]",
+  usage:   "/log [N] [-f|--watch]",
   exec: ({ args, session }) => {
     const { readLog } = require("../telemetry.ts");
-    const N = parseInt(args[0] ?? "20", 10) || 20;
-    const events = readLog(session.id);
-    if (!events.length) {
-      print.system(i18n.t("No log entries yet for this session.", "Bu oturum için henüz log kaydı yok."));
+    const flags   = (Array.isArray(args) ? args : String(args ?? "").split(/\s+/)).map(String);
+    const watch   = flags.includes("-f") || flags.includes("--watch");
+    const numArg  = flags.find(f => /^\d+$/.test(f));
+    const N       = parseInt(numArg ?? "20", 10) || 20;
+
+    if (!watch) {
+      const events = readLog(session.id);
+      if (!events.length) {
+        print.system(i18n.t("No log entries yet for this session.", "Bu oturum için henüz log kaydı yok."));
+        return;
+      }
+      const shown = events.slice(-N);
+      console.log(`\n${C.bold(i18n.t(`Last ${shown.length} events (session ${session.id}):`, `Son ${shown.length} olay (oturum ${session.id}):`))}`)
+      for (const ev of shown) {
+        try { console.log(fmt(ev)); } catch {}
+      }
+      console.log("");
       return;
     }
-    const shown = events.slice(-N);
-    console.log(`\n${C.bold(i18n.t(`Last ${shown.length} events (session ${session.id}):`, `Son ${shown.length} olay (oturum ${session.id}):`))}`)
-    for (const ev of shown) {
-      try { console.log(fmt(ev)); } catch {}
-    }
-    console.log("");
+
+    // --watch: canlı izleme — yeni olayları her saniye basar
+    let seen = 0;
+    console.log(`\n${C.bold(`/log --watch  session:${session.id}`)}  ${C.dim("Ctrl+C ile dur")}\n`);
+    const iv = setInterval(() => {
+      const all = readLog(session.id);
+      if (all.length > seen) {
+        for (const ev of all.slice(seen)) {
+          try { process.stdout.write(fmt(ev) + "\n"); } catch {}
+        }
+        seen = all.length;
+      }
+    }, 1000);
+    // process SIGINT veya session bitişinde temizle
+    process.once("SIGINT", () => { clearInterval(iv); process.stdout.write("\n"); });
   },
 }];

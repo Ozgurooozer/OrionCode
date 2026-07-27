@@ -1,0 +1,21 @@
+{"input": "💀💀💀", "source": "plan", "note": "emoji-only", "label": "drift", "category": "grupA"}
+{"input": "teşekkürler", "source": "plan", "note": "sosyal temas", "label": "drift", "category": "grupA"}
+{"input": "hocam kod yazıver", "source": "plan", "note": "informal talep", "label": "drift", "category": "grupA"}
+{"input": "SQL JOIN açıkla", "source": "plan", "note": "teknik soru", "label": "drift", "category": "grupA"}
+{"input": "async await örneği", "source": "plan", "note": "ALTIN - ikili davranış", "label": "drift", "category": "grupA"}
+{"input": "async await nedir", "source": "plan", "note": "teknik soru", "label": "drift", "category": "grupA"}
+{"input": "nasılsın", "source": "synthetic", "note": "sosyal", "label": "drift", "category": "grupA"}
+{"input": "naber", "source": "synthetic", "note": "sosyal slang", "label": "drift", "category": "grupA"}
+{"input": "evet devam et", "source": "synthetic", "note": "bağlamlı talep (bağlamsız)", "label": "drift", "category": "grupA"}
+{"input": "peki ya typescript", "source": "synthetic", "note": "bağlamlı soru (bağlamsız)", "label": "drift", "category": "grupA"}
+{"input": "bunu açıklar mısın", "source": "synthetic", "note": "referanssız soru", "label": "drift", "category": "grupA"}
+{"input": "threadsafe misin", "source": "synthetic", "note": "model özellikleri sorusu", "label": "drift", "category": "grupA"}
+{"input": "şu kodu yaz", "source": "synthetic", "note": "belirsiz talep", "label": "drift", "category": "grupA"}
+{"input": "Python öğrenmek istiyorum", "source": "synthetic", "note": "açık uçlu", "label": "drift", "category": "grupA"}
+{"input": "decorator pattern nedir", "source": "synthetic", "note": "kavram sorusu", "label": "drift", "category": "grupA"}
+{"input": "monorepo mu yoksa polyrepo mu", "source": "synthetic", "note": "tercih sorusu", "label": "drift", "category": "grupA"}
+{"input": "bu metni seslendir: Merhaba Dünya", "source": "eval", "note": "fail", "label": "drift", "category": "grupA"}
+{"input": "speak this: hello world", "source": "eval", "note": "fail", "label": "drift", "category": "grupA"}
+{"input": "kod review yap, bug bul, düzelt, test yaz, PR aç", "source": "eval", "note": "fail", "label": "drift", "category": "grupA"}
+{"input": "animasyon oluştur ve kaydet", "source": "eval", "note": "fail", "label": "drift", "category": "grupA"}
+{"input": "bir karakter çiz ve ardından seslendir", "source": "eval", "note": "fail", "label": "drift", "category": "grupA"}

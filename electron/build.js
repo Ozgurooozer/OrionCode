@@ -28,7 +28,19 @@ function copyXtermCSS() {
   } catch { /* paket yüklü değilse sessizce atla */ }
 }
 
+// assets/ → dist/assets/ (VRM ve diğer büyük dosyalar bundle dışı tutulur)
+function copyAssets() {
+  const src = "assets";
+  const dst = "dist/assets";
+  if (!fs.existsSync(src)) return;
+  fs.mkdirSync(dst, { recursive: true });
+  for (const f of fs.readdirSync(src)) {
+    fs.copyFileSync(`${src}/${f}`, `${dst}/${f}`);
+  }
+}
+
 copyXtermCSS();
+copyAssets();
 
 if (watch) {
   esbuild.context(opts).then(ctx => ctx.watch());

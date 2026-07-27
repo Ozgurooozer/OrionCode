@@ -7,11 +7,15 @@ const fs   = require("fs");
 const path = require("path");
 const http = require("http");
 
+// core/agents/imager.ts → core/agents/ → proje kökü → 3d/
+const COMFYUI_ROOT = path.resolve(__dirname, "..", "..", "3d");
+
 const DEFAULTS = {
-  workflowsDir:   "C:\\3d\\WORKFLOWS",
+  workflowsDir:   path.join(COMFYUI_ROOT, "WORKFLOWS"),
   comfyuiHost:    "127.0.0.1",
   comfyuiPort:    8188,
-  outputDir:      "C:\\3d\\ComfyUI\\output",
+  outputDir:      path.join(COMFYUI_ROOT, "ComfyUI", "output"),
+  startBat:       path.join(COMFYUI_ROOT, "start.bat"),
   pollIntervalMs: 1500,
   pollTimeoutMs:  120_000,
 };
@@ -24,6 +28,7 @@ function _cfg() {
       comfyuiHost:    c.comfyuiHost         ?? DEFAULTS.comfyuiHost,
       comfyuiPort:    Number(c.comfyuiPort  ?? DEFAULTS.comfyuiPort),
       outputDir:      c.comfyuiOutputDir    ?? DEFAULTS.outputDir,
+      startBat:       c.comfyuiStartBat     ?? DEFAULTS.startBat,
       pollIntervalMs: DEFAULTS.pollIntervalMs,
       pollTimeoutMs:  DEFAULTS.pollTimeoutMs,
     };
@@ -128,6 +133,18 @@ async function _poll(cfg, promptId) {
   return { success: false, error: "Timeout (120s)" };
 }
 
+// ── Auto-start helpers ────────────────────────────────────────────────────────
+
+async function _waitForReady(cfg, maxWaitMs = 90_000, intervalMs = 3_000) {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, intervalMs));
+    const s = await _get(cfg, "/system_stats");
+    if (s.system) return true;
+  }
+  return false;
+}
+
 // ── Status & start ────────────────────────────────────────────────────────────
 
 async function checkStatus() {
@@ -164,9 +181,9 @@ function startService(service) {
   const cfg = _cfg();
 
   if (service === "comfyui") {
-    const startBat = path.join(path.resolve(cfg.workflowsDir, ".."), "start.bat");
+    const startBat = cfg.startBat;
     if (!fs.existsSync(startBat))
-      return { launched: false, message: `start.bat bulunamadı: ${startBat}` };
+      return { launched: false, message: `Start ComfyUI.bat bulunamadı: ${startBat}\nComfyUI-Easy-Install kurulumu bekleniyor: ${COMFYUI_ROOT}` };
     try {
       spawn("cmd.exe", ["/c", "start", '""', startBat], {
         detached: true, stdio: "ignore", shell: false,
@@ -200,16 +217,25 @@ function startService(service) {
 async function run(prompt, { workflow = 0, negative = "", onProgress = () => {} } = {}) {
   const cfg = _cfg();
 
-  // Check ComfyUI
+  // Check ComfyUI — auto-start if down
   onProgress("ComfyUI kontrol ediliyor...");
-  const stats = await _get(cfg, "/system_stats");
-  if (!stats.system)
-    return { success: false, error: `ComfyUI kapalı (${cfg.comfyuiHost}:${cfg.comfyuiPort}). /image start comfyui ile başlat.` };
+  let stats = await _get(cfg, "/system_stats");
+  if (!stats.system) {
+    onProgress("ComfyUI kapalı — başlatılıyor...");
+    const launched = startService("comfyui");
+    if (!launched.launched)
+      return { success: false, error: `ComfyUI başlatılamadı: ${launched.message}` };
+    onProgress("ComfyUI başlatıldı, hazır olması bekleniyor (~30-60 sn)...");
+    const ready = await _waitForReady(cfg);
+    if (!ready)
+      return { success: false, error: "ComfyUI 90 saniyede hazır olmadı — manuel kontrol et: /image status" };
+    stats = await _get(cfg, "/system_stats");
+  }
 
   // Pick workflow
   const files = listWorkflows(cfg.workflowsDir);
   if (!files.length)
-    return { success: false, error: `${cfg.workflowsDir} içinde workflow bulunamadı.` };
+    return { success: false, error: `workflow bulunamadı: ${cfg.workflowsDir}` };
 
   const idx          = Math.max(0, Math.min(workflow, files.length - 1));
   const workflowFile = files[idx];

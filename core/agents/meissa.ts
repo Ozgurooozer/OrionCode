@@ -96,6 +96,20 @@ function _logRun(entry) {
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const file = path.join(dir, `${date}.jsonl`);
     fs.appendFileSync(file, JSON.stringify(entry) + "\n", "utf8");
+    // Grup A vakalarını ayrı corpus dosyasına işaretle (prizma_sondu için)
+    if (entry.grup_a) {
+      const corpus = path.join(dir, "grupA_corpus.jsonl");
+      const corpusEntry = {
+        timestamp:     entry.timestamp,
+        input_snippet: entry.input_snippet,
+        input_hash:    entry.input_hash,
+        edim:          entry.edim,
+        error:         entry.error,
+        output_raw:    entry.output_raw,
+        model:         entry.model,
+      };
+      fs.appendFileSync(corpus, JSON.stringify(corpusEntry) + "\n", "utf8");
+    }
   } catch {}
 }
 
@@ -262,12 +276,14 @@ async function run(userMessage, { sessionId = null } = {}) {
 
   const wall_time_ms = Date.now() - t0;
 
+  const isGrupA = level === 2 && !!error;
   const logEntry = {
     schema_version: 1,
     timestamp:    t0,
     sessionId,
     input_length: truncated.length,
     input_hash:   inputHash,
+    input_snippet: truncated.slice(0, 200),
     model:        cfg.model,
     output_raw:   raw.slice(0, 500),
     output_parsed: result,
@@ -277,6 +293,7 @@ async function run(userMessage, { sessionId = null } = {}) {
     edim:              _labelEdim(truncated),
     context_dependent: _isContextDependent(truncated),
     skills_used:       result.skills ?? null,
+    grup_a:            isGrupA,
   };
   _logRun(logEntry);
 

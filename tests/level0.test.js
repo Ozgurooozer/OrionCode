@@ -85,8 +85,17 @@ describe("level0 — belirsizde LLM'e bırakma (null)", () => {
     });
   }
 
-  test("bağlaç + tek kategori → null (orchestration olabilir)", () => {
-    assert.equal(classify("kod yaz ve test et"), null);
+  test("bağlaç + tek kategori → null DEĞİL (orchestration çoklu kategori gerektirir)", () => {
+    // "kod yaz ve test et" → hits = [kod], length 1 → bağlaç olsa da tek-kategori
+    // Connector check kaldırıldı: hits.length yeterli koruma sağlıyor.
+    const r = classify("kod yaz ve test et");
+    assert.ok(r !== null);
+    assert.equal(r.kategoriler[0], "kod");
+  });
+
+  test("bağlaç + çoklu kategori → null (gerçek multi-skill)", () => {
+    // "çiz ve seslendir" → hits = [resim, ses], length 2 → LLM'e
+    assert.equal(classify("bir şey çiz ve seslendir"), null);
   });
 
   test("uzunluk sınırı sabiti makul", () => {

@@ -18,14 +18,13 @@ export default function App() {
   const [theme,  setThemeState] = useState(() => localStorage.getItem("orion-theme") || "gece");
   const [font,   setFontState]  = useState(() => localStorage.getItem("orion-font")  || "inter");
   const [pinned, setPinned]     = useState(() => localStorage.getItem("orion-rail-pinned") === "1");
-  const [railHover, setRailHover] = useState(false);
   const [online, setOnline] = useState(false);
   const [levelBg, setLevelBg] = useState(null);
 
   const { panels, openPanel, closePanel, focusPanel, minimizePanel, maximizePanel, updatePanel } = usePanelManager();
 
   const c        = THEMES[theme];
-  const railOpen = railHover || pinned;
+  const railOpen = pinned;
   const styles   = buildStyles(c, theme, railOpen);
 
   const setTheme    = (key) => { setThemeState(key); localStorage.setItem("orion-theme", key); };
@@ -92,13 +91,11 @@ export default function App() {
         <Titlebar c={c} />
       </div>
 
-      {/* ── z=10: Panel kanvası arka planı (offline uyarısı, boş durum) ── */}
+      {/* ── z=10: Bildirim katmanı (offline uyarısı, boş durum) ──────── */}
       <div style={{ position: "fixed", top: "38px", left: 0, right: 0, bottom: 0, zIndex: 10, pointerEvents: "none" }}>
         <div style={{
           width: "100%", height: "100%",
-          background: "rgba(8, 8, 13, 0.40)",
-          backdropFilter: "blur(4px)",
-          WebkitBackdropFilter: "blur(4px)",
+          background: panels.length === 0 ? "rgba(8, 8, 13, 0.25)" : "transparent",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
           {!online && (
@@ -169,8 +166,6 @@ export default function App() {
           c={c} styles={styles} theme={theme} setTheme={setTheme}
           font={font} setFont={setFont}
           railOpen={railOpen}
-          onRailEnter={() => setRailHover(true)}
-          onRailLeave={() => setRailHover(false)}
           onTogglePin={onTogglePin}
           pinned={pinned}
           onOpenPanel={openPanel}

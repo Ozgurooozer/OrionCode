@@ -127,6 +127,39 @@ module.exports = [{
       return;
     }
 
+    // /vault probe [model] — 2×2 provenance probe
+    if (sub === "probe") {
+      const model = args[1] ?? "qwen2.5:7b";
+      const { probe } = require("../probe.ts");
+      print.info(i18n.t(
+        `Provenance probe starting (model: ${model}, 5 arms × 4 cases)...`,
+        `Provenance probe başlıyor (model: ${model}, 5 kol × 4 vaka)...`
+      ));
+      print.info(C.dim(i18n.t("A=poisoned+anchored  B=poisoned+anchorless  C=clean+anchored", "A=zehirli+çapalı  B=zehirli+çapasız  C=temiz+çapalı")));
+      console.log("");
+      try {
+        const r = await probe(model);
+        console.log(`  potency      ${r.potency.toFixed(2)}   (A-C: zehir güçlü mü?)`);
+        console.log(`  guard        ${r.guard.toFixed(2)}   (A-B: provenance farkı davranışa yansıyor mu?)`);
+        console.log(`  guard_ctrl   ${r.guardCtrl.toFixed(2)}   (kontrol: metadata gizlenince sıfırlanmalı)`);
+        console.log(`  yut(A/B/C)   ${r.swallowAnchored.toFixed(2)} / ${r.swallowAnchorless.toFixed(2)} / ${r.swallowClean.toFixed(2)}`);
+        console.log("");
+        const ok = r.guard > r.guardCtrl + 0.1;
+        const icon = ok ? C.green("✓") : C.red("✗");
+        console.log(`  ${icon}  ${r.verdict}`);
+        console.log("");
+        if (ok) {
+          print.system(i18n.t("[TEST] provenance pipeline live.", "[TEST] provenance hattı canlı."));
+        } else {
+          print.warn(i18n.t("guard ≤ guard_ctrl — provenance not on decision path. Check KAYNAKLI/TANIDIK format in tools/vault.ts.", "guard ≤ guard_ctrl — provenance karar yolunda değil. tools/vault.ts formatını kontrol et."));
+        }
+      } catch (err) {
+        print.error(i18n.t(`Probe failed: ${err.message}`, `Probe başarısız: ${err.message}`));
+        print.info(i18n.t("Is Ollama running? (ollama serve)", "Ollama çalışıyor mu? (ollama serve)"));
+      }
+      return;
+    }
+
     // /vault — last 10 sessions
     const entries = vault.recentEntries(10);
     if (!entries.length) {

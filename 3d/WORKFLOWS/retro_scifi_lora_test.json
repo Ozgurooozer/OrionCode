@@ -1,0 +1,13 @@
+{
+  "_comment": "SDXL + Retro Sci-Fi 90s Anime LoRA — mecha savaşı",
+  "prompt": {
+    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "sd_xl_base_1.0_0.9vae.safetensors" } },
+    "2": { "class_type": "LoraLoader", "inputs": { "model": ["1", 0], "clip": ["1", 1], "lora_name": "retro_scifi_90s_anime_style_Anima-step00003500.safetensors", "strength_model": 0.8, "strength_clip": 0.8 } },
+    "3": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["2", 1], "text": "giant mecha robot battle, city destruction, lasers, explosions, 90s anime, retro sci-fi, dynamic angle, detailed mechanical design, masterpiece, best quality" } },
+    "4": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["2", 1], "text": "photorealistic, 3d render, blurry, low quality, deformed, watermark, text, modern anime, cgi" } },
+    "5": { "class_type": "EmptyLatentImage", "inputs": { "width": 1024, "height": 1024, "batch_size": 1 } },
+    "6": { "class_type": "KSampler", "inputs": { "model": ["2", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["5", 0], "seed": 1994, "steps": 30, "cfg": 7.5, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0 } },
+    "7": { "class_type": "VAEDecode", "inputs": { "samples": ["6", 0], "vae": ["1", 2] } },
+    "8": { "class_type": "SaveImage", "inputs": { "images": ["7", 0], "filename_prefix": "mecha_battle_90s" } }
+  }
+}

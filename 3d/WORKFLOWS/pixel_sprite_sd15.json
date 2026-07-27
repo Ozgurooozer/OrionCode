@@ -1,0 +1,13 @@
+{
+  "_comment": "SD 1.5 + Pixel Sprite LoRA — retro oyun karakter sprite'ı",
+  "prompt": {
+    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "revAnimated_v2Rebirth.safetensors" } },
+    "2": { "class_type": "LoraLoader", "inputs": { "model": ["1", 0], "clip": ["1", 1], "lora_name": "8.0-sprite pixel art style by skormino.safetensors", "strength_model": 1.0, "strength_clip": 1.0 } },
+    "3": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["2", 1], "text": "sprite sheet, knight character, sword and shield, full body, pixel art, 16-bit, nintendo style, transparent background, game asset, masterpiece" } },
+    "4": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["2", 1], "text": "blurry, low quality, deformed, ugly, watermark, text, signature, realistic, 3d, smooth" } },
+    "5": { "class_type": "EmptyLatentImage", "inputs": { "width": 640, "height": 640, "batch_size": 1 } },
+    "6": { "class_type": "KSampler", "inputs": { "model": ["2", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["5", 0], "seed": 8675309, "steps": 25, "cfg": 7.0, "sampler_name": "euler", "scheduler": "normal", "denoise": 1.0 } },
+    "7": { "class_type": "VAEDecode", "inputs": { "samples": ["6", 0], "vae": ["1", 2] } },
+    "8": { "class_type": "SaveImage", "inputs": { "images": ["7", 0], "filename_prefix": "pixel_knight" } }
+  }
+}

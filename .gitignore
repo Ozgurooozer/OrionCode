@@ -52,3 +52,22 @@ tui/animation/bundle/
 
 # Arşiv prototip — minified bundle'lar (beta3 babylon.js ~5MB)
 tui/arcive/beta3/bundle/
+
+# ComfyUI kurulumu, modeller, venv — repo dışı olması gereken ağır dosyalar (~82GB)
+3d/ComfyUI/
+3d/MODELLER/
+3d/venv/
+3d/COMFYUI_USER/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Eval çıktıları (geçici, yeniden üretilebilir)
+eval-results.json
+eval-results2.json
+eval-debug2.txt
+
+# TAYF kanal çalışma zamanı state (pid, canlı jsonl akışı)
+TAYF/.tayf/
+TAYF/.tayfkanal.jsonl

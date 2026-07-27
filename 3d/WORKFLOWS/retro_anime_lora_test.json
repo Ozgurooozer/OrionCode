@@ -1,0 +1,13 @@
+{
+  "_comment": "SDXL + Retro Anime LoRA — 80'ler anime estetiği, uzay kovboyu",
+  "prompt": {
+    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "sd_xl_base_1.0_0.9vae.safetensors" } },
+    "2": { "class_type": "LoraLoader", "inputs": { "model": ["1", 0], "clip": ["1", 1], "lora_name": "Retro_Anime_SDXL_-_Style-000016.safetensors", "strength_model": 1.0, "strength_clip": 1.0 } },
+    "3": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["2", 1], "text": "space cowboy, rugged man, brown duster coat, laser pistol, neon signs, space port, retro futuristic, 80s anime style, grainy, cel shaded, sharp outlines, masterpiece" } },
+    "4": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["2", 1], "text": "photorealistic, 3d, blurry, low quality, deformed, ugly, watermark, text, modern anime, digital art" } },
+    "5": { "class_type": "EmptyLatentImage", "inputs": { "width": 1024, "height": 1024, "batch_size": 1 } },
+    "6": { "class_type": "KSampler", "inputs": { "model": ["2", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["5", 0], "seed": 1985, "steps": 30, "cfg": 7.0, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0 } },
+    "7": { "class_type": "VAEDecode", "inputs": { "samples": ["6", 0], "vae": ["1", 2] } },
+    "8": { "class_type": "SaveImage", "inputs": { "images": ["7", 0], "filename_prefix": "retro_space_cowboy" } }
+  }
+}

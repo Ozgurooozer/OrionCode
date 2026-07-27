@@ -1,0 +1,12 @@
+{
+  "_comment": "Illustrious XL v2.0 anime txt2img — cyborg kız portresi",
+  "prompt": {
+    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "illustriousXL20_v20.safetensors" } },
+    "3": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": "1girl, cyborg warrior, glowing blue eyes, mechanical arm, sleek silver armor, long white hair, futuristic city background, sunset sky, detailed, highres, anime screencap, cel shading, sharp lines, masterpiece, best quality" } },
+    "4": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": "photorealistic, 3d render, blurry, low quality, deformed, bad anatomy, watermark, text, extra limbs" } },
+    "5": { "class_type": "EmptyLatentImage", "inputs": { "width": 1024, "height": 1024, "batch_size": 1 } },
+    "6": { "class_type": "KSampler", "inputs": { "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["5", 0], "seed": 1337, "steps": 30, "cfg": 7.0, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0 } },
+    "7": { "class_type": "VAEDecode", "inputs": { "samples": ["6", 0], "vae": ["1", 2] } },
+    "8": { "class_type": "SaveImage", "inputs": { "images": ["7", 0], "filename_prefix": "illustrious_cyborg" } }
+  }
+}

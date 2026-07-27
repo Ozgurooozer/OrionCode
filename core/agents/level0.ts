@@ -107,11 +107,10 @@ function classify(input) {
   for (const [name, cat] of Object.entries(CATEGORIES)) {
     if (_matches(tokens, cat)) hits.push(name);
   }
+  // hits.length !== 1 zaten multi-kategori durumunu yakalar.
+  // Connector check kaldırıldı: "animasyon oluştur ve kaydet" gibi
+  // tek-kategori + bağlaç girdileri gereksiz yere LLM'e düşüyordu.
   if (hits.length !== 1) return null;
-
-  for (const t of tokens) {
-    if (CONNECTORS.has(t)) return null;
-  }
 
   const name = hits[0];
   const cat  = CATEGORIES[name];

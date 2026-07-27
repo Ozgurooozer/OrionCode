@@ -1,0 +1,51 @@
+{"input": "bir cyberpunk kız çiz", "source": "synthetic", "note": "resim skill", "label": "json", "category": "control"}
+{"input": "sesli oku bunu: merhaba dünya", "source": "synthetic", "note": "ses skill", "label": "json", "category": "control"}
+{"input": "animasyon oluştur ve kaydet", "source": "synthetic", "note": "animasyon skill", "label": "json", "category": "control"}
+{"input": "kod review yap test yaz PR aç", "source": "synthetic", "note": "kod skill", "label": "json", "category": "control"}
+{"input": "bu kodu analiz et: for(i=0;i<10;i++){}", "source": "synthetic", "note": "analiz", "label": "json", "category": "control"}
+{"input": "memory leak tespiti", "source": "synthetic", "note": "analiz", "label": "json", "category": "control"}
+{"input": "performans sorunlarını bul", "source": "synthetic", "note": "analiz", "label": "json", "category": "control"}
+{"input": "bir javascript fonksiyonu yaz", "source": "synthetic", "note": "basit kod", "label": "json", "category": "control"}
+{"input": "listeyi sırala", "source": "synthetic", "note": "basit eylem", "label": "json", "category": "control"}
+{"input": "bug nerede olabilir", "source": "synthetic", "note": "analiz", "label": "json", "category": "control"}
+{"input": "docker container başlat", "source": "synthetic", "note": "eylem", "label": "json", "category": "control"}
+{"input": "test yaz şu fonksiyon için", "source": "synthetic", "note": "kod", "label": "json", "category": "control"}
+{"input": "numpy array oluştur", "source": "synthetic", "note": "basit kod", "label": "json", "category": "control"}
+{"input": "bug nerede olabilir", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "memory leak tespiti", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "performans sorunlarını bul", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "'; DROP TABLE users; --", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "commit mesajı öner", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "docker container nasıl çalışır", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "git rebase ne işe yarar", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "hocam kod yazıver", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "javascript async await örneği", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "python'da fibonacci yaz", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "sql join açıkla", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "typescript interface nedir", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "proje planı oluştur, milestone'ları belirle, takıma dağıt", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "🎨🖼️👨‍💻", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "3d render of a mountain", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "abi bi resim at", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "anime karakteri resim yap", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "bana bir cyberpunk kız çiz", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "draw a space station", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "fantasy ortam görsel", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "generate an image of a dragon", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "kanka anime çiz", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "pixel art knight sprite", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "portrait of an elf warrior", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "siberpunk şehri görseli oluştur", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "bunu sesle okusana", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "oku: Orion hazır", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "sesli oku şunu", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "💀💀💀💀💀", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "bugün hava nasıl", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "merhaba nasılsın", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "ne yapabilirim", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "tamam anladım", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "teşekkürler", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "yardım et", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "bir blog yazısı yaz yapay zeka hakkında", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "explain neural networks", "source": "eval", "note": "pass", "label": "json", "category": "control"}
+{"input": "README.md dosyası oluştur", "source": "eval", "note": "pass", "label": "json", "category": "control"}

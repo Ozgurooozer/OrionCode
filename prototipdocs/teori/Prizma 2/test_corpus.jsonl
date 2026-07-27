@@ -1,0 +1,5 @@
+{"input": "💀💀💀", "source": "plan", "note": "emoji-only", "label": "drift", "category": "grupA"}
+{"input": "teşekkürler", "source": "plan", "note": "sosyal temas", "label": "drift", "category": "grupA"}
+{"input": "hocam kod yazıver", "source": "plan", "note": "informal talep", "label": "drift", "category": "grupA"}
+{"input": "bir cyberpunk kız çiz", "source": "synthetic", "note": "resim skill", "label": "json", "category": "control"}
+{"input": "sesli oku bunu: merhaba dünya", "source": "synthetic", "note": "ses skill", "label": "json", "category": "control"}

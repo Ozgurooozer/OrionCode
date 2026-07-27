@@ -273,6 +273,16 @@ async function writeSession(sessionId, data, knowledge) {
   return { file: fname, id: sessionId };
 }
 
+// ASSUMPTION(read-time-anchor): anchored file existence checked at call time,
+// never stored in index.json. If HTML is deleted after indexing, anchored=false.
+function _addAnchored(entries, vaultDir) {
+  const sessDir = path.join(vaultDir, "sessions");
+  return entries.map(e => ({
+    ...e,
+    anchored: Boolean(e.file) && fs.existsSync(path.join(sessDir, path.basename(e.file))),
+  }));
+}
+
 // Semantik vault araması + Hebbian aktivasyon: erişilen kayıtları güçlendir
 async function searchVault(queryText, limit = 5) {
   const vaultDir = getVaultDir();
@@ -284,12 +294,12 @@ async function searchVault(queryText, limit = 5) {
   if (!index.length) return [];
   // Embedding yoksa (Ollama/nomic kurulu değil ya da vectors.json hiç üretilmedi)
   // semantik arama imkânsız — sessizce boş dönmek yerine anahtar-kelime yedeğine düş.
-  if (!vecs.length) return _keywordSearch(index, queryText, limit);
+  if (!vecs.length) return _addAnchored(_keywordSearch(index, queryText, limit), vaultDir);
 
   try {
     const embed = require("./embed.ts");
     const qVec = await embed.embedText(queryText);
-    if (!qVec) return _keywordSearch(index, queryText, limit);
+    if (!qVec) return _addAnchored(_keywordSearch(index, queryText, limit), vaultDir);
 
     // Aktivasyon ağırlıklı skor: cosine * sqrt(activation)
     const rawRanked = embed.topK(qVec, vecs, limit * 3);
@@ -311,12 +321,12 @@ async function searchVault(queryText, limit = 5) {
     // Erişilen kayıtların aktivasyonunu artır (Hebbian: kullanılan bağlantı güçlenir)
     _bumpActivations(result.map(e => e.id), vaultDir, iPath);
 
-    return result;
+    return _addAnchored(result, vaultDir);
   } catch (err) {
     // Embedding araması hatayla düştü — anahtar-kelime yedeği sonuç döndürse de
     // semantik yolun kaybını gizler; olayla ayırt edilir kıl, sonra yedeğe in.
     require("./events.ts").emitSilentCatch("vault.js:searchVault", err, null, "keyword-fallback");
-    return _keywordSearch(index, queryText, limit);
+    return _addAnchored(_keywordSearch(index, queryText, limit), vaultDir);
   }
 }
 

@@ -11,10 +11,14 @@ import {
   StandardMaterial,
   GlowLayer,
 } from "@babylonjs/core";
+import { loadVRM } from "./VRMLoader";
+import type { VRMHandle } from "./VRMLoader";
 
 export class SceneManager {
   readonly engine: Engine;
   readonly scene:  Scene;
+
+  private _character: VRMHandle | null = null;
 
   // Hedef renk (smooth transition için)
   private _targetClear: Color4 | null = null;
@@ -62,7 +66,35 @@ export class SceneManager {
     (this as unknown as { _onResize: () => void })._onResize = onResize;
   }
 
-  // Her frame'de clearColor ve accent ışığını hedefe doğru lerp et
+  // ── Karakter yükleme ────────────────────────────────────────────────────
+
+  async loadCharacter(vrmPath: string): Promise<VRMHandle> {
+    // Mevcut karakteri temizle
+    if (this._character) {
+      this._character.dispose();
+      this._character = null;
+    }
+    const handle = await loadVRM(this.scene, vrmPath);
+    this._character = handle;
+    return handle;
+  }
+
+  /** sahne.py [POZ:x] çıktısını karaktere ilet */
+  setPoz(poz: string): void {
+    this._character?.setPoz(poz);
+  }
+
+  /** sahne.py [JEST:x] çıktısını blendshape olarak ilet */
+  setBlend(name: string, weight: number): void {
+    this._character?.setBlend(name, weight);
+  }
+
+  hasCharacter(): boolean {
+    return this._character !== null;
+  }
+
+  // ── Level geçiş ────────────────────────────────────────────────────────
+
   private _tickTransition() {
     const speed = 0.04;
     if (this._targetClear) {
@@ -125,7 +157,7 @@ export class SceneManager {
       mesh.material = mat;
 
       const originY = pos[1];
-      let t = i * 1.2; // faz farkı
+      let t = i * 1.2;
       scene.registerBeforeRender(() => {
         t += 0.016;
         mesh.rotation.y += speed[0];
@@ -162,6 +194,7 @@ export class SceneManager {
   }
 
   dispose() {
+    this._character?.dispose();
     const self = this as unknown as { _onResize?: () => void };
     if (self._onResize) window.removeEventListener("resize", self._onResize);
     this.engine.dispose();

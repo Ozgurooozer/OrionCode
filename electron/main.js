@@ -247,6 +247,14 @@ async function createWindow() {
   mainWindow.webContents.on("render-process-gone", (_e, details) => {
     console.error(`[renderer] süreç çöktü: ${details.reason}`);
   });
+  // Renderer console → terminal (sadece geliştirme modunda)
+  if (!app.isPackaged) {
+    mainWindow.webContents.on("console-message", (_e, level, msg, line, src) => {
+      const tag = ["[renderer:log]","[renderer:warn]","[renderer:err]","[renderer:dbg]"][level] ?? "[renderer]";
+      const short = src ? src.replace(/.*\//, "") : "";
+      console.log(`${tag} ${msg}${short ? ` (${short}:${line})` : ""}`);
+    });
+  }
 
   mainWindow.on("closed", () => { mainWindow = null; stopSSE(); });
 }

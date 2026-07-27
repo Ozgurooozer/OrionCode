@@ -25,15 +25,20 @@ const SETTINGS_ITEMS = [
 
 export default function Rail({
   c, styles, theme, setTheme, font, setFont,
-  railOpen, onRailEnter, onRailLeave,
-  onTogglePin, pinned, onOpenPanel,
+  railOpen, onTogglePin, pinned, onOpenPanel,
 }) {
   const [settingsOpen,  setSettingsOpen]  = useState(false);
   const [themeSubOpen,  setThemeSubOpen]  = useState(false);
   const [fontSubOpen,   setFontSubOpen]   = useState(false);
 
   return (
-    <div style={styles.rail} onMouseEnter={onRailEnter} onMouseLeave={onRailLeave}>
+    <div style={{
+      ...styles.rail,
+      background: railOpen ? "rgba(5,5,18,0.82)" : "transparent",
+      backdropFilter: railOpen ? "blur(14px)" : "none",
+      WebkitBackdropFilter: railOpen ? "blur(14px)" : "none",
+      borderRight: railOpen ? "1px solid rgba(255,255,255,0.07)" : "none",
+    }}>
       {settingsOpen && (
         <div
           onClick={() => { setSettingsOpen(false); setThemeSubOpen(false); setFontSubOpen(false); }}
@@ -42,14 +47,19 @@ export default function Rail({
       )}
       <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "12px 10px 14px", boxSizing: "border-box" }}>
 
-        {/* Pin */}
+        {/* Menü aç/kapat — tek tıkla toggle */}
         <RailRow style={styles.railItem} hover={c.hover} onClick={onTogglePin}>
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" style={{ flex: "none" }}>
-            <rect x="3.2" y="4.2" width="17.6" height="15.6" rx="4" stroke="currentColor" strokeWidth="1.5" />
-            <line x1="9.6" y1="4.2" x2="9.6" y2="19.8" stroke="currentColor" strokeWidth="1.5" />
-            <circle cx="6.4" cy="8" r="0.9" fill="currentColor" />
+            {railOpen
+              ? <path d="M18 6L6 18M18 18L6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              : <>
+                  <line x1="4" y1="7" x2="20" y2="7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                  <line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                  <line x1="4" y1="17" x2="20" y2="17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                </>
+            }
           </svg>
-          {railOpen && <span style={styles.railLabel}>{pinned ? "Sabitlemeyi kaldır" : "Sabitle"}</span>}
+          {railOpen && <span style={styles.railLabel}>Menüyü Kapat</span>}
         </RailRow>
 
         <div style={{ height: "14px" }} />

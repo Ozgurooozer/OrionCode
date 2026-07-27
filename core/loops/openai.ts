@@ -3,8 +3,9 @@
 "use strict";
 
 const {
-  MAX_ITERS, PARALLEL_SAFE,
-  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeRepeatDetector,
+  MAX_ITERS, STUCK_AFTER_REPEATS, PARALLEL_SAFE,
+  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs,
+  makeRepeatDetector, makeErrorStreakDetector, _stuckMessage,
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
 } = require("./shared.ts");
 
@@ -19,7 +20,9 @@ module.exports = async function openaiFamilyLoop(session, provider) {
   let finalText = "";
   let iter = 0;
   let _emptyRetries = 0; // reasoning bütçe tükenmesi: en fazla 1 kez yeniden dene
-  const detectRepeat = makeRepeatDetector();
+  let _repeatWarnCount = 0;
+  const detectRepeat      = makeRepeatDetector();
+  const detectErrorStreak = makeErrorStreakDetector();
   session._interrupted = false;
   aiTurnStart(session.mode?.name, session.backend, `[${session._turnCount + 1}]`);
 
@@ -137,38 +140,42 @@ module.exports = async function openaiFamilyLoop(session, provider) {
           print.warn(perm.reason);
           out = perm.reason;
         } else if (repeated) {
+          _repeatWarnCount++;
+          if (_repeatWarnCount >= STUCK_AFTER_REPEATS) {
+            finalText = _stuckMessage(i18n.t("stuck in a tool call loop", "araç çağrısı döngüsünde takıldı"), null);
+            break;
+          }
           out = i18n.t(
             "Same tool called again with the same arguments — result is above. Write your answer.",
             "Aynı araç aynı argümanlarla tekrar çağrıldı — sonucu yukarıda. Cevabını yaz."
           );
         } else {
+          _repeatWarnCount = 0;
           print.tool(call.name, call.input);
           out = await _callToolCached(session._specCache, call.name, call.input, session.id, session.telemetry, session._touchedFiles);
           print.result(out);
           _emitDiff(call.name, out, session.id);
+          const { stuck: errStuck, lastErr } = detectErrorStreak(out);
+          if (errStuck) {
+            finalText = _stuckMessage(i18n.t("too many consecutive tool errors", "art arda çok fazla araç hatası"), lastErr);
+            history.push({ role: "tool", tool_call_id: call.id, content: String(out) });
+            break;
+          }
         }
         history.push({ role: "tool", tool_call_id: call.id, content: String(out) });
       }
     }
+    if (finalText) break;
     if (cyclical) print.warn(i18n.t("Cyclical tool call pattern detected — reported to the model", "Döngüsel araç çağrısı deseni tespit edildi — modele bildirildi"));
     else if (repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
     aiTurnContinue();
   }
 
-  // "Max iterations" yalnızca döngü GERÇEKTEN tükendiyse basılır — eskiden
-  // boş finalText ile erken kırılan her durumda (ör. reasoning bütçe
-  // tükenmesi) yanıltıcı şekilde görünüyordu.
   if (!finalText && !session._interrupted) {
     if (iter >= MAX_ITERS) {
-      print.warn(i18n.t(
-        `Max iterations (${MAX_ITERS}) reached without a final response.`,
-        `Maksimum iterasyon (${MAX_ITERS}) aşıldı, nihai yanıt alınamadı.`
-      ));
+      finalText = _stuckMessage(i18n.t("reached iteration limit", "iterasyon limitine ulaşıldı"), null);
     } else {
-      print.warn(i18n.t(
-        "Model returned an empty response.",
-        "Model boş yanıt döndürdü."
-      ));
+      print.warn(i18n.t("Model returned an empty response.", "Model boş yanıt döndürdü."));
     }
   }
 

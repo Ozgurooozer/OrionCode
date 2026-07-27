@@ -3,8 +3,9 @@
 "use strict";
 
 const {
-  MAX_ITERS, TIER1_TOOLS, PARALLEL_SAFE,
-  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeThinkFilter, makeRepeatDetector,
+  MAX_ITERS, STUCK_AFTER_REPEATS, TIER1_TOOLS, PARALLEL_SAFE,
+  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeThinkFilter,
+  makeRepeatDetector, makeErrorStreakDetector, _stuckMessage,
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
 } = require("./shared.ts");
 
@@ -36,7 +37,9 @@ module.exports = async function ollamaLoop(session) {
   const history  = _flattenMsgs(session.msgs);
 
   let finalText = "";
-  const detectRepeat = makeRepeatDetector();
+  let _repeatWarnCount = 0;
+  const detectRepeat      = makeRepeatDetector();
+  const detectErrorStreak = makeErrorStreakDetector();
   let _toolRoleOk = true; // false olursa history'deki tool mesajları user'a dönüştürülür
   session._interrupted = false;
   aiTurnStart(session.mode?.name, session.backend, `[${session._turnCount + 1}]`);
@@ -45,11 +48,13 @@ module.exports = async function ollamaLoop(session) {
     if (session._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
 
     const histForApi = _toolRoleOk ? history : _toCompatHistory(history);
+    const numCtx = session._resolveContextLimit?.() ?? 8192;
     let r;
     try {
       r = await ollama.chatRich(session.model, histForApi, {
         system:  session._systemTier1,
         tools:   useTools ? allowedDefs : undefined,
+        numCtx,
         onToken: makeThinkFilter(out => {
           process.stdout.write(out);
           events.emit("text_delta", session.id, { delta: out });
@@ -68,6 +73,7 @@ module.exports = async function ollamaLoop(session) {
           r = await ollama.chatRich(session.model, _toCompatHistory(history), {
             system:  session._systemTier1,
             tools:   useTools ? allowedDefs : undefined,
+            numCtx,
             onToken: makeThinkFilter(out => {
               process.stdout.write(out);
               events.emit("text_delta", session.id, { delta: out });
@@ -127,29 +133,39 @@ module.exports = async function ollamaLoop(session) {
           print.warn(perm.reason);
           out = perm.reason;
         } else if (repeated) {
+          _repeatWarnCount++;
+          if (_repeatWarnCount >= STUCK_AFTER_REPEATS) {
+            finalText = _stuckMessage(i18n.t("stuck in a tool call loop", "araç çağrısı döngüsünde takıldı"), null);
+            break;
+          }
           out = i18n.t(
             "Same tool called again with the same arguments — result is above. Write your answer.",
             "Aynı araç aynı argümanlarla tekrar çağrıldı — sonucu yukarıda. Cevabını yaz."
           );
         } else {
+          _repeatWarnCount = 0;
           print.tool(call.name, call.input);
           out = await _callToolCached(session._specCache, call.name, call.input, session.id, session.telemetry, session._touchedFiles);
           print.result(out);
           _emitDiff(call.name, out, session.id);
+          const { stuck: errStuck, lastErr } = detectErrorStreak(out);
+          if (errStuck) {
+            finalText = _stuckMessage(i18n.t("too many consecutive tool errors", "art arda çok fazla araç hatası"), lastErr);
+            history.push({ role: "tool", tool_call_id: call.id, content: String(out) });
+            break;
+          }
         }
         history.push({ role: "tool", tool_call_id: call.id, content: String(out) });
       }
     }
+    if (finalText) break;
     if (cyclical) print.warn(i18n.t("Cyclical tool call pattern detected — reported to the model", "Döngüsel araç çağrısı deseni tespit edildi — modele bildirildi"));
     else if (repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));
     aiTurnContinue();
   }
 
   if (!finalText && !session._interrupted) {
-    print.warn(i18n.t(
-      `Max iterations (${MAX_ITERS}) reached without a final response.`,
-      `Maksimum iterasyon (${MAX_ITERS}) aşıldı, nihai yanıt alınamadı.`
-    ));
+    finalText = _stuckMessage(i18n.t("reached iteration limit", "iterasyon limitine ulaşıldı"), null);
   }
 
   finalText = _cleanResponse(finalText);

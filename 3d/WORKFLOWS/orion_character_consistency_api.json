@@ -1,0 +1,20 @@
+{
+  "_comment": "Orion Aethelred karakter tutarlılığı workflow (API format). Kullanım: POST http://127.0.0.1:8188/prompt — body: {\"prompt\": <bu dosyanın prompt alanı>}. Pose değiştirmek için orion_pose_source.png'yi ComfyUI/input içinde değiştir. Kimlik referansı: orion_identity_ref.png (T-pose v2, seed 19001900).",
+  "prompt": {
+    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "illustriousXL20_v20.safetensors" } },
+    "2": { "class_type": "LoraLoader", "inputs": { "model": ["1", 0], "clip": ["1", 1], "lora_name": "Retro_Anime_SDXL_-_Style-000016.safetensors", "strength_model": 0.9, "strength_clip": 0.9 } },
+    "10": { "class_type": "LoadImage", "inputs": { "image": "orion_identity_ref.png" } },
+    "11": { "class_type": "IPAdapterUnifiedLoader", "inputs": { "model": ["2", 0], "preset": "PLUS (high strength)" } },
+    "12": { "class_type": "IPAdapter", "inputs": { "model": ["11", 0], "ipadapter": ["11", 1], "image": ["10", 0], "weight": 0.55, "start_at": 0.0, "end_at": 0.85, "weight_type": "prompt is more important" } },
+    "20": { "class_type": "LoadImage", "inputs": { "image": "orion_pose_source.png" } },
+    "21": { "class_type": "OpenposePreprocessor", "inputs": { "image": ["20", 0], "detect_hand": "enable", "detect_body": "enable", "detect_face": "disable", "resolution": 1024, "scale_stick_for_xinsr_cn": "enable" } },
+    "22": { "class_type": "ControlNetLoader", "inputs": { "control_net_name": "controlnet-openpose-sdxl-1.0.safetensors" } },
+    "3": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["2", 1], "text": "1boy, solo, mature male, 35 years old, beard stubble, (obsidian black tactical trench coat:1.3), (deep forest green shirt:1.2), black coat, tech-wear straps, worn dark combat boots, messy dark blue hair, dynamic pose, full body, retro artstyle, 1990s style, anime screencap, cel shading, sharp ink outlines, (plain white background:1.3), masterpiece, best quality" } },
+    "4": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["2", 1], "text": "photorealistic, 3d render, blurry, deformed, extra limbs, bad anatomy, bad hands, watermark, text, multiple characters, 1girl, lowres, worst quality, young, child, (brown coat:1.3), headband, (teal background:1.2), textured background, colored background" } },
+    "23": { "class_type": "ControlNetApplyAdvanced", "inputs": { "positive": ["3", 0], "negative": ["4", 0], "control_net": ["22", 0], "image": ["21", 0], "strength": 0.9, "start_percent": 0.0, "end_percent": 0.8 } },
+    "5": { "class_type": "EmptyLatentImage", "inputs": { "width": 1024, "height": 1024, "batch_size": 1 } },
+    "6": { "class_type": "KSampler", "inputs": { "model": ["12", 0], "positive": ["23", 0], "negative": ["23", 1], "latent_image": ["5", 0], "seed": 424242, "steps": 30, "cfg": 7.5, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0 } },
+    "7": { "class_type": "VAEDecode", "inputs": { "samples": ["6", 0], "vae": ["1", 2] } },
+    "8": { "class_type": "SaveImage", "inputs": { "images": ["7", 0], "filename_prefix": "orion_sprite" } }
+  }
+}

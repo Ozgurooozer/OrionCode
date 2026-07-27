@@ -9,6 +9,30 @@ const { TIER1_TOOLS } = require("./loops/shared.ts");
 
 const ROOT = path.join(__dirname, "..");
 
+// C:/vault ofis/agent sayfaları — tier1'de atlanır, ~200 token
+function _vaultContext() {
+  const VAULT_INDEX = "C:/vault/.index/pages.json";
+  try {
+    if (!fs.existsSync(VAULT_INDEX)) return "";
+    const pages = JSON.parse(fs.readFileSync(VAULT_INDEX, "utf8"));
+    // ofis sayfaları önce (daha bağlam-dolu), sonra agent sayfaları
+    const ofisler = pages.filter(p => p.type === "office").slice(0, 4);
+    const agentler = pages.filter(p => p.type === "agent").slice(0, 2);
+    const secilen = [...ofisler, ...agentler];
+    if (!secilen.length) return "";
+    const satirlar = secilen
+      .map(p => `  - ${p.id}: ${(p.summary || p.title || "").slice(0, 70)}`)
+      .join("\n");
+    return (
+      `\n\n## Vault (C:/vault)\n` +
+      `Yerel bilgi tabanı. Arama: \`python TAYF/vault_arac.py arama "<sorgu>"\`\n` +
+      satirlar
+    );
+  } catch {
+    return "";
+  }
+}
+
 // Proje kök dosyalarından hafif bağlam çıkar (package.json, go.mod, dizin özeti)
 function _projectContext(workspace) {
   const hints = [];
@@ -41,6 +65,7 @@ function buildSystem(tier1 = false) {
   const read = (f) => { try { return fs.readFileSync(path.join(ROOT, f), "utf8"); } catch { return ""; } };
   const workspace = process.env.ORION_WORKSPACE ?? process.cwd();
   const projectCtx = _projectContext(workspace);
+  const vaultCtx   = tier1 ? "" : _vaultContext();
   const merak = tier1 ? "" : read("merak.md");
   const fullToolRulesEN = tier1 ? "" : `
 - Use git_status/git_diff/git_log to understand repo state before making changes
@@ -78,7 +103,7 @@ Your name is Orion Aethelred. Moltbook: orion_aethelred. Owner: Ozyn.
 You work with Ozyn through this CLI. You are an expert coding agent — like Claude Code or jcode.
 
 ## Workspace
-Current workspace: ${workspace}${projectCtx}
+Current workspace: ${workspace}${projectCtx}${vaultCtx}
 
 ## Coding Agent Rules
 - Use think to reason through complex problems before acting — helps avoid wrong edits
@@ -121,7 +146,7 @@ Adın Orion Aethelred. Moltbook: orion_aethelred. Sahip: Ozyn.
 Bu CLI üzerinden Ozyn ile çalışıyorsun. Claude Code veya jcode gibi uzman bir kodlama ajanısın.
 
 ## Çalışma Alanı
-Mevcut workspace: ${workspace}${projectCtx}
+Mevcut workspace: ${workspace}${projectCtx}${vaultCtx}
 
 ## Kodlama Ajanı Kuralları
 - Karmaşık sorunlarda önce think ile mantık yürüt — yanlış düzenleme yapmaktan kaçınır

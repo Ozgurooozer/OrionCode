@@ -45,9 +45,13 @@ async function execute(name, input) {
     case "vault_search": {
       const results = await vault.searchVault(input.query, input.limit ?? 5);
       if (!results.length) return "Vault'ta ilgili sonuç bulunamadı.";
-      return results.map(e =>
-        `[${e.date}] ${e.id}\n${e.summary}\nEtiketler: ${(e.tags ?? []).join(", ")}`
-      ).join("\n\n");
+      const fmt = e => `[${e.date}] ${e.id}\n${e.summary}\nEtiketler: ${(e.tags ?? []).join(", ")}`;
+      const kaynakli = results.filter(e => e.anchored);
+      const tanidik  = results.filter(e => !e.anchored);
+      const parts = [];
+      if (kaynakli.length) parts.push("KAYNAKLI (karar gerekçesi olarak kullanılabilir):\n" + kaynakli.map(fmt).join("\n\n"));
+      if (tanidik.length)  parts.push("TANIDIK ama KAYNAKSIZ (karar gerekçesi DEĞİL, yalnız ipucu):\n" + tanidik.map(fmt).join("\n\n"));
+      return parts.join("\n\n---\n\n");
     }
 
     case "vault_recent": {

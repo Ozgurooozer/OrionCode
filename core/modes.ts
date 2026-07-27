@@ -42,6 +42,15 @@ const MODES = {
     allowWrite:   true,
     confirmTools: ["run_command"],
   },
+  tayf: {
+    name: "tayf",
+    label: "TAYF",
+    color: "\x1b[35m",   // magenta
+    get desc() { return i18n.t("KUŞ-SU MİMARI: interface-first, adversarial test, two candidates, measurement calibration", "KUŞ-SU MİMARI: arayüz-önce, düşman testi, iki aday, ölçüm kalibrasyonu"); },
+    allowTools:   true,
+    allowWrite:   true,
+    confirmTools: ["run_command"],
+  },
 };
 
 // ~/.orion/modes/*.js dosyalarından ek modlar yükle
@@ -67,6 +76,31 @@ const MODE_SUFFIXES = {
   build: "\n\n## MODE: BUILD\nImplement the approved plan precisely. Write files, run commands, run tests. Stay focused. Do not ask permission — just do the work.\n- Use multi_edit for multiple changes in one file (atomic, single diff)\n- Use run_command to verify: node --check, npm test, etc.\n- If edit_file old_str fails, use read_file to get exact content then retry",
   chat:  "\n\n## MODE: CHAT\nConversation only — no tools.",
   agent: "\n\n## MODE: AGENT\nYou can use all tools. Approach tasks like an expert engineer:\n1. Read before writing — understand the code first (read_file, search, git_status)\n2. Make targeted edits — prefer multi_edit (multiple changes) or edit_file (single change) over write_file\n3. If edit_file fails with 'not found', immediately use read_file to get exact content, then retry\n4. Verify — run_command to run tests or check syntax after changes\n5. Report clearly — say what you changed and why",
+  tayf: `
+
+## MODE: TAYF — KUŞ-SU MİMARI (v7)
+TETİK = GERİ ALMA MALİYETİ, konu değil.
+Tek komutla geri alınıyorsa (yerel kod, prototip, deney): blok YAZMA, yap.
+Geri alınamaz/pahalıysa (şema, veri, public API, kalıcı hafıza, dış sisteme yazma, bağımlılık, ölçüm aracı): TAM blok. Arada: yalnız ⚡.
+
+İNŞA (koddan önce):
+1. ARAYÜZ: public API + her fonksiyonun hata modu.
+2. DÜŞMAN TESTİ: naif çözümü kıracak testi ÖNCE yaz (boundary, race, restart, kötü girdi).
+3. İKİ ADAY: 2 tasarım üret, birini tek cümleyle ele. "Popüler" gerekçe değil.
+4. VARSAYIM: assert ya da \`# ASSUMPTION(x):\` olarak koda göm.
+5. GÖZLEMLENEBİLİRLİK: "bozulursa bana ilk ne söyler?" — yoksa log/assert ekle.
+
+DURAK — ARA TEMSİLE DEĞİL ŞEYİN KENDİSİNE BAK:
+Özet sayı, "çalıştı" hissi, tek koşul, alışkanlık birimi ara temsildir; ham çıktıyı gör.
+- Metriğe güvenmeden önce CEVABI BİLİNEN girdide koş; tutmuyorsa aleti onar, kodu değil.
+- Negatif sonuç ancak testin pozitif üretebildiği gösterilmişse okunur.
+- Aynı gözlemi ZIT mekanizma da üretir mi? Üretirse test ayırmıyor.
+
+KANIT: [TEST] yalnız koşulmuş+geçmiş; yoksa [YAZILDI-KOŞULMADI]/[SEZGİ]/[ÖLÇÜLMEDİ]. Ölçüm <1dk ise ölçmeden sayı yazma, yoksa [TAHMİN].
+
+BLOK: 🔍 alternatif tasarım · 📏 fark büyüklüğü · 🎧 kanıt etiketi · 🐋 popülerlik mi ihtiyaç mı · ⚡ karar DEĞİŞTİ Mİ [EVET:ne / HAYIR:neden]
+
+KAPANIŞ: "Bu ___'i en çok şu yanlışlar: ___ ; bunu şu gözlem yakalar: ___"`,
 };
 
 class ModeManager {

@@ -287,25 +287,24 @@ async function main() {
       const daemon = require("./core/daemon.ts");
       vaultCore.ensureVault();
       const d = daemon.startDaemon();
-      // [daemon] öneki + dim renk: arka plan işçisinin çıktısını aktif ajan
-      // turunun çıktısından görsel olarak ayırır — ikisi aynı terminal akışına
-      // düşüyor ve karıştırılabiliyor (bkz. docs/06-vaka-analizi-uzun-sureli-donma.md §6.3).
-      const _daemonTag = C.dim("[daemon]");
+      // Tek satır, tutarlı format: ♦ daemon  eylem  [id]  detay
+      const _dtag = C.dim("♦ daemon");
+      const _dlog = (line) => notifyAbove(() => process.stdout.write(C.dim(line) + "\n"));
       d.on("vault_updated", ({ sessionId, novelty }) => {
-        const nov = novelty != null ? ` (novelty: ${(novelty * 100).toFixed(0)}%)` : "";
-        notifyAbove(() => print.system(`${_daemonTag} ` + i18n.t(`vault: saved [${sessionId}]${nov}`, `vault: kaydedildi [${sessionId}]${nov}`)));
+        const nov = novelty != null ? `  nov:${(novelty * 100).toFixed(0)}%` : "";
+        _dlog(`${_dtag}  ✓ save  [${sessionId.slice(0,8)}]${nov}`);
       });
       d.on("vault_skipped", ({ sessionId, maxSim, closestId }) => {
-        notifyAbove(() => print.info(`${_daemonTag} ` + i18n.t(
-          `vault: skipped [${sessionId}] — too similar to ${closestId} (${(maxSim * 100).toFixed(0)}%)`,
-          `vault: atlandı [${sessionId}] — ${closestId} ile çok benzer (%${(maxSim * 100).toFixed(0)})`
-        )));
+        _dlog(`${_dtag}  ≈ skip  [${sessionId.slice(0,8)}]  sim:${(maxSim * 100).toFixed(0)}% → ${closestId.slice(0,8)}`);
       });
-      d.on("digest_ready", ({ file }) => {
-        notifyAbove(() => print.system(`${_daemonTag} ` + i18n.t(`lovelace: digest ready — /vault digest to read`, `lovelace: özet hazır — /vault digest ile oku`)));
+      d.on("digest_ready", () => {
+        _dlog(`${_dtag}  ✦ digest  /vault digest`);
+      });
+      d.on("weakness_mined", ({ count }) => {
+        _dlog(`${_dtag}  ↯ weak  ${count} pattern${count !== 1 ? "s" : ""} mined`);
       });
       d.on("daemon_error", ({ error }) => {
-        notifyAbove(() => print.warn(`${_daemonTag} vault daemon: ${error}`));
+        notifyAbove(() => print.warn(`♦ daemon  err  ${String(error).slice(0, 80)}`));
       });
     } catch (err) {
       print.warn(i18n.t(`vault daemon failed to start: ${err.message}`, `vault daemon başlatılamadı: ${err.message}`));

@@ -218,20 +218,25 @@ const print = Object.assign({}, _print, {
 
 // ── Spinner — geçen süre göstergeli ─────────────────────────────────────────
 const SPIN = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
-let _spinInt: NodeJS.Timeout | null = null;
-let _spinI   = 0;
-let _spinT0  = 0;
+let _spinInt:   NodeJS.Timeout | null = null;
+let _spinI    = 0;
+let _spinT0   = 0;
+let _spinLabel = "";
 const spinner = {
-  start: (label = "") => {
-    if (_spinInt) return;
-    _spinT0 = Date.now();
-    process.stderr.write("  ");
-    _spinInt = setInterval(() => {
-      const secs = ((Date.now() - _spinT0) / 1000).toFixed(0);
-      process.stderr.write(`\r  ${T.accent}${SPIN[_spinI++ % SPIN.length]}${RESET} ${C.dim(label)} ${C.muted(secs + "s")} `);
-    }, 80);
+  start: (label = ""): (() => void) => {
+    _spinLabel = label;
+    if (!_spinInt) {
+      _spinT0 = Date.now();
+      process.stderr.write("  ");
+      _spinInt = setInterval(() => {
+        const secs = ((Date.now() - _spinT0) / 1000).toFixed(0);
+        process.stderr.write(`\r  ${T.accent}${SPIN[_spinI++ % SPIN.length]}${RESET} ${C.dim(_spinLabel)} ${C.muted(secs + "s")} `);
+      }, 80);
+    }
+    return spinner.stop;
   },
-  stop: () => {
+  update: (label: string): void => { _spinLabel = label; },
+  stop: (): void => {
     if (_spinInt) { clearInterval(_spinInt); _spinInt = null; }
     process.stderr.write("\r" + " ".repeat(40) + "\r");
   },

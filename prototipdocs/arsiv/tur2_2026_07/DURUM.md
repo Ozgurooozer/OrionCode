@@ -3,6 +3,48 @@
 
 ---
 
+## Son Oturumda Yapılanlar (2026-07-23) — Prizma Sondu MC Testi + Meissa Logging
+
+### Prizma Sondu — Grup A Kapanışı
+
+**Yöntem:** Monte Carlo probe — `qwen-coder:latest` üzerinden **720 koşu** (72 girdi × 10, temp=0.7),
+Prizma 2 klasöründe (`prototipdocs/teori/Prizma 2/`). RAPOR_FINAL.md oluşturuldu.
+
+**Bulgu:** `qwen-coder:latest` artık `qwen35:4.3B` (Q4_0) modelini gösteriyor.
+Önceki model (büyük ihtimalle qwen2.5-coder:7b) Grup A vakalarını üretiyordu;
+yeni model JSON disiplinini tutarlı biçimde koruyor. Hipotez ters yönde refüte edildi.
+
+| Grup | Ort. drift oranı | N |
+|------|-----------------|---|
+| Grup A girdileri (tarihsel tetikleyiciler) | **0.054** | 21 |
+| Kontrol girdileri | **0.127** | 51 |
+| Δ (GA − CT) | **-0.074** | — |
+
+Kontrol grubundaki yüksek drift 3 kaynaktan gelir:
+1. Corpus'ta 3 çelişen-label duplikat (aynı input iki kez test edildi)
+2. Açık uçlu yardım istekleri (`ne yapabilirim` 0.75, `yardım et` 0.62)
+3. Görev-belirsiz girdiler (`commit mesajı öner` 0.62, SQL injection 0.50)
+| Δ | 0.07 (anlamsız) |
+
+**Karar:** Grup A — model güncellemesiyle doğal olarak kapandı.
+Aktivasyon analizi (`probe_hooks.py`) gerekmedi; `prizma_sondu` zarfı raftaki yerinde.
+
+### meissa.ts — Logging İyileştirmeleri (`core/agents/meissa.ts`)
+
+| Eklenen alan | Açıklama |
+|---|---|
+| `input_snippet` | Her log satırına ilk 200 karakter — corpus analizi için (hash yetmiyordu) |
+| `grup_a` | `level===2 && !!error` durumunda `true` — otomatik işaretleme |
+| `grupA_corpus.jsonl` | Grup A vakası oluştuğunda `~/.orion/meissa_runs/grupA_corpus.jsonl`'e otomatik ek |
+
+Bu değişiklik planın "MVP tek dokunuşu"nu karşılıyor:
+yeni Grup A vakaları (eğer gelecekte çıkarsa) hem logda görünür hem de
+ayrı corpus dosyasında birikiyor — sıfır ek operatör iş.
+
+Test: 19/19 ✅ (meissa.test.js — regresyon yok)
+
+---
+
 ## Genel Tablo
 
 | Katman | Durum | Not |

@@ -13,6 +13,7 @@ const MODE_DESCS = {
   plan:  ["Read and search only", "Sadece okuma ve arama"],
   build: ["Writes files, runs commands", "Dosya yazar, komut çalıştırır"],
   agent: ["Full agent — all tools (default)", "Tam ajan — tüm araçlar (varsayılan)"],
+  tayf:  ["KUŞ-SU: interface-first, adversarial test, two-candidate, measurement calibration", "KUŞ-SU MİMARI: arayüz-önce, düşman testi, iki aday, ölçüm kalibrasyonu"],
 };
 
 module.exports = [{
@@ -20,7 +21,7 @@ module.exports = [{
   aliases: ["mod", "modes"],
   group:   "General",
   desc:    "Show or change the working mode",
-  usage:   "/mode [chat|plan|build|agent]",
+  usage:   "/mode [chat|plan|build|agent|tayf]",
   exec: async ({ args, session }) => {
     if (!args[0]) {
       const cur = session.mode;
@@ -36,7 +37,7 @@ module.exports = [{
       const m = session.setMode(args[0]);
       setRuntimeOverride("autoApproveCommands", AUTO_APPROVE_MODES.has(m.name));
     } catch (e) {
-      print.error(i18n.t(`${e.message}  →  valid: chat, plan, build, agent`, `${e.message}  →  geçerli: chat, plan, build, agent`));
+      print.error(i18n.t(`${e.message}  →  valid: chat, plan, build, agent, tayf`, `${e.message}  →  geçerli: chat, plan, build, agent, tayf`));
     }
   },
 }];

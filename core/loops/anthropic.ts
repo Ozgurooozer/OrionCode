@@ -3,18 +3,32 @@
 "use strict";
 
 const {
-  MAX_ITERS, PARALLEL_SAFE,
-  _callToolCached, _emitDiff, makeRepeatDetector,
+  MAX_ITERS, STUCK_AFTER_REPEATS, PARALLEL_SAFE,
+  _callToolCached, _emitDiff, makeRepeatDetector, makeErrorStreakDetector, _stuckMessage,
   tools, events, i18n, print, aiTurnStart, aiTurnContinue,
 } = require("./shared.ts");
 
 module.exports = async function anthropicLoop(session) {
   const anthropic = require("../../backends/anthropic.ts");
   const { getEffectiveMemoryEffort } = require("../router.ts");
+  const { Ayristirici } = require("../sahne.ts");
   const allowedDefs = session.modes.filterDefs(tools.getDefs());
   const useThinking = getEffectiveMemoryEffort() === "high";
+
+  // Sahne marker parser — her turn'de yeni instance, marker'lar temizlenerek iletilir
+  const sahne = new Ayristirici((olay) => {
+    if (olay.tur === "poz") {
+      events.emit("sahne_poz", session.id, { poz: olay.deger });
+    } else if (olay.tur === "jest") {
+      events.emit("sahne_jest", session.id, { jest: olay.deger, weight: 1.0 });
+    }
+  });
+
   const chatOpts    = {
-    onToken: tok => { process.stdout.write(tok); events.emit("text_delta", session.id, { delta: tok }); },
+    onToken: tok => {
+      const clean = sahne.metin(tok);
+      if (clean) { process.stdout.write(clean); events.emit("text_delta", session.id, { delta: clean }); }
+    },
     thinking: useThinking,
     signal:   session._abortController?.signal,
   };
@@ -37,13 +51,12 @@ module.exports = async function anthropicLoop(session) {
   totalCacheWrite += resp.usage?.cache_creation_input_tokens ?? 0;
 
   let _anthropicIters = 0;
-  const _detectRepeat = makeRepeatDetector();
+  let _repeatWarnCount = 0;
+  const _detectRepeat      = makeRepeatDetector();
+  const _detectErrorStreak = makeErrorStreakDetector();
   while (resp.stop_reason === "tool_use") {
     if (++_anthropicIters > MAX_ITERS) {
-      print.warn(i18n.t(
-        `Max iterations (${MAX_ITERS}) reached without a final response.`,
-        `Maksimum iterasyon (${MAX_ITERS}) aşıldı, nihai yanıt alınamadı.`
-      ));
+      resp = { stop_reason: "end_turn", content: [{ type: "text", text: _stuckMessage(i18n.t("reached iteration limit", "iterasyon limitine ulaşıldı"), null) }] };
       break;
     }
     if (session._interrupted) { process.stdout.write("\n"); print.system(i18n.t("interrupted", "kesildi")); break; }
@@ -88,6 +101,12 @@ module.exports = async function anthropicLoop(session) {
           continue;
         }
         if (_repeated) {
+          _repeatWarnCount++;
+          if (_repeatWarnCount >= STUCK_AFTER_REPEATS) {
+            resp = { stop_reason: "end_turn", content: [{ type: "text", text: _stuckMessage(i18n.t("stuck in a tool call loop", "araç çağrısı döngüsünde takıldı"), null) }] };
+            results.length = 0;
+            break;
+          }
           results.push({
             type: "tool_result",
             tool_use_id: block.id,
@@ -98,13 +117,21 @@ module.exports = async function anthropicLoop(session) {
           });
           continue;
         }
+        _repeatWarnCount = 0;
         print.tool(block.name, block.input);
         const out = await _callToolCached(session._specCache, block.name, block.input, session.id, session.telemetry, session._touchedFiles);
         print.result(out);
         _emitDiff(block.name, out, session.id);
         results.push({ type: "tool_result", tool_use_id: block.id, content: String(out) });
+        const { stuck: _errStuck, lastErr: _lastErr } = _detectErrorStreak(out);
+        if (_errStuck) {
+          resp = { stop_reason: "end_turn", content: [{ type: "text", text: _stuckMessage(i18n.t("too many consecutive tool errors", "art arda çok fazla araç hatası"), _lastErr) }] };
+          results.length = 0;
+          break;
+        }
       }
     }
+    if (resp.stop_reason !== "tool_use") break;
 
     if (_cyclical) print.warn(i18n.t("Cyclical tool call pattern detected — reported to the model", "Döngüsel araç çağrısı deseni tespit edildi — modele bildirildi"));
     else if (_repeated) print.warn(i18n.t("Repeated tool call — reported to the model", "Tekrarlayan araç çağrısı — modele bildirildi"));

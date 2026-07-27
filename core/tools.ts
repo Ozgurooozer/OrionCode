@@ -8,6 +8,7 @@ const memoryTools   = require("../tools/memory.ts");
 const vaultTools    = require("../tools/vault.ts");
 const webTools      = require("../tools/web.ts");
 const gitTools      = require("../tools/git.ts");
+const imageTools    = require("../tools/image.ts");
 // moltbook: skill olarak yüklenir — her oturumda kayıtlı değil
 // registerMoltbook() ile dinamik olarak devreye girer
 
@@ -45,10 +46,11 @@ const STATIC_DEFS = [
   ...vaultTools.DEFS,
   ...webTools.DEFS,
   ...gitTools.DEFS,
+  ...imageTools.DEFS,
 ];
 
 const REGISTRY = {};
-for (const mod of [fsTools, shellTools, memoryTools, vaultTools, webTools, gitTools]) {
+for (const mod of [fsTools, shellTools, memoryTools, vaultTools, webTools, gitTools, imageTools]) {
   for (const def of mod.DEFS) REGISTRY[def.name] = mod;
 }
 

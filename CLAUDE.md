@@ -28,6 +28,9 @@ molp\
 ├── roadmap\           ← vizyon/mimari planlama belgeleri (ORION-0*.md)
 ├── electron\          ← Electron masaüstü uygulaması (ayrı package.json)
 ├── tui\               ← Terminal UI bileşenleri (index.js, fuzzy-picker.js, ...)
+├── 3d\                ← ComfyUI referans belgeleri (MIMARI.md, MODELLER/KATALOG.md)
+├── eval\              ← promptfoo eval config (meissa-promptfoo.yaml)
+├── eval-results.json  ← son eval sonuçları (gitignore dışı, geçici)
 ├── scripts\
 │   ├── check_claim.ps1
 │   ├── read_feed.ps1
@@ -69,6 +72,8 @@ npm run typecheck
 # CLI başlat
 node orion.js
 node orion.js -p "soru"     # tek atış, headless (CI/pipe için)
+node orion.js --resume <id> # kayıtlı oturumu devam ettir
+node orion.js --trust        # trust gate bypass (CI/script için)
 
 # HTTP + SSE sunucu (yalnızca 127.0.0.1 dinler)
 node orion-server.js        # npm run server
@@ -78,6 +83,13 @@ node orion-mcp.js
 
 # Benchmark (başlangıç süresi / RSS)
 npm run bench
+
+# TAYF/Meissa sınıflandırıcı eval (promptfoo)
+npm run eval                # eval/meissa-promptfoo.yaml kullanır
+
+# Electron masaüstü uygulaması
+cd electron && npm start    # esbuild derle + Electron aç
+cd electron && npm run dev  # watch modu (dosya değişince otomatik derleme)
 ```
 
 Runtime state `~/.orion/` altında tutulur: `config.json`, `vault/`, `skills/`, `thompson.json`.
@@ -127,6 +139,16 @@ Yazma araçları kesinlikle spekülatif çalıştırılmaz.
 **Vault daemon:** `core/daemon.js` aynı dosya worker_threads bifurcation
 pattern'ını kullanır. Worker thread konuşmaları `core/extract.js` ile bilgiye
 dönüştürür, `~/.orion/vault/` altına HTML olarak yazar.
+
+**Vault subkomutları** (`/vault`):
+- `search <sorgu>` / `ara` — anlamsal arama
+- `read <id>` / `oku` — oturum içeriği
+- `save` / `kaydettir` — mevcut oturumu kaydet
+- `status` / `durum` — daemon durumu
+- `graph` / `graf` — düğüm grafiğini yeniden üret
+- `map` / `harita` — kavram haritası (`core/vaultmap.ts`, ≥3 embedding gerekir)
+- `digest` / `ozet` — Lovelace haftalık özet
+- `probe [model]` — 2×2 provenance probe (`core/probe.ts`)
 
 **Skills:** `core/skills.js` telemetry'de başarılı araç dizilerini madenciler,
 lokal model ile damıtır. `~/.orion/skills/*.md` olarak saklanır.
@@ -179,6 +201,124 @@ fabrikasının dışında ayrı bir backend dosyası olarak eklendi.
 **Yeni komutlar:** `core/commands/` altında `compact.js` (bağlam sıkıştırma),
 `entropy.js` (statik analiz), `log.js`, `moltbook.js`, `workflow.js` —
 `core/commands/index.js` üzerinden dispatch edilir.
+
+**Çalışma modları:** `core/modes.ts` — `ModeManager` 5 modu yönetir:
+- `chat` — araçsız metin sohbeti
+- `plan` — salt-okunur analiz (write yasak)
+- `build` — dosya yazar, komut çalıştırır; `run_command` otomatik onaylanır
+- `agent` — tüm araçlar, `run_command` onayı gerekir (varsayılan)
+- `tayf` — KUŞ-SU MİMARI (build gibi araç erişimi + tayf davranış prompt eki)
+
+CLI komutu: `/mode [chat|plan|build|agent|tayf]` — `core/commands/mode.ts`
+Plugin modlar: `~/.orion/modes/*.js` dizininden otomatik yüklenir.
+
+**Görsel üretim:** `core/agents/imager.ts` ComfyUI entegrasyonu — prompt patch,
+otomatik başlatma, poll ve dosya yolu döndürme. `tools/image.ts` bunu
+`generate_image` tool olarak kayıt eder. CLI komutu: `/image <prompt> [--workflow N] | status | list | start comfyui`.
+
+**Provenance probe:** `core/probe.ts` — 2×2 deney (zehirli/temiz × çapalı/çapasız);
+KAYNAKLI/TANIDIK ayrımının model kararını gerçekten değiştirip değiştirmediğini ölçer.
+`/vault probe [model]` ile çalıştırılır.
+
+**Paylaşımlı loop sabitleri:** `core/loops/shared.ts` — `MAX_ITERS=40`,
+`TIER1_TOOLS`, `PARALLEL_SAFE`, `makeThinkFilter`, `makeRepeatDetector`,
+`makeErrorStreakDetector`. Tüm loop implementasyonları bu modülü paylaşır.
+
+---
+
+## TAYF Sınıflandırıcı Ajanlar
+
+Her kullanıcı girdisi router'a girmeden önce iki aşamalı sınıflandırmadan geçer:
+
+```
+Kullanıcı girdisi
+      │
+      ▼
+core/agents/level0.ts   ← Tier 0: kural/anahtar-kelime, LLM YOK, <1ms
+      │ net eşleşme → sonuç döner
+      │ çakışma / belirsiz → null
+      ▼
+core/agents/meissa.ts   ← Tier 1: Ollama LLM (qwen2.5-coder:7b), ~1s
+      │
+      ▼
+{ kategoriler, karmasiklik, rota, skill, skills, tahmini_butce }
+```
+
+**level0:** TAYF trigger paletinin kural karşılığı. Yalnızca TEK kategori net
+eşleşirse sonuç döner; çakışma/bağlaç/uzun girdi → `null` → Meissa'ya düşer.
+`CATEGORIES` tablosunda `prefix` (kök eşleşme) ve `exact` (token eşleşme) listesi.
+
+**Meissa:** Ollama üzerinden JSON-only yanıt. Çıktı şeması:
+- `kategoriler`: `["resim"|"yazı"|"kod"|"analiz"|"sohbet"|"ses"|"3d"|"animasyon"]`
+- `karmasiklik`: `1` (basit) | `2` (orta) | `3` (yoğun/koordinasyon)
+- `rota`: `"skill"` | `"sohbet"` | `"orchestration"`
+- `skill`: `"image"|"voice"|"animation"|"code"|null`
+- `skills`: `string[]|null` (multi-skill, orchestration için)
+- `tahmini_butce`: tam sayı token tahmini
+
+**Eval:** `npm run eval` — promptfoo'yu `eval/meissa-promptfoo.yaml` üzerinden çalıştırır;
+sonuçlar `eval-results.json` ve `eval-debug2.txt`'e yazılır.
+
+---
+
+## Electron Uygulama Mimarisi (güncel)
+
+```
+electron/
+  main.js           — Electron main process: pencere + orion-server.js yaşam döngüsü
+  preload.js        — contextBridge: window.orion API (güvenli IPC)
+  index.html        — renderer host
+  build.js          — esbuild: src/ → dist/renderer.js
+
+  layers/           — Floating panel altyapısı (TypeScript)
+    Layer.tsx         ← z-index katman sarmalayıcısı
+    Panel.tsx         ← draggable/resizable panel (traffic-light butonlar)
+    usePanelManager.ts← panel state: aç/kapat/minimize/maximize/focus/update
+    SceneBackground.tsx← Babylon.js 3D sahneyi Electron IPC'den alır
+    DockStrip.tsx     ← alt dock (minimize edilmiş paneller)
+    index.ts          ← re-export
+
+  Terminal/         — PTY terminal paneli
+    Terminal3D.tsx    ← xterm.js bağlama noktası
+    renderer/TerminalRenderer.ts ← xterm terminal örneği ve fit
+    hooks/useIO.ts    ← node-pty ↔ xterm veri hattı
+
+  LevelViewer/      — Babylon.js seviye seçici
+    LevelViewer3D.tsx ← level listesi + orion:level custom event
+
+  src/
+    App.jsx          — Ana uygulama: 3 katman (3D sahne / Rail / panel'ler)
+    panels/          — Panel içerik bileşenleri
+      ChatPanel.jsx     ← SSE ile canlı sohbet (uygulanan)
+      SessionsPanel.jsx ← oturum listesi (uygulanan)
+      PlaceholderPanel.jsx ← vault/router/mcp için yer tutucu
+    components/      — Titlebar, Rail, Icon
+    theme.js / styles.js / api.js
+```
+
+**Katman düzeni (App.jsx):**
+- `z=0` — Babylon.js 3D sahne (pointer-events:none; `orion:level` event'iyle seviye değişir)
+- `z=10` — Rail (sol kenar nav, hover/pin ile açılır)
+- `z=20+` — Floating paneller (`usePanelManager` ile yönetilir, `Panel` bileşeni)
+- `z=50` — DockStrip (minimize edilmiş panel ikonları)
+
+**Panel tipleri:** `chat`, `sessions`, `vault`, `router`, `mcp`, `terminal`, `leveleditor`.
+Rail'deki her nav item doğrudan bu panel anahtarlarına map edilir.
+
+---
+
+## 3D / ComfyUI
+
+`3d/` dizini yalnızca **referans belgelerini** içerir (MIMARI.md, MODELLER/KATALOG.md).
+Gerçek ComfyUI kurulumu reponun dışında:
+
+- **ComfyUI:** `molp/3d/ComfyUI/` — port `8188`, başlatma: `molp/3d/start.bat`
+- **Python:** `molp/3d/venv/Scripts/python.exe`
+- **Workflows:** `molp/3d/WORKFLOWS/` — 12 adet JSON (illustrious anime, SDXL, pixel, 3D mesh vb.)
+- **Outputs:** `molp/3d/ComfyUI/output/`
+
+Orion'un `mcp__orion__generate_image` / `image_start` / `image_status` araçları
+ComfyUI API'si (:8188) üzerinden bu kuruluma bağlanır.
 
 ---
 

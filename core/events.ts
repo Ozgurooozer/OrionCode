@@ -49,6 +49,8 @@ const EVENT_TYPES = Object.freeze({
   speculex_miss:     "speculex_miss",      // spekülatif tahmin ıskaladı, cache atıldı
   router_shadow_decision: "router_shadow_decision", // FEP gölge kararı: {realDecision, shadowDecision, context}
   silent_catch_hit:  "silent_catch_hit",    // sessiz catch bloğu tetiklendi: {site, error, detail?}
+  sahne_poz:         "sahne_poz",           // LLM [POZ:x] → SceneManager.setPoz(): { poz }
+  sahne_jest:        "sahne_jest",          // LLM [JEST:x] → SceneManager.setBlend(): { jest, weight }
 });
 
 const emitter = new EventEmitter();

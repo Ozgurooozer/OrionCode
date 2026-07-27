@@ -1,0 +1,12 @@
+{
+  "_comment": "SDXL 1.0 basic txt2img — test amaçlı, retro uzaylı manzarası",
+  "prompt": {
+    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "sd_xl_base_1.0_0.9vae.safetensors" } },
+    "3": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": "retro sci-fi alien landscape, purple crystal caves, bioluminescent flora, misty atmosphere, cosmic horizon, 4k, detailed, masterpiece" } },
+    "4": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": "blurry, low quality, deformed, ugly, bad anatomy, watermark, text, signature" } },
+    "5": { "class_type": "EmptyLatentImage", "inputs": { "width": 1024, "height": 1024, "batch_size": 1 } },
+    "6": { "class_type": "KSampler", "inputs": { "model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["5", 0], "seed": 42, "steps": 25, "cfg": 7.0, "sampler_name": "euler", "scheduler": "normal", "denoise": 1.0 } },
+    "7": { "class_type": "VAEDecode", "inputs": { "samples": ["6", 0], "vae": ["1", 2] } },
+    "8": { "class_type": "SaveImage", "inputs": { "images": ["7", 0], "filename_prefix": "sdxl_alien_landscape" } }
+  }
+}

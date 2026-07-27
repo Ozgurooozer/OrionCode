@@ -81,6 +81,14 @@ export default function ChatPanel({ theme, font, online, initialSessionId, onTit
           next[next.length - 1] = { ...next[next.length - 1], done: true, ok: ev.payload?.ok };
           return { ...mm, tools: next };
         }));
+      } else if (ev.type === "sahne_poz") {
+        // sahne.py [POZ:x] → SceneManager.setPoz() (useScene dinliyor)
+        window.dispatchEvent(new CustomEvent("orion:poz", { detail: ev.payload?.poz ?? "duruyor" }));
+      } else if (ev.type === "sahne_jest") {
+        // sahne.py [JEST:x] → SceneManager.setBlend()
+        window.dispatchEvent(new CustomEvent("orion:jest", {
+          detail: { name: ev.payload?.jest ?? "neutral", weight: ev.payload?.weight ?? 1.0 },
+        }));
       }
     });
     return unsub;

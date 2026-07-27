@@ -4,7 +4,8 @@
 
 const {
   MAX_ITERS, TIER1_TOOLS,
-  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeThinkFilter, makeRepeatDetector,
+  _callToolCached, _emitDiff, _cleanResponse, _flattenMsgs, makeThinkFilter,
+  makeRepeatDetector, makeErrorStreakDetector, _stuckMessage,
   tools, i18n, print, aiTurnStart, aiTurnContinue,
 } = require("./shared.ts");
 
@@ -18,7 +19,8 @@ module.exports = async function ollamaReactLoop(session) {
 
   const history = [{ role: "system", content: sysWithTools }, ..._flattenMsgs(session.msgs)];
   let iters = 0, finalText = "", lastRaw = "";
-  const detectRepeat = makeRepeatDetector();
+  const detectRepeat      = makeRepeatDetector();
+  const detectErrorStreak = makeErrorStreakDetector();
 
   aiTurnStart(session.mode?.name, session.backend, `[${session._turnCount + 1}]`);
   session._interrupted = false;
@@ -90,6 +92,12 @@ module.exports = async function ollamaReactLoop(session) {
     const result = await _callToolCached(session._specCache, call.name, call.input ?? {}, session.id, session.telemetry, session._touchedFiles);
     print.result(result);
     _emitDiff(call.name, result, session.id);
+
+    const { stuck: _errStuck, lastErr: _lastErr } = detectErrorStreak(result);
+    if (_errStuck) {
+      finalText = _stuckMessage(i18n.t("too many consecutive tool errors", "art arda çok fazla araç hatası"), _lastErr);
+      break;
+    }
 
     history.push({ role: "assistant", content: rawResp });
     history.push({ role: "user",      content: `<<<RESULT>>>\n${result}\n<<<END>>>` });
